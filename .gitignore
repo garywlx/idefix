@@ -36,3 +36,6 @@
 
 # CMake build directory content
 build/*
+
+# Test Data
+test/*

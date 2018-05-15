@@ -4,7 +4,7 @@
 #include_directories(/usr/local/include)
 
 # add source files for your binary
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME} main.cpp ide.h ide.cpp idefix.h idefix.cpp globals.h globals.cpp)
 
 # copy binary to parent directory build/
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ../)
