@@ -6,8 +6,8 @@
 
 namespace idefix {
 	extern std::string g_symbol;
-	extern std::map<std::string, idefix::tick_vect_t> g_ticklist;
-	extern std::map<std::string, idefix::bar_vec_t> g_barlist;
+	extern std::map<std::string, idefix::tick_deq_t> g_ticklist;
+	extern std::map<std::string, idefix::bar_deq_t> g_barlist;
 };
 
 #endif

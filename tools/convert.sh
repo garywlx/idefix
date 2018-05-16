@@ -1,13 +1,13 @@
 #!/bin/bash
 #title			:convert
-#description	:removes nullbytes and dos special characters from file
+#description	:removes nullbytes and dos special characters from fxcm csv files
 #author			:Arne Gockeln, www.arnegockeln.com
 #version		:0.1
 #notes			:requires tr and dos2unix
-#========================================================================
+#=================================================================================
 
 if [ $# -lt 1 ]; then
-	echo "This script removes nullbytes and dos special characters from file"
+	echo "This script removes nullbytes and dos special characters from fxcm csv files"
 	echo "Usage:"
 	echo "	$0 /path/to/file.csv"
 	exit 1

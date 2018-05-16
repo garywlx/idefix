@@ -4,6 +4,7 @@
 #include <iostream>
 #include <iomanip> // std::setprecision
 #include <vector>
+#include <deque>
 #include <cmath>
 #include <map>
 
@@ -24,9 +25,14 @@ namespace idefix {
 	};
 
 	/*!
-	 * Short type definition of tick vector
+	 * Short type definition of tick deque
 	 */
-	typedef std::vector<tick_struct> tick_vect_t;
+	typedef std::deque<tick_struct> tick_deq_t;
+
+	/*!
+	 * Short type definition of associative tick map
+	 */
+	typedef std::map<std::string, tick_deq_t> tick_map_t;
 
 	/*!
 	 * Overloading operator<< for tick_struct
@@ -58,12 +64,12 @@ namespace idefix {
 	 * Candle Bar Structure
 	 */
 	struct bar_struct {
+		// candle datetime
+		std::string datetime;
 		// price data
 		double high, low, open, close, volume;
 		// candle type
 		candle_type type;
-		// candle datetime
-		std::string datetime;
 		// price digits
 		int digits;
 		// vector of all ticks inside period
@@ -71,9 +77,9 @@ namespace idefix {
 	};
 
 	/*!
-	 * Short definition of bar vector
+	 * Short definition of bar deque
 	 */
-	typedef std::vector<bar_struct> bar_vec_t;
+	typedef std::deque<bar_struct> bar_deq_t;
 
 	/*!
 	 * Overloading operator<< for bar_struct
@@ -111,14 +117,26 @@ namespace idefix {
 	 * @param int	pos current tick is 0, previous tick is 1...
 	 * @return tick_struct
 	 */
-	tick_struct tick(const int pos) noexcept;
+	tick_struct tick(const int pos);
+
+	/*!
+	 * Get tick list size of current symbol
+	 * @return unsigned int
+	 */
+	unsigned int ticks();
 
 	/*!
 	 * Get bar value of position pos
 	 * @param  int	pos current bar is 0, previous bar is 1...
 	 * @return bar_struct
 	 */
-	bar_struct bar(const int pos) noexcept;
+	bar_struct bar(const int pos);
+
+	/*!
+	 * Get bar list size of current symbol
+	 * @return unsigned int
+	 */
+	unsigned int bars();
 
 	/*!
 	 * Get bar open value of position pos
@@ -195,6 +213,14 @@ namespace idefix {
 	  * @param bar_struct bar
 	  */
 	 void add_bar(idefix::bar_struct bar);
+
+	 /*!
+	  * Check if list contains the symbol
+	  */
+	 template <typename LIST_TYPE> 
+	 bool hasSymbol(LIST_TYPE list, const std::string symbol);
+
+
 
 	 void debug_bar_list();
 	 void debug_tick_list();

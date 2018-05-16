@@ -10,11 +10,11 @@ namespace idefix {
 	/*!
 	 * Global tick list
 	 */
-	std::map<std::string, idefix::tick_vect_t> g_ticklist;
+	std::map<std::string, idefix::tick_deq_t> g_ticklist;
 
 	/*!
 	 * Global bar list
 	 */
-	std::map<std::string, idefix::bar_vec_t> g_barlist;
+	std::map<std::string, idefix::bar_deq_t> g_barlist;
 	
 };
