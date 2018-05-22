@@ -9,6 +9,44 @@
 #include <map>
 
 namespace idefix {
+
+	/*!
+	 * Account Structure
+	 */
+	struct account_struct {
+		// the account id
+		unsigned int accountid;
+		// the current balance
+		double balance;
+		// the current equity
+		double equity;
+		// the profit of today
+		double today_profit;
+		// the profit of today in percent
+		double today_profit_percent;
+		// the loss of today
+		double today_loss;
+		// the loss of today in percent
+		double today_loss_percent;
+		// the account currency
+		std::string currency;
+	};
+
+	/*!
+	 * Overloading operator<< for balance_struct
+	 */
+	inline std::ostream& operator<< (std::ostream& os, const idefix::account_struct account){
+		os << "[BALANCE] acc: " << account.accountid << ";";
+		os << " bal: " << std::setprecision(2) << account.balance << " " << account.currency << ";";
+		os << " equ: " << std::setprecision(2) << account.equity << " " << account.currency << ";";
+		os << " pro: " << std::setprecision(2) << account.today_profit << " " << account.currency << ";";
+		os << " pro%:" << std::setprecision(2) << account.today_profit_percent << "%;";
+		os << " los: " << std::setprecision(2) << account.today_loss << " " << account.currency << ";";
+		os << " los%: " << std::setprecision(2) << account.today_loss_percent << "%;";
+
+		return os;
+	};
+
 	/*!
 	 * Asset Structure
 	 */

@@ -20,8 +20,16 @@ Datacenter::~Datacenter() {
  * Set current asset
  * @param const idefix::asset_struct asset
  */
-void Datacenter::set_asset(const idefix::asset_struct asset) noexcept {
+void Datacenter::set(const idefix::asset_struct asset) noexcept {
 	m_asset = asset;
+}
+
+/*!
+ * Set account
+ * @param idefix::account_struct account
+ */
+void Datacenter::set(idefix::account_struct account) noexcept {
+	m_account = account;
 }
 
 /*!
@@ -41,6 +49,30 @@ std::string Datacenter::symbol() noexcept {
 }
 
 /*!
+ * Get current balance
+ * @return double
+ */
+double Datacenter::balance() noexcept {
+	return m_account.balance;
+}
+
+/*!
+ * Get current equity
+ * @return double
+ */
+double Datacenter::equity() noexcept {
+	return m_account.equity;
+}
+
+/*!
+ * Get account information
+ * @return account_struct
+ */
+account_struct Datacenter::account() {
+	return m_account;
+}
+
+/*!
  * Get tick at position
  * @param const int pos 0 = latest, 1 = previous ...
  * @return tick_struct
@@ -52,7 +84,7 @@ tick_struct Datacenter::tick(const int pos) {
 
 	auto list = m_ticklist[symbol()];
 
-	if( pos > (list.size() - 1 ) ){
+	if( pos > (list.size() - 1) ){
 		throw std::out_of_range{"pos is out of range"};
 	}
 
@@ -168,6 +200,30 @@ void Datacenter::add_bar(idefix::bar_struct bar){
 template <typename LIST_TYPE>
 bool Datacenter::hasSymbol(LIST_TYPE list, const std::string symbol){
 	return (list.find(symbol) != list.end());
+}
+
+/*!
+ * Get latest ask price
+ * @return double
+ */
+double Datacenter::ask() noexcept {
+	return tick(0).ask;
+}
+
+/*!
+ * Get latest bid price
+ * @return double
+ */
+double Datacenter::bid() noexcept {
+	return tick(0).bid;
+}
+
+/*!
+ * Get latest spread
+ * @return double
+ */
+double Datacenter::spread() noexcept {
+	return tick(0).spread;
 }
 
 };

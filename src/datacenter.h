@@ -7,9 +7,14 @@
 namespace idefix {
 	class Datacenter {
 	private:
+		// the current asset
 		asset_struct m_asset;
+		// the tick map 
 		tick_map_t m_ticklist;
+		// the bar map
 		bar_map_t m_barlist;
+		// the account
+		account_struct m_account;
 
 	public:
 		/*!
@@ -26,7 +31,13 @@ namespace idefix {
 		 * Set current asset
 		 * @param asset_struct asset 
 		 */
-		void set_asset(const asset_struct asset) noexcept;
+		void set(const asset_struct asset) noexcept;
+
+		/*!
+		 * Set current account
+		 * @param account_struct
+		 */
+		void set(account_struct account) noexcept;
 
 		/*!
 		 * Get current active asset
@@ -91,6 +102,18 @@ namespace idefix {
 		 * @return double
 		 */
 		double balance() noexcept;
+
+		/*!
+		 * Get current equity
+		 * @return double
+		 */
+		double equity() noexcept;
+
+		/*!
+		 * Get account information
+		 * @return account_struct
+		 */
+		account_struct account();
 
 		/*!
 		 * Get tick value of position pos
