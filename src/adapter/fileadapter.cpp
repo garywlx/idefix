@@ -3,9 +3,13 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <math.h>
 
 namespace idefix {
-	FileAdapter::FileAdapter(const std::string filename){
+	FileAdapter::FileAdapter(const std::string filename, Datacenter* datacenter_ptr) {	
+		// assign datacenter ptr
+		m_datacenter_ptr = datacenter_ptr;
+
 		// call onInit callback
 		onInit();
 
@@ -17,9 +21,8 @@ namespace idefix {
 			std::exit(EXIT_FAILURE);
 		}
 
-		std::string _symbol = "EUR/USD";
-
-		tick_map_t tick_map;
+		// the symbol
+		std::string _symbol = datacenter()->symbol();		
 		// skip first line
 		std::getline(file, line);
 		// read every line
@@ -38,18 +41,14 @@ namespace idefix {
 				// convert to double
 				double bid = std::stod(fields[1]);
 				double ask = std::stod(fields[2]);
+				double spread = abs(((ask - bid) * datacenter()->asset().contract_size) * 0.1);
+
 				// make new tick
-				tick_struct tick{fields[0], bid, ask, 5};
+				tick_struct tick{_symbol, fields[0], bid, ask, spread, datacenter()->asset().decimal_places};
+				// add new tick
+				datacenter()->add_tick(tick);
 				// callback
 				onTick(tick);
-				// add tick to symbol map
-				if( hasSymbol(tick_map, _symbol) ){
-					tick_map[_symbol].push_front(tick);
-				} else {
-					tick_deq_t ticks;
-					ticks.push_front(tick);
-					tick_map.insert(std::make_pair(_symbol, ticks));
-				}
 			} catch(...){
 				onError("converting bid and ask prices");
 			}

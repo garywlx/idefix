@@ -1,17 +1,17 @@
-#ifndef BROKERADAPTER_H
-#define BROKERADAPTER_H
+#ifndef IDEFIX_BROKERADAPTER_H
+#define IDEFIX_BROKERADAPTER_H
 
 #include <iostream>
-#include "../ide.h"
+#include "../datatypes.h"
+#include "../datacenter.h"
 
 /*!
  * Abstract Base Class
  */
 namespace idefix {
 	class BrokerAdapter {
-	private:
-		std::string m_symbol;
-		tick_map_t m_tick_map;
+	protected:
+		Datacenter* m_datacenter_ptr;
 
 	public:
 		void init() {
@@ -37,11 +37,11 @@ namespace idefix {
 		}
 
 		/*!
-		 * Add tick to tick map
-		 * @param const tick_struct
+		 * Datacenter
+		 * @return [description]
 		 */
-		void add_tick(const tick_struct tick){
-			
+		Datacenter* datacenter(){
+			return m_datacenter_ptr;
 		}
 	};
 };
