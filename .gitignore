@@ -39,3 +39,6 @@ build/*
 
 # Test Data
 test/*
+
+# libs directory
+libs/*
