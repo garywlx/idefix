@@ -8,7 +8,7 @@
     		"variants": [
     			{
     				"name": "clean & build",
-    				"shell_cmd": "cd ${project_path}/tools/ && ./rebuild.sh"
+    				"shell_cmd": "cd ${project_path}/scripts/ && ./rebuild.sh"
     			}
     		]
     	}
