@@ -15,3 +15,69 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include <iostream>
+#include "FIXApp.h"
+
+using namespace std;
+
+int main(int argc, char** argv){
+
+  try {
+
+    if (argc != 2) {
+      throw invalid_argument(std::string("Usage: ") + argv[0] + " cfgfile");
+    }
+
+    const string client_conf_file(argv[1]);
+
+    // init quickfix
+    FIXApp app;
+    // Start session and logon
+    app.StartSession(client_conf_file);
+
+    while(true){
+      int command = 0;
+      bool exit = false;
+      cin >> command;
+
+      switch(command){
+        case 0: // Exit application
+          exit = true;
+          break;
+        case 1: // Get positions
+          app.GetPositions();
+          break;
+        case 2: // Subscribe to MarketData
+          app.SubscribeMarketData();
+          break;
+        case 3: // Unsubscribe to market data
+          app.UnsubscribeMarketData();
+          break;
+        case 4: // Send market order
+          break;
+      }
+
+      if(exit){
+        break;
+      }
+    }
+
+    // End Session and logout
+    app.EndSession();
+
+    while(true){
+      // Wait
+    }
+
+  } catch(exception& e){
+    cout << e.what() << endl;
+    return EXIT_FAILURE;
+  } catch(...){
+    cout << "Other exception." << endl;
+    return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
+}
+
