@@ -7,8 +7,16 @@
 #include <deque>
 #include <cmath>
 #include <map>
+#include <chrono>
+#include <date/date.h>
+#include "times.h"
 
 namespace idefix {
+
+	/*!
+	 * Short type definition for system clock time point
+	 */
+	typedef std::chrono::system_clock::time_point sys_time_point_t;
 
 	/*!
 	 * Account Structure
@@ -82,8 +90,10 @@ namespace idefix {
 	struct tick_struct {
 		// tick symbol
 		std::string symbol;
+		// tick datetime string
+		std::string datetime_str;
 		// tick datetime
-		std::string datetime;
+		sys_time_point_t datetime;
 		// bid price
 		double bid;
 		// ask price
@@ -108,6 +118,7 @@ namespace idefix {
 	 * Overloading operator<< for tick_struct
 	 */
 	inline std::ostream& operator<< (std::ostream& os, const idefix::tick_struct tick){
+		using date::operator<<;
 		os << "[TICK] " << tick.symbol << ";";
 		os << " dt: " << tick.datetime << ";";
 		os.precision(tick.decimal_places);
@@ -138,16 +149,20 @@ namespace idefix {
 	struct bar_struct {
 		// the symbol of this bar
 		std::string symbol;
-		// candle datetime
-		std::string datetime;
+		// candle datetime open
+		sys_time_point_t tp_open;
+		// candle datetime close
+		sys_time_point_t tp_close;
 		// price data
-		double high, low, open, close, volume;
+		double high, low, open, close;
 		// candle type
 		candle_type type;
-		// price digits
-		int digits;
+		// price decimal places
+		unsigned int decimal_places;
 		// vector of all ticks inside period
-		std::vector<tick_struct*> tick_v;
+		tick_deq_t ticks;
+		// tick count
+		unsigned int volume;
 	};
 
 	/*!
@@ -165,15 +180,17 @@ namespace idefix {
 	 */
 	inline std::ostream& operator<< (std::ostream& os, const idefix::bar_struct bar){
 		os << "[BAR] " << bar.symbol << ";";
-		os << " dt: " << bar.datetime << ";";
-		os.precision(bar.digits);
+		using date::operator<<;
+		os << " tp_o: " << bar.tp_open << ";";
+		os << " tp_c: " << bar.tp_close << ";"; 	
+		os.precision(bar.decimal_places);
 		os << " O: " << std::fixed << bar.open << ";";
 		os << " H: " << std::fixed << bar.high << ";";
 		os << " L: " << std::fixed << bar.low << ";";
 		os << " C: " << std::fixed << bar.close << ";";
-		os << " V: " << bar.tick_v.size() << ";";
+		os << " V: " << bar.volume << ";";
 		os << " T: " << (bar.type == idefix::candle_type::bullish ? "bullish" : "bearish") << ";";
-		os << " D: " << bar.digits << ";";
+		os << " dp: " << bar.decimal_places << ";";
 		return os;
 	}
 

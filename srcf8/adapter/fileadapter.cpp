@@ -4,20 +4,23 @@
 #include <vector>
 #include <string>
 #include <math.h>
+#include <chrono>
+#include "../times.h"
 
 namespace idefix {
 	FileAdapter::FileAdapter(const std::string filename, Datacenter* datacenter_ptr) {	
 		// assign datacenter ptr
 		m_datacenter_ptr = datacenter_ptr;
 
-		// call onInit callback
-		onInit();
+		// call datacenter init
+		datacenter()->on_init();
 
 		std::string line;
 		// load file
 		std::ifstream file(filename, std::ios::binary);
 
 		if( ! file.is_open() ){
+			datacenter()->on_error("read file");
 			std::exit(EXIT_FAILURE);
 		}
 
@@ -44,35 +47,19 @@ namespace idefix {
 				double spread = abs(((ask - bid) * datacenter()->asset().contract_size) * 0.1);
 
 				// make new tick
-				tick_struct tick{_symbol, fields[0], bid, ask, spread, datacenter()->asset().decimal_places};
+				auto tp = convert::to_time_point(fields[0]);
+				// std::cout << tp.time_since_epoch() << std::endl;
+				tick_struct tick{_symbol, fields[0], tp, bid, ask, spread, datacenter()->asset().decimal_places};
 				// add new tick
 				datacenter()->add_tick(tick);
-				// callback
-				onTick(tick);
 			} catch(...){
-				onError("converting bid and ask prices");
+				datacenter()->on_error("converting bid and ask prices");
 			}
 		}
 
 		file.close();
 		
 		// Call exit callback
-		onExit();
-	}
-
-	void FileAdapter::onError(const std::string &error){
-		std::cout << "[onError] " << error << std::endl;
-	}
-
-	void FileAdapter::onTick(const idefix::tick_struct &tick){
-		std::cout << tick << std::endl;
-	}
-
-	void FileAdapter::onInit() {
-		std::cout << "[onInit]" << std::endl;
-	}
-
-	void FileAdapter::onExit(){
-		std::cout << "[onExit]" << std::endl;
+		datacenter()->on_exit();
 	}
 };

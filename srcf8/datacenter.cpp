@@ -1,4 +1,5 @@
 #include "datacenter.h"
+#include <date/date.h>
 
 namespace idefix {
 
@@ -6,7 +7,8 @@ namespace idefix {
  * Constructor
  */
 Datacenter::Datacenter(asset_struct asset): m_asset(asset) {
-
+	// defaults to 60 seconds
+	set_lowest_bar_period(60);
 }
 
 /*!
@@ -30,6 +32,14 @@ void Datacenter::set(const idefix::asset_struct asset) noexcept {
  */
 void Datacenter::set(idefix::account_struct account) noexcept {
 	m_account = account;
+}
+
+/*!
+ * Set lowest bar period
+ * @param unsigned int period
+ */
+void Datacenter::set_lowest_bar_period(const unsigned int period) noexcept {
+	m_bar_period_seconds = period;
 }
 
 /*!
@@ -78,7 +88,7 @@ account_struct Datacenter::account() {
  * @return tick_struct
  */
 tick_struct Datacenter::tick(const int pos) {
-	if( ! hasSymbol(m_ticklist, symbol()) ){
+	if( ! has_symbol(m_ticklist, symbol()) ){
 		throw std::runtime_error{"Symbol " + symbol() + " not found."};
 	}
 
@@ -96,7 +106,7 @@ tick_struct Datacenter::tick(const int pos) {
  * @return unsigned int
  */
 unsigned int Datacenter::ticks(){
-	if( ! hasSymbol(m_ticklist, symbol()) ){
+	if( ! has_symbol(m_ticklist, symbol()) ){
 		throw std::runtime_error{"Symbol " + symbol() + " not found."};
 	}
 
@@ -111,7 +121,7 @@ unsigned int Datacenter::ticks(){
  * @return bar_struct
  */
 bar_struct Datacenter::bar(const int pos) {
-	if( ! hasSymbol(m_barlist, symbol() )){
+	if( ! has_symbol(m_barlist, symbol() )){
 		throw std::runtime_error{"Symbol " + symbol() + "not found."};
 	}
 
@@ -129,7 +139,7 @@ bar_struct Datacenter::bar(const int pos) {
  * @return unsigned int
  */
 unsigned int Datacenter::bars(){
-	if( ! hasSymbol(m_barlist, symbol()) ){
+	if( ! has_symbol(m_barlist, symbol()) ){
 		throw std::runtime_error{"Symbol " + symbol() + " not found."};
 	}
 
@@ -138,34 +148,15 @@ unsigned int Datacenter::bars(){
 	return list.size();	
 }
 
-
-void Datacenter::debug_bar_list(){
-	auto list = m_barlist[symbol()];
-	auto it = list.begin();
-	std::cout << "[BARLIST] " << symbol() << std::endl;
-	while(it != list.end()){
-		std::cout << *it << std::endl;
-		it++;
-	} 
-}
-
-void Datacenter::debug_tick_list(){
-	auto list = m_ticklist[symbol()];
-	auto it = list.begin();
-	std::cout << "[TICKLIST] " << symbol() << std::endl;
-	while(it != list.end()){
-		std::cout << *it << std::endl;
-		it++;
-	} 
-}
-
 /*!
  * Add new tick to global m_ticklist for current symbol
+ * Also add tick to current open bar, or create a new bar with this tick
+ * 
  * @param tick_struct tick
  */
 void Datacenter::add_tick(idefix::tick_struct tick){
 	// search for symbol in ticklist
-	if( hasSymbol(m_ticklist, tick.symbol) ){
+	if( has_symbol(m_ticklist, tick.symbol) ){
 		// found, add tick
 		m_ticklist[tick.symbol].push_front(tick);
 	} else {
@@ -174,6 +165,12 @@ void Datacenter::add_tick(idefix::tick_struct tick){
 		ticks.push_front(tick);
 		m_ticklist.insert(std::make_pair(tick.symbol, ticks));
 	}
+
+	// add tick to open bar, or create a new bar with this tick as first element
+	
+
+	// call event on_tick
+	on_tick(tick);
 }
 
 /*!
@@ -182,8 +179,7 @@ void Datacenter::add_tick(idefix::tick_struct tick){
  */
 void Datacenter::add_bar(idefix::bar_struct bar){
 	// search for symbol in barlist
-	//if(m_barlist.find(symbol()) != m_barlist.end()){
-	if( hasSymbol(m_barlist, symbol()) ){
+	if( has_symbol(m_barlist, symbol()) ){
 		// found, add bar
 		m_barlist[symbol()].push_front(bar);
 	} else {
@@ -198,7 +194,7 @@ void Datacenter::add_bar(idefix::bar_struct bar){
  * Check if list contains the symbol
  */
 template <typename LIST_TYPE>
-bool Datacenter::hasSymbol(LIST_TYPE list, const std::string symbol){
+bool Datacenter::has_symbol(LIST_TYPE list, const std::string symbol){
 	return (list.find(symbol) != list.end());
 }
 
@@ -226,4 +222,63 @@ double Datacenter::spread() noexcept {
 	return tick(0).spread;
 }
 
+/*!
+ * Callback initializing 
+ */
+void Datacenter::on_init() {
+	std::cout << "onInit not yet implemented." << std::endl;
+};
+
+/*!
+ * Callback for every new tick
+ * @param const tick_struct&
+ */
+void Datacenter::on_tick(const tick_struct& tick){
+	std::cout << tick << std::endl;
+};
+
+/*!
+ * Callback if an error occours
+ * @param const std::string&
+ */
+void Datacenter::on_error(const std::string& error){
+	std::cout << "[ERROR] " << error << std::endl;
+};
+
+/*!
+ * Callback if balance changes
+ */
+void Datacenter::on_balance(){
+	std::cout << "[BALANCE] " << balance() << std::endl;
+};
+
+/*!
+ * Callback for every new candle
+ */
+void Datacenter::on_candle(const bar_struct& candle){
+	// add bar to list
+	add_bar(candle);
+
+	std::cout << candle << std::endl;
+};
+
+/*!
+ * Callback when the datacenter exits
+ */
+void Datacenter::on_exit(){
+	std::cout << "onExit not yet implemented." << std::endl;
+}
+
+/*!
+ * Returns true if the period for a new bar is over
+ * @return [description]
+ */
+bool Datacenter::is_next_bar_time() {
+	using namespace std::chrono;
+
+	steady_clock::time_point now_tp = steady_clock::now();
+	duration<double> time_span = duration_cast<duration<double> >(m_last_bar_tp - now_tp);
+
+	return ( time_span.count() >= m_bar_period_seconds );
+}
 };

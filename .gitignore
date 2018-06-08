@@ -42,3 +42,13 @@ test/*
 
 # libs directory
 libs/*
+
+# credentials
+fxcm.credentials
+
+# clion
+cmake-build-debug/*
+cmake-build-release/*
+.idea/*
+
+.DS_Store
