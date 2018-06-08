@@ -8,4 +8,4 @@ set(CMAKE_CXX_STANDARD 11)
 project(idefix VERSION 0.1 LANGUAGES CXX)
 
 # import src/CMakeLists.txt
-add_subdirectory(srcqf)
+add_subdirectory(src)
