@@ -1,25 +1,13 @@
 /*!
  *  Copyright(c)2018, Arne Gockeln. All rights reserved.
  *  http://www.arnegockeln.com
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef IDEFIX_FIXAPP_H
-#define IDEFIX_FIXAPP_H
+#ifndef IDEFIX_FIXMANAGER_H
+#define IDEFIX_FIXMANAGER_H
 
 #include <iostream>
 #include <vector>
+#include "types.h"
 #include <quickfix/Application.h>
 #include <quickfix/FileLog.h>
 #include <quickfix/FileStore.h>
@@ -38,6 +26,10 @@
 #include <quickfix/fix44/SecurityList.h>
 #include <quickfix/fix44/TradingSessionStatus.h>
 #include <quickfix/fix44/TradingSessionStatusRequest.h>
+#include <quickfix/fix44/OrderCancelRequest.h>
+#include <quickfix/fix44/OrderCancelReject.h>
+#include <quickfix/fix44/TradeCaptureReportRequest.h>
+#include <quickfix/fix44/TradeCaptureReport.h>
 #include <quickfix/MessageCracker.h>
 #include <quickfix/Session.h>
 #include <quickfix/SessionID.h>
@@ -46,8 +38,9 @@
 
 using namespace std;
 using namespace FIX;
+using namespace IDEFIX;
 
-class FIXApp: public MessageCracker, public Application {
+class FIXManager: public MessageCracker, public Application {
 private:
   SessionSettings *_settings;
   FileStoreFactory *_store_factory;
@@ -56,14 +49,14 @@ private:
 
   // used as a counter for producing unique request identifiers
   unsigned int _requestID;
-  // obsolete
- // SessionID _sessionID;
   // the session id for market data, such as tick prices
   SessionID _market_sessionID;
   // the session id for order management, such as open/closing positions
   SessionID _order_sessionID;
   // hold the account ids in a list
   vector<string> _list_accountID;
+  // hold the last bid and ask price of symbol
+  vector<IDEFIX::MarketSnapshot> _list_market_snapshot;
 
   // Custom FXCM FIX fields
   enum FXCM_FIX_FIELDS
@@ -88,8 +81,11 @@ private:
     FXCM_PARAM_VALUE           = 9018
   };
 
+  // add market snapshot with last price information
+  void addMarketSnapshot(const FIX::Symbol symbol, const FIX::Price bid, const FIX::Price ask, const FIX::Price spread, const std::string sending_time);
+
 public:
-  FIXApp();
+  FIXManager();
   // FIX Namespace. These are callbacks which indicate when the session is created,
   // when we logon and logout, and when messages are exchanged
   void onCreate(const SessionID& sessionID);
@@ -114,42 +110,58 @@ public:
   void onMessage(const FIX44::MarketDataRequestReject& mdr, const SessionID& session_ID);
   void onMessage(const FIX44::MarketDataSnapshotFullRefresh& mds, const SessionID& session_ID);
   void onMessage(const FIX44::ExecutionReport& er, const SessionID& session_ID);
+  void onMessage(const FIX44::OrderCancelReject& ocr, const SessionID& session_ID);
+  void onMessage(const FIX44::TradeCaptureReport& tcr, const SessionID& session_ID);
+  void onMessage(const FIX44::TradeCaptureReportAck& ack, const SessionID& session_ID);
+  void onMessage(const FIX44::TradeCaptureReportRequest& tcrr, const SessionID& session_ID);
+  void onMessage(const FIX44::TradeCaptureReportRequestAck& ack, const SessionID& session_ID);
+  
 
   // Starts the FIX session. Throws FIX::ConfigError exception if our configuration settings
   // do not pass validation required to construct SessionSettings
-  void StartSession(const string settingsfile);
+  void startSession(const string settingsfile);
   // Logout and end session
-  void EndSession();
+  void endSession();
 
   // Sends TradingSessionStatusRequest message in order to receive as a response the
   // TradingSessionStatus message
-  void GetTradingStatus();
+  void getTradingStatus();
   // Sends the CollateralInquiry message in order to receive as a response the
   // CollateralReport message.
-  void GetAccounts();
+  void getAccounts();
   // Sends RequestForPositions which will return PositionReport messages if positions
   // matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
   // sent with the acknowledgement that no positions exist. In our example, we request
   // positions for all accounts under our login
-  void GetPositions();
-  // Subscribes to the EUR/USD trading security
-  void SubscribeMarketData();
-  // Unsubscribes from the EUR/USD trading security
-  void UnsubscribeMarketData();
-  // Sends a basic NewOrderSingle message to buy EUR/USD at the
-  // current market price
-  void MarketOrder();
+  void getPositions();
+  // Subscribes to a trading security
+  void subscribeMarketData(const FIX::Symbol symbol);
+  // Unsubscribes from a trading security
+  void unsubscribeMarketData(const FIX::Symbol symbol);
+  // sends a market order with fill or kill validity
+  void marketOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty);
+  // Send limit order at given price with fill or kill validity
+  void limitOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price);
+  // sends a stop order at given price with fill or kill validity
+  void stopOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price);
+  
+  void sendTradeCaptureRequest();
   // Generate string value used to populate the fields in each message
   // which are used as a custom identifier
-  string NextRequestID();
+  string nextRequestID();
   // Adds string accountIDs to our vector<string> being used to
   // account for the accountIDs under our login
-  void RecordAccount(string accountID);
+  void recordAccount(string accountID);
 
-  const FIX::Dictionary* GetSessionSettingsPtr(const SessionID& session_ID);
-  bool IsMarketDataSession(const SessionID& session_ID);
-  bool IsOrderSession(const SessionID& session_ID);
+  const FIX::Dictionary* getSessionSettingsPtr(const SessionID& session_ID);
+  bool isMarketDataSession(const SessionID& session_ID);
+  bool isOrderSession(const SessionID& session_ID);
+
+  void closeAllPositions(const FIX::Symbol symbol);
+
+  // Returns last market snapshot for symbol
+  IDEFIX::MarketSnapshot marketSnapshot(const FIX::Symbol symbol) const;
 };
 
 
-#endif //IDEFIX_FIXAPP_H
+#endif //IDEFIX_FIXMANAGER_H

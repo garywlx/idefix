@@ -1,25 +1,15 @@
 /*!
  *  Copyright(c)2018, Arne Gockeln. All rights reserved.
  *  http://www.arnegockeln.com
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <iostream>
 #include <thread>
 #include <chrono>
-#include "FIXApp.h"
+
+//#define SHOW_MARKETSNAPSHOT
+
+#include "FIXManager.h"
 
 using namespace std;
 
@@ -33,10 +23,22 @@ int main(int argc, char** argv){
 
     const string client_conf_file(argv[1]);
 
+    cout << "Options: " << endl;
+    cout << "  0=Exit" << endl;
+    cout << "  1=Subscribe Marketdata" << endl;
+    cout << "  2=Unsubscribe Marketdata" << endl;
+    cout << "  3=Get Positions" << endl;
+    cout << "  4=Send market order" << endl;
+    cout << "  5=Close all positions" << endl;
+    cout << "  6=Account Status" << endl;
+
     // init quickfix
-    FIXApp app;
+    FIXManager fixmanager;
     // Start session and logon
-    app.StartSession(client_conf_file);
+    fixmanager.startSession(client_conf_file);
+
+    IDEFIX::MarketSnapshot ms;
+    string input_value;
 
     while(true){
       int command = 0;
@@ -44,19 +46,57 @@ int main(int argc, char** argv){
       cin >> command;
 
       switch(command){
-        case 0: // Exit application
+        case 0: // Exit fixmanagerlication
+          cout << "--> Exiting..." << endl;
           exit = true;
           break;
-        case 1: // Get positions
-          app.GetPositions();
+        case 1: // Subscribe to MarketData
+          cout << "--> Subscribe EUR/USD, USD/CHF" << endl;
+          fixmanager.subscribeMarketData(Symbol("EUR/USD"));
+          // fixmanager.subscribeMarketData(Symbol("USD/CHF"));
           break;
-        case 2: // Subscribe to MarketData
-          app.SubscribeMarketData();
+        case 2: // Unsubscribe from market data
+          cout << "--> Unsubscribe EUR/USD, USD/CHF" << endl;
+          fixmanager.unsubscribeMarketData(Symbol("EUR/USD"));
+          // fixmanager.unsubscribeMarketData(Symbol("USD/CHF"));
           break;
-        case 3: // Unsubscribe to market data
-          app.UnsubscribeMarketData();
+        case 3: // Get positions
+          cout << "--> Get positions and trades..." << endl;
+          fixmanager.getPositions();
+          
           break;
         case 4: // Send market order
+          ms = fixmanager.marketSnapshot(Symbol("EUR/USD"));
+          if( ms.bid > 0 && ms.ask > 0 ){
+            double stoploss = 0;
+            double takeprofit = 0;
+
+            stoploss = ms.ask - 0.0020;
+            takeprofit = ms.bid + 0.0020;
+
+            cout << "--> marketOrder 10.000 Buy Entry@" << ms.ask << " SL@" << stoploss << " TP@" << takeprofit << endl;
+
+            // open market order
+            // fixmanager.marketOrder(Symbol("EUR/USD"), FIX::Side_BUY, 10000);
+            // set stop order
+            // fixmanager.stopOrder(Symbol("EUR/USD"), FIX::Side_SELL, 10000, stoploss);
+            // set take profit order
+            // fixmanager.stopOrder(Symbol("EUR/USD"), FIX::Side_SELL, 10000, takeprofit);
+          }
+
+          break;
+        case 5: // close all positions
+          cout << "--> Close all positions..." << endl;
+          ms = fixmanager.marketSnapshot(Symbol("EUR/USD"));
+          
+          // send stop order
+          fixmanager.stopOrder(Symbol("EUR/USD"), FIX::Side_SELL, 10000, ms.ask);
+          // send position report
+          fixmanager.getPositions();
+          break;
+        case 6: // Account/Collateral Report
+          cout << "--> Get Account" << endl;
+          fixmanager.getAccounts();
           break;
       }
 
@@ -66,7 +106,7 @@ int main(int argc, char** argv){
     }
 
     // End Session and logout
-    app.EndSession();
+    fixmanager.endSession();
 
     // give another 10 seconds to clean up
     std::this_thread::sleep_for (std::chrono::seconds(1));
