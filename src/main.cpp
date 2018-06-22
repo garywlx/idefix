@@ -31,6 +31,7 @@ int main(int argc, char** argv){
     cout << "  4=Send market order" << endl;
     cout << "  5=Close all positions" << endl;
     cout << "  6=Account Status" << endl;
+    cout << "  7=Trade Capture Report" << endl;
 
     // init quickfix
     FIXManager fixmanager;
@@ -61,42 +62,23 @@ int main(int argc, char** argv){
           // fixmanager.unsubscribeMarketData(Symbol("USD/CHF"));
           break;
         case 3: // Get positions
-          cout << "--> Get positions and trades..." << endl;
-          fixmanager.getPositions();
-          
+          cout << "--> query Positions" << endl;
+          fixmanager.queryPositionReport(PosReqType_POSITIONS);
           break;
-        case 4: // Send market order
-          ms = fixmanager.marketSnapshot(Symbol("EUR/USD"));
-          if( ms.bid > 0 && ms.ask > 0 ){
-            double stoploss = 0;
-            double takeprofit = 0;
-
-            stoploss = ms.ask - 0.0020;
-            takeprofit = ms.bid + 0.0020;
-
-            cout << "--> marketOrder 10.000 Buy Entry@" << ms.ask << " SL@" << stoploss << " TP@" << takeprofit << endl;
-
-            // open market order
-            // fixmanager.marketOrder(Symbol("EUR/USD"), FIX::Side_BUY, 10000);
-            // set stop order
-            // fixmanager.stopOrder(Symbol("EUR/USD"), FIX::Side_SELL, 10000, stoploss);
-            // set take profit order
-            // fixmanager.stopOrder(Symbol("EUR/USD"), FIX::Side_SELL, 10000, takeprofit);
-          }
-
-          break;
-        case 5: // close all positions
-          cout << "--> Close all positions..." << endl;
-          ms = fixmanager.marketSnapshot(Symbol("EUR/USD"));
-          
-          // send stop order
-          fixmanager.stopOrder(Symbol("EUR/USD"), FIX::Side_SELL, 10000, ms.ask);
-          // send position report
-          fixmanager.getPositions();
+        case 4: // Query trades
+          cout << "--> query Trades" << endl;
+          fixmanager.queryPositionReport(PosReqType_TRADES);
           break;
         case 6: // Account/Collateral Report
           cout << "--> Get Account" << endl;
-          fixmanager.getAccounts();
+          fixmanager.queryAccounts();
+          break;
+        case 7:
+          cout << "--> Position to close: ";
+          cin >> input_value;
+          if( "" != input_value ) {
+            fixmanager.queryClosePosition(input_value, Symbol("EUR/USD"), FIX::Side_BUY, 10000);
+          }
           break;
       }
 

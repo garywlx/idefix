@@ -5,6 +5,8 @@
 #include "FIXManager.h"
 #include <cmath>
 
+// #define DEBUG_MARKETSNAPSHOT
+
 FIXManager::FIXManager() {
   // Initialize unsigned int requestID to 1. We will use this as a counter
   // for making request ids
@@ -86,6 +88,12 @@ void FIXManager::fromAdmin(const Message &message, const SessionID &session_ID)
   // Call MessageCracker.crack method to handle the message by one of our
   // overloaded onMessage methods below
   //cout << "[fromAdmin] " << message << endl;
+  string msgtype = message.getHeader().getField(FIELD::MsgType);
+
+  if(msgtype == MsgType_PositionReport){
+    cout << "[fromAdmin] " << message << endl;
+  }
+  
   crack(message, session_ID);
 }
 
@@ -137,7 +145,7 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
   }
 
   // Request accounts under our login
-  getAccounts();
+  queryAccounts();
 
   // ** Note on Text(58)
   // You will notice that Text(58) field is always set to "Market is closed. Any trading functionality
@@ -183,7 +191,11 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
 
     string sub_type = sub_group.getField(FIELD::PartySubIDType);
     string sub_value = sub_group.getField(FIELD::PartySubID);
-    cout << "    " << sub_type << " -> " << sub_value << endl;
+    if( sub_type == "4000" ){
+      cout << "    Hedging? " << " -> " << (sub_value == "0" ? "Netting." : sub_value) << endl; 
+    } else {
+      cout << "    " << sub_type << " -> " << sub_value << endl;  
+    }
   }
 
   // Add the accountID to our vector<string> being used to track all accounts under the login
@@ -216,16 +228,27 @@ void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& ses
   string accountID = pr.getField(FIELD::Account);
   string symbol = pr.getField(FIELD::Symbol);
   string positionID = pr.getField(FXCM_POS_ID);
-  string pos_open_time = pr.getField(FXCM_POS_OPEN_TIME);
+  string pos_open_time = pr.getField(FXCM_POS_OPEN_TIME);  
+  string currency = pr.getField(FIELD::Currency);
+  string settleprice = pr.getField(FIELD::SettlPrice);
+  string pos_margin = pr.getField(FXCM_USED_MARGIN);
 
   cout << "[onMessage:PositionReport]" << endl;
   cout << "  Account -> " << accountID << endl;
   cout << "  Symbol -> " << symbol << endl;
   cout << "  PositionID -> " << positionID << endl;
   cout << "  Open Time -> " << pos_open_time << endl;
-  cout << "  Currency -> " << pr.getField(FIELD::Currency) << endl;
-  cout << "  SettlPrice -> " << pr.getField(FIELD::SettlPrice) << endl;
+  cout << "  Currency -> " << currency << endl;
+  cout << "  SettlPrice -> " << settleprice << endl;
+  cout << "  Margin -> " << pos_margin << endl;
 
+  // only for closed positions
+  if( pr.getField(FIELD::PosReqType) == "1" ){
+    string pos_close_price = pr.getField(FXCM_CLOSE_SETTLE_PRICE);
+    string pos_close_pl = pr.getField(FXCM_CLOSE_PNL);  
+    cout << "  P/L -> " << pos_close_pl << endl;  
+    cout << "  ClosePrice -> " << pos_close_price << endl;
+  }
 }
 
 /*!
@@ -280,7 +303,7 @@ void FIXManager::onMessage(const FIX44::MarketDataSnapshotFullRefresh &mds, cons
   // save/update last snapshot
   addMarketSnapshot(Symbol(symbol), bid_price, ask_price, spread, entry_date);
 
-#ifdef SHOW_MARKETSNAPSHOT
+#ifdef DEBUG_MARKETSNAPSHOT
   cout << symbol << " " << entry_date << " " << " Bid - " << bid_price << " Ask " << ask_price << " Spread " << std::fixed << spread << endl;
 #endif
 }
@@ -380,7 +403,7 @@ void FIXManager::getTradingStatus() {
 }
 
 // Sends the CollateralInquiry message in order to receive as a response the CollateralReport message
-void FIXManager::getAccounts(){
+void FIXManager::queryAccounts(){
   // Request CollateralReport message. We will receive a CollateralReport for each
   // account under our login
   FIX44::CollateralInquiry request;
@@ -388,58 +411,6 @@ void FIXManager::getAccounts(){
   request.setField(TradingSessionID("FXCM"));
   request.setField(SubscriptionRequestType(SubscriptionRequestType_SNAPSHOT));
   Session::sendToTarget(request, _order_sessionID);
-}
-
-// Sends RequestForPositions which will return PositionReport messages if positions
-// matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
-// sent with the acknoledgement that no positions exist. In our example, we request
-// positions for all accounts under our login.
-void FIXManager::getPositions() {
-  // Here we will get positions for each account under our login. To do this,
-  // we will send a RequestForPositions message that contains the accountID
-  // associated with our request. For each account in our list, we send RequestForPositions.
-  int total_accounts = (int) _list_accountID.size();
-  for(int i = 0; i < total_accounts; i++){
-    string accountID = _list_accountID.at(i);
-
-    // Set default fields
-    FIX44::RequestForPositions request;
-    request.setField(PosReqID(nextRequestID()));
-    request.setField(PosReqType(PosReqType_POSITIONS));
-
-    // AccountID for the request. This must be set for routing purposes. We must
-    // also set the Parties AccountID field in the NoPartySubIDs group
-    request.setField(Account(accountID));
-    request.setField(SubscriptionRequestType(SubscriptionRequestType_SNAPSHOT));
-    request.setField(AccountType(AccountType_ACCOUNT_IS_CARRIED_ON_NON_CUSTOMER_SIDE_OF_BOOKS_AND_IS_CROSS_MARGINED));
-    request.setField(TransactTime());
-    request.setField(ClearingBusinessDate());
-    request.setField(TradingSessionID("FXCM"));
-
-    // Set NoPartyIDs group. These values are always as seen below
-    request.setField(NoPartyIDs(1));
-    FIX44::RequestForPositions::NoPartyIDs parties_group;
-    parties_group.setField(PartyID("FXCM ID"));
-    parties_group.setField(PartyIDSource('D'));
-    parties_group.setField(PartyRole(3));
-    parties_group.setField(NoPartySubIDs(1));
-
-    // Set NoPartySubIDs group
-    FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
-    sub_parties.setField(PartySubIDType(PartySubIDType_SECURITIES_ACCOUNT_NUMBER));
-
-    // Set Parties AccountID
-    sub_parties.setField(PartySubID(accountID));
-
-    // Add NoPartySubIds group
-    parties_group.addGroup(sub_parties);
-
-    // Add NoPartyIDs group
-    request.addGroup(parties_group);
-
-    // Send request
-    Session::sendToTarget(request, _order_sessionID);
-  }
 }
 
 // Subscribes to the EUR/USD trading security
@@ -587,14 +558,9 @@ void FIXManager::sendTradeCaptureRequest() {
   FIX44::TradeCaptureReportRequest request;
   request.setField(TradeRequestID("TradeRequest_" + nextRequestID()));
   request.setField(TradeRequestType(0)); // all trades
-  request.setField(Text());
   request.setField(SubscriptionRequestType(SubscriptionRequestType_SNAPSHOT));
-  request.setField(ExecID());
-  request.setField(ExecType());
-  request.setField(OrderID());
-  request.setField(ClOrdID());
 
-  Session::sendToTarget(request, _market_sessionID);
+  Session::sendToTarget(request, _order_sessionID);
 }
 
 // Generate string value used to populate the fields in each message
@@ -708,4 +674,68 @@ IDEFIX::MarketSnapshot FIXManager::marketSnapshot(const FIX::Symbol symbol) cons
  */
 void FIXManager::closeAllPositions(const FIX::Symbol symbol){
 
+}
+
+/*!
+ * Send request for PositionReport
+ * @param type FIX::PosReqType http://fixwiki.fixtrading.org/index.php/PosReqType
+ */
+void FIXManager::queryPositionReport(const FIX::PosReqType type){
+
+  string accountID = _list_accountID.at(0);
+
+  // Set default fields
+  FIX44::RequestForPositions request;
+  request.setField(PosReqID("PosRequest_" + nextRequestID()));
+  request.setField(PosReqType(type));
+
+  // AccountID for the request. This must be set for routing purposes. We must
+  // also set the Parties AccountID field in the NoPartySubIDs group
+  request.setField(Account(accountID));
+  request.setField(SubscriptionRequestType(SubscriptionRequestType_SNAPSHOT));
+  request.setField(AccountType(AccountType_ACCOUNT_IS_CARRIED_ON_NON_CUSTOMER_SIDE_OF_BOOKS_AND_IS_CROSS_MARGINED));
+  request.setField(TransactTime());
+  request.setField(ClearingBusinessDate());
+  request.setField(TradingSessionID("FXCM"));
+
+  // Set NoPartyIDs group. These values are always as seen below
+  request.setField(NoPartyIDs(1));
+  FIX44::RequestForPositions::NoPartyIDs parties_group;
+  parties_group.setField(PartyID("FXCM ID"));
+  parties_group.setField(PartyIDSource('D'));
+  parties_group.setField(PartyRole(3));
+  parties_group.setField(NoPartySubIDs(1));
+
+  // Set NoPartySubIDs group
+  FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
+  sub_parties.setField(PartySubIDType(PartySubIDType_SECURITIES_ACCOUNT_NUMBER));
+
+  // Set Parties AccountID
+  sub_parties.setField(PartySubID(accountID));
+
+  // Add NoPartySubIds group
+  parties_group.addGroup(sub_parties);
+
+  // Add NoPartyIDs group
+  request.addGroup(parties_group);
+
+  Session::sendToTarget(request, _order_sessionID);
+}
+
+/*!
+ * Send message to close position
+ * @param position_id [description]
+ */
+void FIXManager::queryClosePosition(const std::string position_id, const FIX::Symbol symbol, const FIX::Side side, const FIX::OrderQty qty){
+  FIX44::NewOrderSingle order;
+  order.setField(ClOrdID(nextRequestID()));
+  order.setField(Account(_list_accountID.at(0)));
+  order.setField(Symbol(symbol));
+  order.setField(Side(side));
+  order.setField(TransactTime());
+  order.setField(OrderQty(qty));
+  order.setField(OrdType(OrdType_MARKET));
+  order.setField(FXCM_POS_ID, position_id);
+
+  Session::sendToTarget(order, _order_sessionID);
 }

@@ -64,6 +64,7 @@ private:
     FXCM_FIELD_PRODUCT_ID      = 9080,
     FXCM_POS_ID                = 9041,
     FXCM_POS_OPEN_TIME         = 9042,
+    FXCM_CLOSE_SETTLE_PRICE    = 9043,
     FXCM_ERROR_DETAILS         = 9029,
     FXCM_REQUEST_REJECT_REASON = 9025,
     FXCM_USED_MARGIN           = 9038,
@@ -128,12 +129,8 @@ public:
   void getTradingStatus();
   // Sends the CollateralInquiry message in order to receive as a response the
   // CollateralReport message.
-  void getAccounts();
-  // Sends RequestForPositions which will return PositionReport messages if positions
-  // matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
-  // sent with the acknowledgement that no positions exist. In our example, we request
-  // positions for all accounts under our login
-  void getPositions();
+  void queryAccounts();
+  
   // Subscribes to a trading security
   void subscribeMarketData(const FIX::Symbol symbol);
   // Unsubscribes from a trading security
@@ -161,6 +158,14 @@ public:
 
   // Returns last market snapshot for symbol
   IDEFIX::MarketSnapshot marketSnapshot(const FIX::Symbol symbol) const;
+
+  // Sends RequestForPositions which will return PositionReport messages if positions
+  // matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
+  // sent with the acknowledgement that no positions exist. In our example, we request
+  // positions for all accounts under our login
+  void queryPositionReport(const FIX::PosReqType type = PosReqType_POSITIONS);
+  // query message to close a position with position_id
+  void queryClosePosition(const std::string position_id, const FIX::Symbol symbol, const FIX::Side side, const FIX::OrderQty qty);
 };
 
 
