@@ -35,28 +35,35 @@
 #include <quickfix/SessionID.h>
 #include <quickfix/SessionSettings.h>
 #include <quickfix/SocketInitiator.h>
+#include "RequestId.h"
 
 using namespace std;
 using namespace FIX;
-using namespace IDEFIX;
+//using namespace IDEFIX;
 
+namespace IDEFIX {
 class FIXManager: public MessageCracker, public Application {
 private:
-  SessionSettings *_settings;
-  FileStoreFactory *_store_factory;
-  FileLogFactory *_log_factory;
-  SocketInitiator *_initiator;
+  int m_mdreceived;
 
-  // used as a counter for producing unique request identifiers
-  unsigned int _requestID;
+  SessionSettings *m_psettings;
+  FileStoreFactory *m_pstore_factory;
+  FileLogFactory *m_plog_factory;
+  SocketInitiator *m_pinitiator;
+  RequestId m_reqid_manager;
+
   // the session id for market data, such as tick prices
-  SessionID _market_sessionID;
+  SessionID m_market_sessionID;
   // the session id for order management, such as open/closing positions
-  SessionID _order_sessionID;
+  SessionID m_order_sessionID;
   // hold the account ids in a list
-  vector<string> _list_accountID;
+  vector<string> m_list_accountID;
   // hold the last bid and ask price of symbol
-  vector<IDEFIX::MarketSnapshot> _list_market_snapshot;
+  vector<IDEFIX::MarketSnapshot> m_list_market_snapshot;
+  // hold pending orders
+  vector<IDEFIX::MarketOrder> m_list_pending_orders;
+  // hold filled orders
+  vector<IDEFIX::MarketOrder> m_list_filled_orders;
 
   // Custom FXCM FIX fields
   enum FXCM_FIX_FIELDS
@@ -83,7 +90,9 @@ private:
   };
 
   // add market snapshot with last price information
-  void addMarketSnapshot(const FIX::Symbol symbol, const FIX::Price bid, const FIX::Price ask, const FIX::Price spread, const std::string sending_time);
+  void updatePrices(const FIX::Symbol symbol, const FIX::Price bid, const FIX::Price ask, const FIX::Price spread, const std::string sending_time);
+  string nextRequestID();
+  string nextOrderID();
 
 public:
   FIXManager();
@@ -104,20 +113,21 @@ public:
   // receives a generic Message in the FIX fromApp and fromAdmin callbacks, constructs the
   // message sub type and invokes the appropriate onMessage method below.
   void onMessage(const FIX44::TradingSessionStatus& tss, const SessionID& session_ID);
-  void onMessage(const FIX44::CollateralInquiryAck& ack, const SessionID& session_ID);
+  //void onMessage(const FIX44::CollateralInquiryAck& ack, const SessionID& session_ID);
   void onMessage(const FIX44::CollateralReport& cr, const SessionID& session_ID);
   void onMessage(const FIX44::RequestForPositionsAck& ack, const SessionID& session_ID);
   void onMessage(const FIX44::PositionReport& pr, const SessionID& session_ID);
   void onMessage(const FIX44::MarketDataRequestReject& mdr, const SessionID& session_ID);
   void onMessage(const FIX44::MarketDataSnapshotFullRefresh& mds, const SessionID& session_ID);
   void onMessage(const FIX44::ExecutionReport& er, const SessionID& session_ID);
-  void onMessage(const FIX44::OrderCancelReject& ocr, const SessionID& session_ID);
-  void onMessage(const FIX44::TradeCaptureReport& tcr, const SessionID& session_ID);
+  
+  //void onMessage(const FIX44::OrderCancelReject& ocr, const SessionID& session_ID);
+  
+  /*void onMessage(const FIX44::TradeCaptureReport& tcr, const SessionID& session_ID);
   void onMessage(const FIX44::TradeCaptureReportAck& ack, const SessionID& session_ID);
   void onMessage(const FIX44::TradeCaptureReportRequest& tcrr, const SessionID& session_ID);
-  void onMessage(const FIX44::TradeCaptureReportRequestAck& ack, const SessionID& session_ID);
+  void onMessage(const FIX44::TradeCaptureReportRequestAck& ack, const SessionID& session_ID);*/
   
-
   // Starts the FIX session. Throws FIX::ConfigError exception if our configuration settings
   // do not pass validation required to construct SessionSettings
   void startSession(const string settingsfile);
@@ -126,7 +136,7 @@ public:
 
   // Sends TradingSessionStatusRequest message in order to receive as a response the
   // TradingSessionStatus message
-  void getTradingStatus();
+  void queryTradingStatus();
   // Sends the CollateralInquiry message in order to receive as a response the
   // CollateralReport message.
   void queryAccounts();
@@ -138,14 +148,15 @@ public:
   // sends a market order with fill or kill validity
   void marketOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty);
   // Send limit order at given price with fill or kill validity
-  void limitOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price);
+  //void limitOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price);
   // sends a stop order at given price with fill or kill validity
   void stopOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price);
-  
-  void sendTradeCaptureRequest();
-  // Generate string value used to populate the fields in each message
-  // which are used as a custom identifier
-  string nextRequestID();
+  // send market order with stoploss
+  void marketOrderWithStoploss(MarketOrder& marketOrder);
+  void marketOrderWithStopLossTakeProfit(MarketOrder& marketOrder);
+
+  //void queryTradeCaptureRequest();
+
   // Adds string accountIDs to our vector<string> being used to
   // account for the accountIDs under our login
   void recordAccount(string accountID);
@@ -157,7 +168,7 @@ public:
   void closeAllPositions(const FIX::Symbol symbol);
 
   // Returns last market snapshot for symbol
-  IDEFIX::MarketSnapshot marketSnapshot(const FIX::Symbol symbol) const;
+  MarketSnapshot marketSnapshot(const FIX::Symbol symbol) const;
 
   // Sends RequestForPositions which will return PositionReport messages if positions
   // matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
@@ -166,7 +177,15 @@ public:
   void queryPositionReport(const FIX::PosReqType type = PosReqType_POSITIONS);
   // query message to close a position with position_id
   void queryClosePosition(const std::string position_id, const FIX::Symbol symbol, const FIX::Side side, const FIX::OrderQty qty);
-};
 
+  // get the market order from list with clordid
+  // @todo: rewrite to getPosition(const string fxcm_pos_id, const open|closed)
+  MarketOrder getMarketOrder(const FIX::ClOrdID clordid, bool is_pending = true);
+  MarketOrder getMarketOrder(const string fxcm_pos_id, bool is_pending = true);
+
+  void debug();
+
+}; // class fixmanager
+}; // namespace idefix
 
 #endif //IDEFIX_FIXMANAGER_H
