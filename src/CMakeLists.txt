@@ -11,7 +11,7 @@ include_directories(/usr/local/include)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -fexceptions -finline-functions") #-lpthread -lxml2 -lz
 
 # add source files for your binary
-add_executable(${PROJECT_NAME} main.cpp FIXManager.h FIXManager.cpp types.h times.h RequestId.h RequestId.cpp string_extensions.h)
+add_executable(${PROJECT_NAME} main.cpp FIXManager.h FIXManager.cpp types.h times.h RequestId.h RequestId.cpp string_extensions.h types/MarketOrder.h types/MarketSnapshot.h Market.h TradeMath.h)
 
 # quickfix linker
 target_link_libraries(${PROJECT_NAME} /usr/local/lib/libquickfix.dylib)

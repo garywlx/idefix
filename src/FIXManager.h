@@ -36,34 +36,39 @@
 #include <quickfix/SessionSettings.h>
 #include <quickfix/SocketInitiator.h>
 #include "RequestId.h"
+#include "Market.h"
 
 using namespace std;
 using namespace FIX;
-//using namespace IDEFIX;
 
 namespace IDEFIX {
 class FIXManager: public MessageCracker, public Application {
 private:
-  int m_mdreceived;
+  // for debugging
+  bool m_debug_toggle_snapshot_output;
 
+  // Pointer to SessionSettings from SessionSettingsFile
   SessionSettings *m_psettings;
+  // Pointer to File Store Factory
   FileStoreFactory *m_pstore_factory;
+  // Pointer to File Log Factory
   FileLogFactory *m_plog_factory;
+  // Pointer to Socket
   SocketInitiator *m_pinitiator;
+  // RequestID Manager
   RequestId m_reqid_manager;
 
   // the session id for market data, such as tick prices
   SessionID m_market_sessionID;
   // the session id for order management, such as open/closing positions
   SessionID m_order_sessionID;
-  // hold the account ids in a list
-  vector<string> m_list_accountID;
-  // hold the last bid and ask price of symbol
-  vector<IDEFIX::MarketSnapshot> m_list_market_snapshot;
-  // hold pending orders
-  vector<IDEFIX::MarketOrder> m_list_pending_orders;
-  // hold filled orders
-  vector<IDEFIX::MarketOrder> m_list_filled_orders;
+  // the account id 
+  string m_accountID;
+
+  // hold all market snapshots per symbol
+  vector<Market> m_list_market;
+  // hold all open market positions
+  vector<MarketOrder> m_list_marketorders;
 
   // Custom FXCM FIX fields
   enum FXCM_FIX_FIELDS
@@ -87,17 +92,12 @@ private:
     FXCM_NO_PARAMS             = 9016,
     FXCM_PARAM_NAME            = 9017,
     FXCM_PARAM_VALUE           = 9018
-  };
-
-  // add market snapshot with last price information
-  void updatePrices(const FIX::Symbol symbol, const FIX::Price bid, const FIX::Price ask, const FIX::Price spread, const std::string sending_time);
-  string nextRequestID();
-  string nextOrderID();
+  };  
 
 public:
   FIXManager();
-  // FIX Namespace. These are callbacks which indicate when the session is created,
-  // when we logon and logout, and when messages are exchanged
+  FIXManager(const string settingsFile);
+
   void onCreate(const SessionID& sessionID);
   void onLogon(const SessionID& sessionID);
   void onLogout(const SessionID& session_ID);
@@ -109,81 +109,65 @@ public:
   void fromApp(const Message& message, const SessionID& session_ID)
   throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType );
 
-  // Overloaded onMessage methods used in conjuction with MessageCracker class. FIX::MessageCracker
-  // receives a generic Message in the FIX fromApp and fromAdmin callbacks, constructs the
-  // message sub type and invokes the appropriate onMessage method below.
   void onMessage(const FIX44::TradingSessionStatus& tss, const SessionID& session_ID);
-  //void onMessage(const FIX44::CollateralInquiryAck& ack, const SessionID& session_ID);
+  void onMessage(const FIX44::CollateralInquiryAck& ack, const SessionID& session_ID);
   void onMessage(const FIX44::CollateralReport& cr, const SessionID& session_ID);
   void onMessage(const FIX44::RequestForPositionsAck& ack, const SessionID& session_ID);
   void onMessage(const FIX44::PositionReport& pr, const SessionID& session_ID);
   void onMessage(const FIX44::MarketDataRequestReject& mdr, const SessionID& session_ID);
   void onMessage(const FIX44::MarketDataSnapshotFullRefresh& mds, const SessionID& session_ID);
   void onMessage(const FIX44::ExecutionReport& er, const SessionID& session_ID);
-  
-  //void onMessage(const FIX44::OrderCancelReject& ocr, const SessionID& session_ID);
-  
-  /*void onMessage(const FIX44::TradeCaptureReport& tcr, const SessionID& session_ID);
-  void onMessage(const FIX44::TradeCaptureReportAck& ack, const SessionID& session_ID);
-  void onMessage(const FIX44::TradeCaptureReportRequest& tcrr, const SessionID& session_ID);
-  void onMessage(const FIX44::TradeCaptureReportRequestAck& ack, const SessionID& session_ID);*/
-  
-  // Starts the FIX session. Throws FIX::ConfigError exception if our configuration settings
-  // do not pass validation required to construct SessionSettings
+    
   void startSession(const string settingsfile);
-  // Logout and end session
   void endSession();
 
-  // Sends TradingSessionStatusRequest message in order to receive as a response the
-  // TradingSessionStatus message
+  // All Message Query Methods
   void queryTradingStatus();
-  // Sends the CollateralInquiry message in order to receive as a response the
-  // CollateralReport message.
   void queryAccounts();
-  
-  // Subscribes to a trading security
+  void queryPositionReport(const FIX::PosReqType type = PosReqType_POSITIONS);
+  void queryClosePosition(const std::string position_id, const FIX::Symbol symbol, const FIX::Side side, const FIX::OrderQty qty);
+  void queryMarketData(const FIX::Symbol symbol, const FIX::SubscriptionRequestType requestType);
+
   void subscribeMarketData(const FIX::Symbol symbol);
-  // Unsubscribes from a trading security
   void unsubscribeMarketData(const FIX::Symbol symbol);
-  // sends a market order with fill or kill validity
   void marketOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty);
-  // Send limit order at given price with fill or kill validity
-  //void limitOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price);
-  // sends a stop order at given price with fill or kill validity
   void stopOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price);
-  // send market order with stoploss
   void marketOrderWithStoploss(MarketOrder& marketOrder);
   void marketOrderWithStopLossTakeProfit(MarketOrder& marketOrder);
+  void closeAllPositions(const FIX::Symbol symbol);
 
-  //void queryTradeCaptureRequest();
+  // Public Getter & Setter
+  MarketSnapshot getLatestSnapshot(const FIX::Symbol symbol) const;
 
-  // Adds string accountIDs to our vector<string> being used to
-  // account for the accountIDs under our login
-  void recordAccount(string accountID);
+  void debug();
+  void toggleSnapshotOutput();
+
+private:
+  void updatePrices(const MarketSnapshot snapshot);
+  string nextRequestID();
+  string nextOrderID();
 
   const FIX::Dictionary* getSessionSettingsPtr(const SessionID& session_ID);
   bool isMarketDataSession(const SessionID& session_ID);
   bool isOrderSession(const SessionID& session_ID);
+  
+  // Private Getter & Setter
+  string getAccountID() const;
+  void setAccountID(const string accountID);
 
-  void closeAllPositions(const FIX::Symbol symbol);
+  SessionID getMarketSessionID() const;
+  void setMarketSessionID(const SessionID& session_ID);
 
-  // Returns last market snapshot for symbol
-  MarketSnapshot marketSnapshot(const FIX::Symbol symbol) const;
+  SessionID getOrderSessionID() const;
+  void setOrderSessionID(const SessionID& session_ID);
 
-  // Sends RequestForPositions which will return PositionReport messages if positions
-  // matching the requested criteria exist; otherwise, a RequestForPositionsAck will be
-  // sent with the acknowledgement that no positions exist. In our example, we request
-  // positions for all accounts under our login
-  void queryPositionReport(const FIX::PosReqType type = PosReqType_POSITIONS);
-  // query message to close a position with position_id
-  void queryClosePosition(const std::string position_id, const FIX::Symbol symbol, const FIX::Side side, const FIX::OrderQty qty);
+  vector<Market> getMarketList() const;
+  Market getMarket(const FIX::Symbol symbol);
+  void addMarketSnapshot(const MarketSnapshot snapshot);
 
-  // get the market order from list with clordid
-  // @todo: rewrite to getPosition(const string fxcm_pos_id, const open|closed)
-  MarketOrder getMarketOrder(const FIX::ClOrdID clordid, bool is_pending = true);
-  MarketOrder getMarketOrder(const string fxcm_pos_id, bool is_pending = true);
-
-  void debug();
+  vector<MarketOrder> getMarketOrderList() const;
+  MarketOrder getMarketOrder(const string fxcm_pos_id) const;
+  MarketOrder getMarketOrder(const ClOrdID clOrdID) const;
 
 }; // class fixmanager
 }; // namespace idefix

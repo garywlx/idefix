@@ -29,6 +29,9 @@ onMsgMDSFR-->updatePrices
 onMessage-->onMsgER[MSG ExecutionReport]
 onMsgER-->updatePositions
 
+updatePrices-->updatePositions
+updatePrices-->updateStrategies
+
 InputLoop-->Logout
 Logout-->onLogout
 Logout-->EndSession

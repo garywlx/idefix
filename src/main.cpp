@@ -26,7 +26,7 @@ void show_help(){
     cout << "  5=Account status" << endl;
     cout << "  6=Manual Position Close" << endl;
     cout << "  7=Close all Positions" << endl;
-    cout << "  8=Debug lists" << endl;
+    cout << "  8=Toggle Price Output" << endl;
     cout << "  9=Show this help" << endl;
     cout << "-------------------------------------------" << endl;
 }
@@ -49,13 +49,13 @@ int main(int argc, char** argv){
     cout << "-------------- IDEFIX " << IDEFIX_VERSION << " -------------------" << endl;
     show_help();
 
-    // init quickfix
-    FIXManager fixmanager;
-    // Start session and logon
-    fixmanager.startSession(client_conf_file);
+    // init FIXManager and start new session
+    FIXManager fixmanager(client_conf_file);
 
     IDEFIX::MarketSnapshot ms;
-    IDEFIX::MarketOrder mo;
+    IDEFIX::MarketOrder mo(Symbol("EUR/USD"));
+    mo.setSide(FIX::Side_BUY);
+
     string input_value;
     string buy_or_sell;
 
@@ -83,14 +83,18 @@ int main(int argc, char** argv){
           break;
         case 4: // Open Position with Stoploss
           cout << "--> query Position with Stoploss" << endl;
-          ms = fixmanager.marketSnapshot(Symbol("EUR/USD"));
+          ms = fixmanager.getLatestSnapshot(Symbol("EUR/USD"));
+
+          if( ! ms.isValid() ){
+            cout << "MarketSnapshot is invalid: " << ms << endl;
+            break;
+          }
 
           // Buy Order
-          mo = getNewMarketOrderStruct(Symbol("EUR/USD"));
-          mo.qty = OrderQty(10000);
-          mo.price = Price(ms.bid);
-          mo.stopPrice = StopPx(ms.bid - 0.0020);
-          mo.takePrice = Price(ms.bid + 0.0040);
+          mo.setQty(OrderQty(10000));
+          mo.setPrice(Price(ms.getBid()));
+          mo.setStopPrice(StopPx(ms.getBid() - 0.0020));
+          mo.setTakePrice(Price(ms.getBid() + 0.0040));
 
           fixmanager.marketOrderWithStopLossTakeProfit(mo);
           fixmanager.queryPositionReport(PosReqType_POSITIONS);
@@ -102,10 +106,8 @@ int main(int argc, char** argv){
         case 6:
           cout << "--> Position to close: ";
           cin >> input_value;
-          cout << "BUY or SELL?: ";
-          cin >> buy_or_sell;
           if( "" != input_value ) {
-            fixmanager.queryClosePosition(input_value, Symbol("EUR/USD"), (buy_or_sell == "SELL" ? FIX::Side_SELL : FIX::Side_BUY), 10000);
+            fixmanager.queryClosePosition(input_value, Symbol("EUR/USD"), (mo.getSide() == FIX::Side_BUY ? FIX::Side_SELL : FIX::Side_BUY), 10000);
           }
           break;
         case 7:
@@ -113,8 +115,8 @@ int main(int argc, char** argv){
           fixmanager.closeAllPositions(Symbol("EUR/USD"));
           break;
         case 8:
-          cout << "--> DEBUG" << endl;
-          fixmanager.debug();
+          cout << "--> Toggle Price Output" << endl;
+          fixmanager.toggleSnapshotOutput();
           break;
         case 9:
           // show help
