@@ -1,6 +1,43 @@
+# IDEFIX Flow
+
+This describes how IDEFIX is working.
+
+```mermaid
+graph TB
+IDEFIX-->StartSession
+StartSession-->Login
+StartSession-->onCreate
+Login-->onLogon
+Login-->|Yes|InputLoop
+Login-->|No|EndSession
+
+onLogon-->queryTradingStatus
+queryTradingStatus-->onMessage
+
+InputLoop((Input Loop))
+InputLoop-->FIXManager["FIXManager.method"]
+FIXManager-->onMessage
+
+onMessage-->onMsgTSS[MSG TradingSessionStatus]
+onMsgTSS-->queryAccounts
+onMessage-->onMsgCR[MSG CollateralReport]
+onMsgCR-->recordAccount
+onMessage-->onMsgPR[MSG PositionReport]
+onMsgPR-->updatePositions
+onMessage-->onMsgMDSFR[MSG MarketDataSnapshot]
+onMsgMDSFR-->updatePrices
+onMessage-->onMsgER[MSG ExecutionReport]
+onMsgER-->updatePositions
+
+InputLoop-->Logout
+Logout-->onLogout
+Logout-->EndSession
+EndSession-->Exit
+```
+
 # FIX Message Flow in FIXManager
 
-This document describes the message flow in a FIX application. Each query follows an answer, which is handled by an onMessage() function.
+This section describes the message flow in a FIX application. Each query follows an answer, which is handled by an onMessage() function.
 
 The document uses [mermaid](https://mermaidjs.github.io/flowchart.html) integration for flowchart image generation.
 
