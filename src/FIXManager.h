@@ -162,7 +162,8 @@ private:
   void setOrderSessionID(const SessionID& session_ID);
 
   vector<Market> getMarketList() const;
-  Market getMarket(const FIX::Symbol symbol);
+  Market getMarket(const string symbol);
+  void addMarket(const Market market);
   void addMarketSnapshot(const MarketSnapshot snapshot);
 
   vector<MarketOrder> getMarketOrderList() const;

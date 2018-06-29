@@ -340,30 +340,24 @@ void FIXManager::onMessage(const FIX44::MarketDataSnapshotFullRefresh &mds, cons
     // 0 Bid
     if(entry_type == MDEntryType(MDEntryType_BID).getString()){
       double bid = DoubleConvertor::convert(group.getField(FIELD::MDEntryPx));
-      // cout << " MDEntryType_BID " << fixed << bid;
       snapshot.setBid(bid);
     } 
     // 1 Ask
     else if(entry_type == MDEntryType(MDEntryType_OFFER).getString()) {
       double ask = DoubleConvertor::convert(group.getField(FIELD::MDEntryPx));
-      // cout << " MDEntryType_OFFER " << fixed << ask;
       snapshot.setAsk(ask);
     } 
     // 7 Session High
     else if(entry_type == MDEntryType(MDEntryType_TRADING_SESSION_HIGH_PRICE).getString()) {
       double high = DoubleConvertor::convert(group.getField(FIELD::MDEntryPx));
-      // cout << " MDEntryType_TRADING_SESSION_HIGH_PRICE " << fixed << high;
       snapshot.setSessionHigh(high);
     }
     // 8 Session Low
     else if(entry_type == MDEntryType(MDEntryType_TRADING_SESSION_LOW_PRICE).getString()) {
       double low = DoubleConvertor::convert(group.getField(FIELD::MDEntryPx));
-      // cout << " MDEntryType_TRADING_SESSION_LOW_PRICE " << fixed << low;
       snapshot.setSessionLow(low);
     }
   }
-
-  // cout << endl;
 
   // Add market snapshot for symbol snapshot.getSymbol()
   addMarketSnapshot(snapshot);
@@ -895,7 +889,7 @@ vector<Market> FIXManager::getMarketList() const {
  * @param  symbol [description]
  * @return        [description]
  */
-Market FIXManager::getMarket(const FIX::Symbol symbol){
+Market FIXManager::getMarket(const string symbol){
   Market market;
   auto marketList = getMarketList();
   for(auto it = marketList.begin(); it != marketList.end(); ++it ){
@@ -909,6 +903,16 @@ Market FIXManager::getMarket(const FIX::Symbol symbol){
 }
 
 /*!
+ * Add market to market list
+ * @param Market market
+ */
+void FIXManager::addMarket(const Market market){
+  if( ! getMarket(market.getSymbol()).isValid() ){
+    m_list_market.push_back(market);
+  }
+}
+
+/*!
  * Adds a snapshot to the market list
  * @param snapshot [description]
  */
@@ -917,9 +921,7 @@ void FIXManager::addMarketSnapshot(const MarketSnapshot snapshot){
   if( ! market.isValid() ) {
     // market does not exist, create market with snapshot
     Market nMarket(snapshot);
-    auto marketList = getMarketList();
-    // add market to the list
-    marketList.push_back(nMarket);
+    addMarket(nMarket);
   } else {
     // market exist
     market.add(snapshot);

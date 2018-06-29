@@ -90,14 +90,16 @@ int main(int argc, char** argv){
             break;
           }
 
-          // Buy Order
-          mo.setQty(OrderQty(10000));
-          mo.setPrice(Price(ms.getBid()));
-          mo.setStopPrice(StopPx(ms.getBid() - 0.0020));
-          mo.setTakePrice(Price(ms.getBid() + 0.0040));
+          cout << "MarketSnapshot " << ms << endl;
 
-          fixmanager.marketOrderWithStopLossTakeProfit(mo);
-          fixmanager.queryPositionReport(PosReqType_POSITIONS);
+          // Buy Order
+          // mo.setQty(OrderQty(10000));
+          // mo.setPrice(Price(ms.getBid()));
+          // mo.setStopPrice(StopPx(ms.getBid() - 0.0020));
+          // mo.setTakePrice(Price(ms.getBid() + 0.0040));
+
+          // fixmanager.marketOrderWithStopLossTakeProfit(mo);
+          // fixmanager.queryPositionReport(PosReqType_POSITIONS);
           break;
         case 5: // Account/Collateral Report
           cout << "--> Get Account" << endl;
