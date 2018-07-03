@@ -83,23 +83,22 @@ int main(int argc, char** argv){
           break;
         case 4: // Open Position with Stoploss
           cout << "--> query Position with Stoploss" << endl;
-          ms = fixmanager.getLatestSnapshot(Symbol("EUR/USD"));
+          ms = fixmanager.getLatestSnapshot("EUR/USD");
 
           if( ! ms.isValid() ){
             cout << "MarketSnapshot is invalid: " << ms << endl;
             break;
           }
 
-          cout << "MarketSnapshot " << ms << endl;
-
           // Buy Order
-          // mo.setQty(OrderQty(10000));
-          // mo.setPrice(Price(ms.getBid()));
-          // mo.setStopPrice(StopPx(ms.getBid() - 0.0020));
-          // mo.setTakePrice(Price(ms.getBid() + 0.0040));
+          mo.setQty(OrderQty(10000));
+          mo.setPrice(Price(ms.getBid()));
+          mo.setStopPrice(StopPx(ms.getBid() - 0.0020));
+          mo.setTakePrice(Price(ms.getAsk() + 0.0040));
 
-          // fixmanager.marketOrderWithStopLossTakeProfit(mo);
-          // fixmanager.queryPositionReport(PosReqType_POSITIONS);
+          //fixmanager.marketOrderWithStopLossTakeProfit(mo);
+          fixmanager.marketOrderWithStoploss(mo);
+          fixmanager.queryPositionReport(PosReqType_POSITIONS);
           break;
         case 5: // Account/Collateral Report
           cout << "--> Get Account" << endl;

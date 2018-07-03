@@ -7,6 +7,8 @@
 
 #include <iostream>
 #include <vector>
+#include <map>
+#include <utility>
 #include "types.h"
 #include <quickfix/Application.h>
 #include <quickfix/FileLog.h>
@@ -35,6 +37,7 @@
 #include <quickfix/SessionID.h>
 #include <quickfix/SessionSettings.h>
 #include <quickfix/SocketInitiator.h>
+#include <quickfix/Mutex.h>
 #include "RequestId.h"
 #include "Market.h"
 
@@ -46,6 +49,8 @@ class FIXManager: public MessageCracker, public Application {
 private:
   // for debugging
   bool m_debug_toggle_snapshot_output;
+
+  mutable FIX::Mutex m_mutex;
 
   // Pointer to SessionSettings from SessionSettingsFile
   SessionSettings *m_psettings;
@@ -66,9 +71,12 @@ private:
   string m_accountID;
 
   // hold all market snapshots per symbol
-  vector<Market> m_list_market;
+  map<string, Market> m_list_market;
   // hold all open market positions
   vector<MarketOrder> m_list_marketorders;
+  // hold system parameters
+  map<string, string> m_system_params;
+
 
   // Custom FXCM FIX fields
   enum FXCM_FIX_FIELDS
@@ -137,7 +145,7 @@ public:
   void closeAllPositions(const FIX::Symbol symbol);
 
   // Public Getter & Setter
-  MarketSnapshot getLatestSnapshot(const FIX::Symbol symbol) const;
+  MarketSnapshot getLatestSnapshot(const string symbol);
 
   void debug();
   void toggleSnapshotOutput();
@@ -161,7 +169,6 @@ private:
   SessionID getOrderSessionID() const;
   void setOrderSessionID(const SessionID& session_ID);
 
-  vector<Market> getMarketList() const;
   Market getMarket(const string symbol);
   void addMarket(const Market market);
   void addMarketSnapshot(const MarketSnapshot snapshot);
@@ -170,6 +177,8 @@ private:
   MarketOrder getMarketOrder(const string fxcm_pos_id) const;
   MarketOrder getMarketOrder(const ClOrdID clOrdID) const;
 
+  void addSysParam(const string key, const string value);
+  string getSysParam(const string key);
 }; // class fixmanager
 }; // namespace idefix
 

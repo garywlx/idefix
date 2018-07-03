@@ -137,7 +137,7 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
   // Check TradSesStatus field to see if the trading desk is open or closed
   // 2 = open; 3 = closed
   string trad_status = tss.getField(FIELD::TradSesStatus);
-  cout << "[onMessage:TradingSessionStatus] " << (trad_status == "2" ? "open" : "closed") << endl;
+  cout << "[onMessage:TradingSessionStatus] Markets are " << (trad_status == "2" ? "open" : "closed") << endl;
 
   // Within the TradingSessionStatus message is an embeded SecurityList. From SecurityList we can see
   // the list of available trading securities and information relevant to each; e.g., point sizes,
@@ -154,17 +154,24 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
 
   // Also within TradingSessionStatus are FXCM system parameters. This includes important information
   // such as account base currency, server time zone, the time at which the trading day ends, and more.
-  cout << "  System Parameters via TradingSessionStatus -> " << endl;
+  //cout << "  System Parameters via TradingSessionStatus -> " << endl;
   // Read field FXCMNoParam (9016) which shows us how many system parameters are in the message
   int params_count = IntConvertor::convert(tss.getField(FXCM_NO_PARAMS)); // FXCMNoParam (9016)
   for(int i = 1; i < params_count; i++){
     // For each parameter, print out both the name of the parameter and the value of the parameter.
     // FXCMParamName (9017) is the name of the parameter and FXCMParamValue(9018) is of course the value
     FIX::FieldMap field_map = tss.getGroupRef(i, FXCM_NO_PARAMS);
-    cout << "     Param Name -> " << field_map.getField(FXCM_PARAM_NAME)
-                                  << " - Param Value -> " << field_map.getField(FXCM_PARAM_VALUE) << endl;
+    addSysParam(field_map.getField(FXCM_PARAM_NAME), field_map.getField(FXCM_PARAM_VALUE));
+    //cout << "     Param Name -> " << field_map.getField(FXCM_PARAM_NAME)
+    //                                  << " - Param Value -> " << field_map.getField(FXCM_PARAM_VALUE) << endl;
   }
 
+  // print sys params
+  //for(auto it = m_system_params.begin(); it != m_system_params.end(); ++it){
+  //  cout << it->first << "=" << it->second << endl;
+  //}
+  //
+ 
   // Request accounts under our login
   queryAccounts();
 
@@ -413,47 +420,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport &er, const SessionID &se
     cout << coutPrefix << "execType: " << execType << ": " << er << endl;
   }
 
-  /*// Get status from field
-  string status = er.getField(FIELD::OrdStatus);
-  string statustext;
-  string clordid = er.getField(FIELD::ClOrdID);
-  string posid = er.getField(FXCM_POS_ID);
-
-  switch(stoi(status)){
-    case 2: // Filled
-      statustext = "Filled";
-
-      // move market order from pending to filled
-      for(auto it = m_list_pending_orders.begin(); it !=  m_list_pending_orders.end(); ++it ){
-        if( (*it).clOrdID == ClOrdID(clordid) ){
-
-          (*it).ordStatus = OrdStatus(OrdStatus_FILLED);
-          (*it).posID = posid;
-
-          // add to filled orders
-          m_list_filled_orders.push_back(*it);
-          // remove from pending orders
-          m_list_pending_orders.erase(it);
-          break;
-        }
-      }
-
-    break;
-    case 8: // Cancelled
-      statustext = "Cancelled";
-
-      removeMarketOrderFromPendingList(clordid);
-    break;
-    case 4: // Rejected
-      statustext = "Rejected";
-
-      removeMarketOrderFromPendingList(clordid);
-    break;
-    default:
-      statustext = status;
-    break;
-  }
-
+  /*
   cout << "[onMessage:ExecutionReport]" << endl;
   cout << "  OrdStatus -> " << status << " " << statustext << endl;
   cout << "  Text -> " << er.getField(FIELD::Text) << endl;
@@ -462,7 +429,8 @@ void FIXManager::onMessage(const FIX44::ExecutionReport &er, const SessionID &se
   cout << "  OrderID -> " << er.getField(FIELD::OrderID) << endl;
   cout << "  LastQty -> " << er.getField(FIELD::LastQty) << endl;
   cout << "  ExecType -> " << er.getField(FIELD::ExecType) << endl;
-  cout << "  CumQty  -> " << er.getField(FIELD::CumQty) << endl;*/
+  cout << "  CumQty  -> " << er.getField(FIELD::CumQty) << endl;
+  */
 
   // ** Note on order status. **
   // In order to determine the status of an order, and also how much an order is filled, we must
@@ -737,22 +705,24 @@ bool FIXManager::isOrderSession(const SessionID& session_ID){
  */
 void FIXManager::updatePrices(const MarketSnapshot snapshot){
   // Update positions with profit and loss
-
+  // get size of snapshots for symbol
+  /*cout << "[updatePrices] Snapshot List Size: " << getMarket(snapshot.getSymbol()).getSize() << endl;
+  cout << "[updatePrices] Latest snapshot " << getLatestSnapshot(snapshot.getSymbol()) << endl;
+  cout << "[updatePrices] compar snapshot " << snapshot << endl;*/
 }
 
 /*!
  * Returns last market snapshot for symbol
- * @param  symbol FIX::Symbol
+ * @param  symbol symbol
  * @return        IDEFIX::MarketSnapshot
  */
-MarketSnapshot FIXManager::getLatestSnapshot(const FIX::Symbol symbol) const {
+MarketSnapshot FIXManager::getLatestSnapshot(const string symbol) {
   MarketSnapshot snapshot;
-  auto marketList = getMarketList();
-  for(auto it = marketList.begin(); it != marketList.end(); ++it ){
-    if( (*it).getSymbol() == symbol ){
-      snapshot = (*it).getLatestSnapshot();
-      break;
-    }
+  Market market = getMarket(symbol);
+
+  FIX::Locker lock(m_mutex);
+  if( market.isValid() ){
+    snapshot = market.getLatestSnapshot();
   }
 
   return snapshot;
@@ -877,26 +847,17 @@ void FIXManager::setOrderSessionID(const FIX::SessionID &session_ID){
 }
 
 /*!
- * Returns the market list
- * @return vector<Market>
- */
-vector<Market> FIXManager::getMarketList() const {
-  return m_list_market;
-}
-
-/*!
  * Returns the market for given symbol
  * @param  symbol [description]
- * @return        [description]
+ * @return        [description] 
  */
-Market FIXManager::getMarket(const string symbol){
+Market FIXManager::getMarket(const string symbol) {
   Market market;
-  auto marketList = getMarketList();
-  for(auto it = marketList.begin(); it != marketList.end(); ++it ){
-    if( (*it).getSymbol() == symbol ){
-      market = *it;
-      break;
-    }
+  FIX::Locker lock(m_mutex);
+  map<string, Market>::iterator it = m_list_market.find(symbol);
+  if( it != m_list_market.end() ){
+    // found market
+    market = it->second;
   }
 
   return market;
@@ -907,8 +868,10 @@ Market FIXManager::getMarket(const string symbol){
  * @param Market market
  */
 void FIXManager::addMarket(const Market market){
-  if( ! getMarket(market.getSymbol()).isValid() ){
-    m_list_market.push_back(market);
+  FIX::Locker lock(m_mutex);
+  if( m_list_market.count(market.getSymbol()) == 0 ){
+    // add market
+    m_list_market.insert( pair<string, Market>(market.getSymbol(), market) );
   }
 }
 
@@ -917,15 +880,17 @@ void FIXManager::addMarket(const Market market){
  * @param snapshot [description]
  */
 void FIXManager::addMarketSnapshot(const MarketSnapshot snapshot){
-  auto market = getMarket(snapshot.getSymbol());
-  if( ! market.isValid() ) {
-    // market does not exist, create market with snapshot
-    Market nMarket(snapshot);
-    addMarket(nMarket);
+  FIX::Locker lock(m_mutex);
+  map<string, Market>::iterator marketIterator = m_list_market.find(snapshot.getSymbol());
+  if( marketIterator != m_list_market.end() ){
+    // found market, add snapshot
+    marketIterator->second.add(snapshot);
   } else {
-    // market exist
-    market.add(snapshot);
+    // add market with snapshot
+    Market market(snapshot);
+    addMarket(market);
   }
+
 }
 
 /*!
@@ -968,5 +933,32 @@ MarketOrder FIXManager::getMarketOrder(const ClOrdID clOrdID) const {
     }
   }
   return marketOrder;
+}
+
+/*!
+ * Insert key,value pair to system params
+ * @param key   [description]
+ * @param value [description]
+ */
+void FIXManager::addSysParam(const string key, const string value){
+  // check if the key already exisits
+  auto it = m_system_params.find(key);
+  if( it == m_system_params.end() ){
+    m_system_params.insert( pair<string, string>(key, value) );
+  }
+} 
+
+/*!
+ * Returns a reference to the element in m_system_params or an empty string
+ * @param  key [description]
+ * @return     [description]
+ */
+string FIXManager::getSysParam(const string key){
+  string value;
+  auto it = m_system_params.find(key);
+  if( it != m_system_params.end() ){
+    value = m_system_params.at(key);
+  }
+  return value;
 }
 }; // namespace idefix
