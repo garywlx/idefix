@@ -50,6 +50,7 @@ private:
   // for debugging
   bool m_debug_toggle_snapshot_output;
 
+  // Synchronizing multithreading
   mutable FIX::Mutex m_mutex;
 
   // Pointer to SessionSettings from SessionSettingsFile
@@ -70,12 +71,14 @@ private:
   // the account id 
   string m_accountID;
 
-  // hold all market snapshots per symbol
+  // hold all market snapshots per symbol list[symbol] = Market
   map<string, Market> m_list_market;
-  // hold all open market positions
-  vector<MarketOrder> m_list_marketorders;
-  // hold system parameters
+  // hold all open market positions list[posid] = marketOrder
+  map<string, MarketOrder> m_list_marketorders;
+  // hold system parameters list[key] = value
   map<string, string> m_system_params;
+  
+  // Account / Equity / Positions
 
 
   // Custom FXCM FIX fields
@@ -142,7 +145,7 @@ public:
   void stopOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price);
   void marketOrderWithStoploss(MarketOrder& marketOrder);
   void marketOrderWithStopLossTakeProfit(MarketOrder& marketOrder);
-  void closeAllPositions(const FIX::Symbol symbol);
+  void closeAllPositions(const string symbol);
 
   // Public Getter & Setter
   MarketSnapshot getLatestSnapshot(const string symbol);
@@ -172,8 +175,9 @@ private:
   Market getMarket(const string symbol);
   void addMarket(const Market market);
   void addMarketSnapshot(const MarketSnapshot snapshot);
+  void addMarketOrder(const MarketOrder marketOrder);
+  void remMarketOrder(const string posID);
 
-  vector<MarketOrder> getMarketOrderList() const;
   MarketOrder getMarketOrder(const string fxcm_pos_id) const;
   MarketOrder getMarketOrder(const ClOrdID clOrdID) const;
 

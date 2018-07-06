@@ -106,11 +106,11 @@ public:
 
 // Operator Magic
 inline std::ostream& operator<<(std::ostream& out, const IDEFIX::MarketSnapshot& ms){
-	out << ms.getSymbol() << std::setprecision(5)
+	out << ms.getSymbol() << std::setprecision(ms.getPrecision())
 		<< " bid: " << std::fixed << ms.getBid() 
 		<< " ask: " << std::fixed << ms.getAsk() 
 		<< " spread: " << std::fixed << std::setprecision(2) << ms.getSpread() 
-		<< " shigh: " << std::fixed << std::setprecision(5) << ms.getSessionHigh()
+		<< " shigh: " << std::fixed << std::setprecision(ms.getPrecision()) << ms.getSessionHigh()
 		<< " slow: " << std::fixed << ms.getSessionLow()
 		<< " ts: " << ms.getSendingTime();
 	return out;

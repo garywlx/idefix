@@ -2,6 +2,7 @@
 #define IDEFIX_TRADEMATH_H
 
 #include <cmath>
+#include <string>
 
 namespace IDEFIX {
 struct TradeMath {
@@ -18,6 +19,19 @@ struct TradeMath {
 		}
 
 		return decimals[precision];
+	}
+
+	/*!
+	 * Return int precision value for given symbol
+	 * @param  symbol [description]
+	 * @return        [description]
+	 */
+	static unsigned int getPrecision(const std::string symbol){
+		if( symbol == "EUR/USD" ){
+			return 5;
+		}
+
+		return 0;
 	}
 };
 };

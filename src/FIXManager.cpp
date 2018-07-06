@@ -295,10 +295,26 @@ void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& ses
     cout << "  Margin      -> " << pos_margin << endl;
     cout << "  Qty         -> " << qty << endl;
     cout << "  Side        -> " << (side.getValue() == Side_BUY ? "Buy" : "Sell") << endl;  
+
+    // add open pos to intern list, if not existing
+    MarketOrder marketOrder;
+    marketOrder.setPosID(positionID);
+    marketOrder.setSymbol(symbol);
+    marketOrder.setClOrdID(clordID);
+    marketOrder.setSendingTime(pos_open_time);
+    marketOrder.setPrice(DoubleConvertor::convert(settleprice));
+    marketOrder.setSide(side.getValue());
+    marketOrder.setQty(DoubleConvertor::convert(qty));
+    marketOrder.setAccountID(accountID);
+
+    addMarketOrder(marketOrder);
   }
 
   // only for closed positions
   if( ! isOpenPos ){
+    // remove market order from list
+    remMarketOrder(positionID);
+
     string pos_close_price = pr.getField(FXCM_CLOSE_SETTLE_PRICE);
     string pos_close_pl = pr.getField(FXCM_CLOSE_PNL);  
     cout << "  P/L -> " << pos_close_pl << endl;  
@@ -391,28 +407,47 @@ void FIXManager::onMessage(const FIX44::ExecutionReport &er, const SessionID &se
   FIX::ClOrdID clOrdID;
   er.get(clOrdID);
 
-  // What kind of execution report is this?
-  if(FIX::ExecType_FILL == execType.getValue() || FIX::ExecType_PARTIAL_FILL == execType.getValue()){
-    // Fill || Partial Fill
-    FIX::LastPx lastPx;
-    er.get(lastPx);
-    FIX::OrdStatus ordStatus;
-    er.get(ordStatus);
-    string posid = er.getField(FXCM_POS_ID);
+  string fxcm_pos_id = er.getField(FXCM_POS_ID);
 
-    if( posid.empty() ){
+  // What kind of execution report is this?
+  if(FIX::ExecType_TRADE == execType.getValue()) {
+    if( ! fxcm_pos_id.empty() ){
+      MarketOrder marketOrder;
+      marketOrder.setPosID( fxcm_pos_id );
+      marketOrder.setSide( er.getField(FIELD::Side)[0] );
+      marketOrder.setPrice( DoubleConvertor::convert(er.getField(FIELD::LastPx)) );
+      marketOrder.setSymbol( er.getField(FIELD::Symbol) );
+      marketOrder.setQty( DoubleConvertor::convert(er.getField(FIELD::LastQty)) );
+      marketOrder.setAccountID( er.getField(FIELD::Account) );
+      marketOrder.setClOrdID( clOrdID );
+      marketOrder.setSendingTime( er.getField(FIELD::SendingTime) );
+      marketOrder.setStopPrice( DoubleConvertor::convert(er.getField(FIELD::StopPx)) );
+
+      // if this trade is filled, add to market order list
+      string ordStatus = er.getField(FIELD::OrdStatus);
+      if( ordStatus == OrdStatus_FILLED ){
+        addMarketOrder(marketOrder);  
+      } else if ( ordStatus == OrdStatus_CANCELED ){
+        // remove trade from market order list
+        remMarketOrder(fxcm_pos_id);
+      }
+      
+    } else {
       cout << coutPrefix << "FXCM_POS_ID is empty." << endl;
     }
-
-    // add order to list?
-    // @todo
-
+  } else if(FIX::ExecType_FILL == execType.getValue() || FIX::ExecType_PARTIAL_FILL == execType.getValue()){
+    // filled or partial filled
+    
   } else if(FIX::ExecType_REJECTED == execType.getValue()){
     // Rejected
     cout << coutPrefix << "REJECTED: " << er << endl;
   } else if(FIX::ExecType_CANCELED == execType.getValue()){
+    // remove trade from market order list
+    remMarketOrder(fxcm_pos_id);
     // Cancelled
-    cout << coutPrefix << "CANCELLED: " << er << endl;
+    // could have the reason that a trade was closed and SL and TP are candelled
+    // another reason would be that the trade did not happen and is canccelled
+//    cout << coutPrefix << "CANCELLED: " << er << endl;
   } else if(FIX::ExecType_NEW == execType.getValue()){
     // New order was accepted but has not yet been filled
   } else {
@@ -593,9 +628,9 @@ void FIXManager::marketOrderWithStoploss(MarketOrder& marketOrder){
   order.setField(ListSeqNo(0));
   order.setField(ClOrdLinkID("1")); // link to another clordid in list
   order.setField(Account(getAccountID()));
-  order.setField(marketOrder.getSymbol());
-  order.setField(marketOrder.getSide());
-  order.setField(marketOrder.getQty());
+  order.setField(Symbol(marketOrder.getSymbol()));
+  order.setField(Side(marketOrder.getSide()));
+  order.setField(OrderQty(marketOrder.getQty()));
   order.setField(OrdType(OrdType_MARKET));
   olist.addGroup(order);
 
@@ -605,11 +640,11 @@ void FIXManager::marketOrderWithStoploss(MarketOrder& marketOrder){
   stop.setField(ListSeqNo(1));
   stop.setField(ClOrdLinkID("2"));
   stop.setField(Account(getAccountID()));
-  stop.setField(Side(marketOrder.getSide().getValue() == Side_BUY ? Side_SELL : Side_BUY));
-  stop.setField(marketOrder.getSymbol());
-  stop.setField(marketOrder.getQty());
+  stop.setField(Side(marketOrder.getSide() == Side_BUY ? Side_SELL : Side_BUY));
+  stop.setField(Symbol(marketOrder.getSymbol()));
+  stop.setField(OrderQty(marketOrder.getQty()));
   stop.setField(OrdType(OrdType_STOP));
-  stop.setField(marketOrder.getStopPrice());
+  stop.setField(StopPx(marketOrder.getStopPrice()));
   olist.addGroup(stop);
 
   Session::sendToTarget(olist, getOrderSessionID());
@@ -631,9 +666,9 @@ void FIXManager::marketOrderWithStopLossTakeProfit(IDEFIX::MarketOrder &marketOr
   order.setField(ListSeqNo(0));
   order.setField(ClOrdLinkID("1")); // link to another clordid in list
   order.setField(Account(getAccountID()));
-  order.setField(marketOrder.getSymbol());
-  order.setField(marketOrder.getSide());
-  order.setField(marketOrder.getQty());
+  order.setField(Symbol(marketOrder.getSymbol()));
+  order.setField(Side(marketOrder.getSide()));
+  order.setField(OrderQty(marketOrder.getQty()));
   order.setField(OrdType(OrdType_MARKET));
   olist.addGroup(order);
 
@@ -643,11 +678,11 @@ void FIXManager::marketOrderWithStopLossTakeProfit(IDEFIX::MarketOrder &marketOr
   stop.setField(ListSeqNo(1));
   stop.setField(ClOrdLinkID("2"));
   stop.setField(Account(getAccountID()));
-  stop.setField(Side(marketOrder.getSide().getValue() == Side_BUY ? Side_SELL : Side_BUY));
-  stop.setField(marketOrder.getSymbol());
-  stop.setField(marketOrder.getQty());
+  stop.setField(Side(marketOrder.getSide() == Side_BUY ? Side_SELL : Side_BUY));
+  stop.setField(Symbol(marketOrder.getSymbol()));
+  stop.setField(OrderQty(marketOrder.getQty()));
   stop.setField(OrdType(OrdType_STOP));
-  stop.setField(marketOrder.getStopPrice());
+  stop.setField(StopPx(marketOrder.getStopPrice()));
   olist.addGroup(stop);
 
   // TakeProfit
@@ -656,14 +691,12 @@ void FIXManager::marketOrderWithStopLossTakeProfit(IDEFIX::MarketOrder &marketOr
   limit.setField(ListSeqNo(2));
   limit.setField(ClOrdLinkID("2"));
   limit.setField(Account(getAccountID()));
-  limit.setField(Side(marketOrder.getSide().getValue() == Side_BUY ? Side_SELL : Side_BUY));
-  limit.setField(marketOrder.getSymbol());
-  limit.setField(marketOrder.getQty());
+  limit.setField(Side(marketOrder.getSide() == Side_BUY ? Side_SELL : Side_BUY));
+  limit.setField(Symbol(marketOrder.getSymbol()));
+  limit.setField(OrderQty(marketOrder.getQty()));
   limit.setField(OrdType(OrdType_LIMIT));
-  limit.setField(marketOrder.getTakePrice());
+  limit.setField(Price(marketOrder.getTakePrice()));
   olist.addGroup(limit);
-
-  cout << "[marketOrderWithStopLossTakeProfit] message: " << olist << endl;
 
   Session::sendToTarget(olist, getOrderSessionID());
 }
@@ -730,16 +763,18 @@ MarketSnapshot FIXManager::getLatestSnapshot(const string symbol) {
 
 /*!
  * Send request to close all positions for symbol
- * @param symbol FIX::Symbol
+ * @param symbol sring
  */
-void FIXManager::closeAllPositions(const FIX::Symbol symbol){
-  /*if( ! m_list_filled_orders.empty() ){
-    for(auto it = m_list_filled_orders.begin(); it != m_list_filled_orders.end(); ++it){
-      MarketOrder mo = *it;
-      cout << "[closeAllPositions] " << mo << endl;
-      queryClosePosition(mo.posID, mo.symbol, (mo.side == Side_BUY ? Side_SELL : Side_BUY), mo.qty);
-    }
-  }*/
+void FIXManager::closeAllPositions(const string symbol){
+  if( m_list_marketorders.empty() ) return;
+
+  cout << "[closeAllPositions] " << endl;
+  for(auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
+    if( it->second.getSymbol() == symbol ){
+      cout << it->second.toString() << endl;
+      queryClosePosition(it->second.getPosID(), Symbol(it->second.getSymbol()), Side(it->second.getOpposide()), OrderQty(it->second.getQty()));
+    }    
+  }
 }
 
 /*!
@@ -806,10 +841,6 @@ void FIXManager::queryClosePosition(const std::string position_id, const FIX::Sy
   order.setField(FXCM_POS_ID, position_id);
 
   Session::sendToTarget(order, getOrderSessionID());
-}
-
-void FIXManager::debug(){
-  
 }
 
 void FIXManager::toggleSnapshotOutput(){
@@ -890,15 +921,32 @@ void FIXManager::addMarketSnapshot(const MarketSnapshot snapshot){
     Market market(snapshot);
     addMarket(market);
   }
-
 }
 
 /*!
- * Returns the market orders list
- * @return vector<MarketOrder>
+ * Add a marketOrder to the order list
+ * @param marketOrder [description]
  */
-vector<MarketOrder> FIXManager::getMarketOrderList() const {
-  return m_list_marketorders;
+void FIXManager::addMarketOrder(const MarketOrder marketOrder){
+  FIX::Locker lock(m_mutex);
+  map<string, MarketOrder>::iterator moIterator = m_list_marketorders.find(marketOrder.getPosID());
+  if( moIterator == m_list_marketorders.end() ){
+    // posID not found
+    m_list_marketorders.insert( pair<string, MarketOrder>(marketOrder.getPosID(), marketOrder ) );
+  }
+}
+
+/*!
+ * Remove MarketOrder from order list
+ * @param posID FXCM position id
+ */
+void FIXManager::remMarketOrder(const string posID){
+  FIX::Locker lock(m_mutex);
+  map<string, MarketOrder>::iterator moIterator = m_list_marketorders.find(posID);
+  if( moIterator != m_list_marketorders.end() ){
+    // posID found, remove
+    m_list_marketorders.erase(moIterator);
+  }
 }
 
 /*!
@@ -908,10 +956,10 @@ vector<MarketOrder> FIXManager::getMarketOrderList() const {
  */
 MarketOrder FIXManager::getMarketOrder(const string fxcm_pos_id) const {
   MarketOrder marketOrder;
-  auto list = getMarketOrderList();
-  for(auto it = list.begin(); it != list.end(); ++it ){
-    if( (*it).getPosID() == fxcm_pos_id ){
-      marketOrder = *it;
+  FIX::Locker lock(m_mutex);
+  for(auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
+    if( it->second.getPosID() == fxcm_pos_id ){
+      marketOrder = it->second;
       break;
     }
   }
@@ -925,10 +973,10 @@ MarketOrder FIXManager::getMarketOrder(const string fxcm_pos_id) const {
  */
 MarketOrder FIXManager::getMarketOrder(const ClOrdID clOrdID) const {
   MarketOrder marketOrder;
-  auto list = getMarketOrderList();
-  for(auto it = list.begin(); it != list.end(); ++it ){
-    if( (*it).getClOrdID() == clOrdID ){
-      marketOrder = *it;
+  FIX::Locker lock(m_mutex);
+  for(auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
+    if( it->second.getClOrdID() == clOrdID ){
+      marketOrder = it->second;
       break;
     }
   }
@@ -960,5 +1008,15 @@ string FIXManager::getSysParam(const string key){
     value = m_system_params.at(key);
   }
   return value;
+}
+
+void FIXManager::debug(){
+  // output order list
+  if( m_list_marketorders.empty() ) return;
+
+  cout << "[MarketOrders]" << endl;
+  for( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
+    cout << it->second.toString() << endl;
+  }
 }
 }; // namespace idefix
