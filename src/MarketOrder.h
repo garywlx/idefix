@@ -6,7 +6,7 @@
 #include <string>
 #include <iomanip>
 #include <quickfix/FixValues.h>
-#include "../TradeMath.h"
+#include "TradeMath.h"
 
 using namespace std;
 
@@ -15,6 +15,7 @@ class MarketOrder {
 private:
 	string m_clOrdID;
 	string m_posID; // FXCM_POS_ID
+	string m_orderID;
 	string m_accountID;
 	string m_symbol;
 	string m_sending_time;
@@ -29,7 +30,7 @@ public:
 	// Construct empty market order
 	explicit MarketOrder() {}
 	// Construct market order with default values except symbol
-	explicit MarketOrder(const string symbol): m_clOrdID("0"), m_posID(""), m_accountID("0"), 
+	explicit MarketOrder(const string symbol): m_clOrdID("0"), m_posID(""), m_orderID(""), m_accountID("0"), 
 	m_symbol(symbol), m_qty(0), m_side('1'), m_price(0), m_stopPrice(0), m_takePrice(0),
 	m_profitLossValue(0), m_sending_time("") {}
 
@@ -49,6 +50,14 @@ public:
 	inline void setPosID(const string posID){
 		if( m_posID != posID ){
 			m_posID = posID;
+		}
+	}
+	inline string getOrderID() const {
+		return m_orderID;
+	}
+	inline void setOrderID(const string orderID){
+		if ( m_orderID != orderID ){
+			m_orderID = orderID;
 		}
 	}
 	inline string getAccountID() const {
@@ -156,15 +165,18 @@ public:
 		ostringstream out;
 		out << "MarketOrder {" << endl
 			<< setprecision(TradeMath::getPrecision(getSymbol()))
-			<< "  posID     " << getPosID() << endl
-			<< "  account   " << getAccountID() << endl
-			<< "  symbol    " << getSymbol() << endl
-			<< "  qty       " << getQty() << endl
-			<< "  side      " << getSideStr() << endl
-			<< "  price     " << fixed << getPrice() << endl
-			<< "  stopPrice " << fixed << getStopPrice() << endl
-			<< "  takePrice " << fixed << getTakePrice() << endl
-			<< "  plValue   " << fixed << getProfitLoss() << endl
+			<< "  posID       " << getPosID() << endl
+			<< "  account     " << getAccountID() << endl
+			<< "  clOrdID     " << getClOrdID() << endl
+			<< "  orderID     " << getOrderID() << endl
+			<< "  symbol      " << getSymbol() << endl
+			<< "  qty         " << getQty() << endl
+			<< "  side        " << getSideStr() << endl
+			<< "  price       " << fixed << getPrice() << endl
+			<< "  stopPrice   " << fixed << getStopPrice() << endl
+			<< "  takePrice   " << fixed << getTakePrice() << endl
+			<< "  plValue     " << fixed << getProfitLoss() << endl
+			<< "  sendingtime " << getSendingTime() << endl
 			<< "}" << endl;
 
 		return out.str();

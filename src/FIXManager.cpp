@@ -6,6 +6,7 @@
 #include <cmath>
 #include <string>
 #include "TradeMath.h"
+#include <exception>
 
 namespace IDEFIX {
 
@@ -233,6 +234,12 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
       cout << "    " << sub_type << " -> " << sub_value << endl;  
     }
   }
+
+  // @todo: only for debugging
+  cout << "--> subscribeMarketData EUR/USD" << endl;
+  subscribeMarketData("EUR/USD");
+  cout << "--> queryPositionReport" << endl;
+  queryPositionReport();
 }
 
 /*!
@@ -241,13 +248,16 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
  * @param session_ID [description]
  */
 void FIXManager::onMessage(const FIX44::RequestForPositionsAck &ack, const SessionID &session_ID) {
-  string pos_reqID = ack.getField(FIELD::PosReqID);
-  cout << "RequestForPositionsAck -> PosReqID - " << pos_reqID << endl;
+  string pos_reqID = ack.getField( FIELD::PosReqID );
+  string pos_type = ack.getField( FIELD::PosReqType );
+  string prefix = "[onMessage:RequestForPositionsAck] ";
+  cout << prefix << "PosReqID - " << pos_reqID << endl;
+  cout << prefix << "PosReqType - " << pos_type << endl;
 
   // if a PositionReport is requested and no positions exist for that rquest, the Text field will
   // indicate that no positions matched the requested criteria
   if( ack.isSetField(FIELD::Text) ){
-    cout << "RequestForPositionAck -> Text - " << ack.getField(FIELD::Text) << endl;
+    cout << prefix << "Text - " << ack.getField(FIELD::Text) << endl;
   }
 }
 
@@ -257,69 +267,138 @@ void FIXManager::onMessage(const FIX44::RequestForPositionsAck &ack, const Sessi
  * @param session_ID [description]
  */
 void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& session_ID){
-  // Print out important position related information such as accountID and symbol
-  string accountID = pr.getField(FIELD::Account);
-  string symbol = pr.getField(FIELD::Symbol);
-  string clordID = pr.getField(FIELD::ClOrdID);
-  string positionID = pr.getField(FXCM_POS_ID);
-  string pos_open_time = pr.getField(FXCM_POS_OPEN_TIME);  
-  string currency = pr.getField(FIELD::Currency);
-  string settleprice = pr.getField(FIELD::SettlPrice);
-  string pos_margin = pr.getField(FXCM_USED_MARGIN);
 
-  bool isOpenPos = pr.getField(FIELD::PosReqType) == "0";
+  // cout prefix
+  string prefix = "[onMessage:PositionReport] ";
+  // fxcm position id
+  string fxcm_pos_id = pr.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
+  // Set to 'Y' if message is sent as a result of a subscription request or out of band configuration as opposed to a Position Request (AN)
+  bool isUnsolicited = BoolConvertor::convert( pr.getField( FIELD::UnsolicitedIndicator ) );
 
-  cout << "[onMessage:PositionReport]" << endl;
-  cout << "  PositionID  -> " << positionID << endl;
-  cout << "  Account     -> " << accountID << endl;
-  cout << "  Symbol      -> " << symbol << endl;
-  cout << "  Open Time   -> " << pos_open_time << endl;
-  cout << "  Currency    -> " << currency << endl;
-  cout << "  SettlPrice  -> " << settleprice << endl;
-  
-  if( isOpenPos ){
+  FIX::PosReqType posReqType;
+  FIX::Account account;
+  FIX::Symbol symbol;
+  FIX::SettlPrice settlePrice;
+
+  pr.get( posReqType );
+  pr.get( account );
+  pr.get( symbol );
+  pr.get( settlePrice );
+
+  // Position is open and is not SL or TP
+  if ( ! fxcm_pos_id.empty() && posReqType == FIX::PosReqType_POSITIONS ) {
+    MarketOrder marketOrder;
+    marketOrder.setPosID( fxcm_pos_id );
+    marketOrder.setSymbol( symbol.getValue() );
+    marketOrder.setPrice( settlePrice.getValue() );
+    marketOrder.setAccountID( account.getValue() );
 
     FIX44::PositionReport::NoPositions posGroup;
     pr.getGroup(1, posGroup);
 
-    string qty;
-    Side side;
-    if(posGroup.isSetField(FIELD::LongQty)) {
-      side = Side(FIX::Side_BUY);
-      qty = posGroup.getField(FIELD::LongQty);
-    } else if(pr.isSetField(FIELD::ShortQty)){
-      side = Side(FIX::Side_SELL);
-      qty = posGroup.getField(FIELD::ShortQty);
+    if ( posGroup.isSetField( FIELD::LongQty ) ) {
+      marketOrder.setSide( FIX::Side_BUY );
+      marketOrder.setQty( DoubleConvertor::convert( posGroup.getField( FIELD::LongQty ) ) );  
+    } else if ( pr.isSetField( FIELD::ShortQty ) ){
+      marketOrder.setSide( FIX::Side_SELL );
+      marketOrder.setQty( DoubleConvertor::convert( posGroup.getField( FIELD::ShortQty ) ) );
     }
 
-    cout << "  Margin      -> " << pos_margin << endl;
-    cout << "  Qty         -> " << qty << endl;
-    cout << "  Side        -> " << (side.getValue() == Side_BUY ? "Buy" : "Sell") << endl;  
+    marketOrder.setClOrdID( pr.getField( FIELD::ClOrdID ) );
+    marketOrder.setSendingTime( pr.getField( FXCM_FIX_FIELDS::FXCM_POS_OPEN_TIME ) );
 
-    // add open pos to intern list, if not existing
-    MarketOrder marketOrder;
-    marketOrder.setPosID(positionID);
-    marketOrder.setSymbol(symbol);
-    marketOrder.setClOrdID(clordID);
-    marketOrder.setSendingTime(pos_open_time);
-    marketOrder.setPrice(DoubleConvertor::convert(settleprice));
-    marketOrder.setSide(side.getValue());
-    marketOrder.setQty(DoubleConvertor::convert(qty));
-    marketOrder.setAccountID(accountID);
+    cout << prefix << "addMarketOrder " << fxcm_pos_id << endl;
+    addMarketOrder( marketOrder );
 
-    addMarketOrder(marketOrder);
+    // queryOrderMassStatusRequest to update order with SL and TP values
+    queryOrderMassStatus();
   }
 
-  // only for closed positions
-  if( ! isOpenPos ){
-    // remove market order from list
-    remMarketOrder(positionID);
+  /*const int posReqType = IntConvertor::convert( pr.getField( FIELD::PosReqType ) ) ;
 
-    string pos_close_price = pr.getField(FXCM_CLOSE_SETTLE_PRICE);
-    string pos_close_pl = pr.getField(FXCM_CLOSE_PNL);  
-    cout << "  P/L -> " << pos_close_pl << endl;  
-    cout << "  ClosePrice -> " << pos_close_price << endl;
-  }
+  cout << "[onMessage:PositionReport] " << endl;
+  if ( posReqType == PosReqType_POSITIONS ) {
+    // get fields
+    string accountID     = pr.getField( FIELD::Account );
+    string symbol        = pr.getField( FIELD::Symbol );
+    string clordID       = pr.getField( FIELD::ClOrdID );
+    string positionID    = pr.getField( FXCM_POS_ID );
+    string pos_open_time = pr.getField( FXCM_POS_OPEN_TIME);   
+    string currency      = pr.getField( FIELD::Currency );
+    string settleprice   = pr.getField( FIELD::SettlPrice );
+    string pos_margin    = pr.getField( FXCM_USED_MARGIN );
+
+    // message is being sent unsolicited (if yes, this is a stoploss or take profit)
+    bool unsolicitedIndicator = BoolConvertor::convert( pr.getField( FIELD::UnsolicitedIndicator ) );
+
+    // Print out important position related information such as accountID and symbol
+    bool isOpenPos = pr.getField(FIELD::PosReqType) == "0";
+
+    cout << "  ClOrdID     -> " << clordID       << endl;
+    cout << "  PositionID  -> " << positionID    << endl;
+    cout << "  Account     -> " << accountID     << endl;
+    cout << "  Symbol      -> " << symbol        << endl;
+    cout << "  Open Time   -> " << pos_open_time << endl;
+    cout << "  Currency    -> " << currency      << endl;
+    cout << "  SettlPrice  -> " << settleprice   << endl;
+    
+    if( isOpenPos ){
+
+      FIX44::PositionReport::NoPositions posGroup;
+      pr.getGroup(1, posGroup);
+
+      double qty;
+      Side side;
+      if ( posGroup.isSetField( FIELD::LongQty ) ) {
+        side = Side( FIX::Side_BUY );
+        qty = DoubleConvertor::convert( posGroup.getField( FIELD::LongQty ) );
+      } else if ( pr.isSetField( FIELD::ShortQty ) ){
+        side = Side(FIX::Side_SELL);
+        qty = DoubleConvertor::convert( posGroup.getField( FIELD::ShortQty ) );
+      }
+
+      cout << "  Margin      -> " << pos_margin << endl;
+      cout << "  Qty         -> " << qty << endl;
+      cout << "  Side        -> " << (side.getValue() == Side_BUY ? "Buy" : "Sell") << endl;  
+
+      // add open pos to intern list, if not existing
+      MarketOrder marketOrder;
+      marketOrder.setPosID( positionID );
+      marketOrder.setSymbol( symbol );
+      marketOrder.setClOrdID( clordID );
+      marketOrder.setOrderID( positionID );
+      marketOrder.setSendingTime( pos_open_time );
+      marketOrder.setPrice( DoubleConvertor::convert( settleprice ) );
+      marketOrder.setSide( side.getValue() );
+      marketOrder.setQty( qty );
+      marketOrder.setAccountID( accountID );
+
+      if( ! unsolicitedIndicator ){
+        //addMarketOrder( marketOrder );
+      } else {
+        //updateMarketOrder( marketOrder, true );
+      }
+    }
+
+    // only for closed positions
+    if( ! isOpenPos ){
+      // remove market order from list
+      //remMarketOrder(positionID);
+
+      string pos_close_price = pr.getField(FXCM_CLOSE_SETTLE_PRICE);
+      string pos_close_pl = pr.getField(FXCM_CLOSE_PNL);  
+      cout << "  P/L -> " << pos_close_pl << endl;  
+      cout << "  ClosePrice -> " << pos_close_price << endl;
+    }
+  } else if ( posReqType == PosReqType_TRADES ) {
+    cout << "TRADE " << pr << endl;
+  } else if ( posReqType == PosReqType_EXERCISES ) {
+    cout << "EXECISES " << pr << endl;
+  } else if ( posReqType == PosReqType_ASSIGNMENTS ) {
+    cout << "ASSIGNMENTS " << pr << endl;
+  } else {
+    cout << "unknown PosReqType_" << posReqType << endl;
+  }*/
 }
 
 /*!
@@ -393,45 +472,150 @@ void FIXManager::onMessage(const FIX44::MarketDataSnapshotFullRefresh &mds, cons
 }
 
 /*!
- * Is called if an ExecutionReport for a new order is available
- * @param er         [description]
- * @param session_ID [description]
+ * Is called if an ExecutionReport for an order is available
+ * @param const FIX44::ExecutionReport er
+ * @param const SessionID& session_ID
  */
-void FIXManager::onMessage(const FIX44::ExecutionReport &er, const SessionID &session_ID) {
+void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& session_ID) {
 
-  string coutPrefix = "[onMessage:ExecutionReport] ";
+  string prefix = "[onMessage:ExecutionReport] ";
 
   FIX::ExecType execType;
-  er.get(execType);
-  
+  FIX::OrdStatus ordStatus;
+  FIX::OrdType ordType;
   FIX::ClOrdID clOrdID;
-  er.get(clOrdID);
+  FIX::LastQty lastQty;
+  FIX::LastPx lastPx;
+  FIX::Side side;
+  FIX::Symbol symbol;
+  FIX::Account account;
+  
+  string fxcm_pos_id = er.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
+  string sendingTime = er.getHeader().getField( FIELD::SendingTime );
 
-  string fxcm_pos_id = er.getField(FXCM_POS_ID);
+  er.get( execType );
+  er.get( ordStatus );
+  er.get( ordType );
+  er.get( clOrdID );
+  er.get( lastQty );
+  er.get( lastPx );
+  er.get( side );
+  er.get( symbol );
+  er.get( account );
+  
+  // If we have a new market order with fxcm position id.
+  if ( ! fxcm_pos_id.empty() ) {
 
+    // create market order.
+    MarketOrder marketOrder;
+    marketOrder.setPosID( fxcm_pos_id );
+    marketOrder.setSymbol( symbol.getValue() );
+    marketOrder.setSide( side.getValue() );
+    marketOrder.setPrice( lastPx.getValue() );
+    marketOrder.setQty( lastQty.getValue() );
+    marketOrder.setAccountID( account.getValue() );
+    marketOrder.setClOrdID( clOrdID.getValue() );
+    marketOrder.setSendingTime( sendingTime );
+    marketOrder.setStopPrice( 0 );
+    marketOrder.setTakePrice( 0 );
+
+    // MassOrderStatus
+    if ( execType == FIX::ExecType_ORDER_STATUS ) {
+      // get specific fields for OrderStatus
+      FIX::OrderQty orderQty;
+      er.get( orderQty );
+
+      // MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 2 = Limit
+      // update order in list, set take profit
+      if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT ) {
+        cout << prefix << "OrderStatus->updateMarketOrder (LIMIT)" << endl;
+        // set take profit price.
+        marketOrder.setTakePrice( marketOrder.getPrice() );
+        // set OrderQty
+        marketOrder.setQty( orderQty.getValue() );
+        // update order in list.
+        updateMarketOrder( marketOrder, true );
+      }
+      // MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 3 = Stop
+      // update order in list, set stop loss
+      else if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP ) {
+        cout << prefix << "OrderStatus->updateMarketOrder (STOP)" << endl;
+        // set stop price.
+        marketOrder.setStopPrice( marketOrder.getPrice() );
+        // set OrderQty
+        marketOrder.setQty( orderQty.getValue() );
+        // update order in list.
+        updateMarketOrder( marketOrder, true );
+      }
+    }
+    // MarketOrder with ExecTyp F = Trade && OrdStatus 2 = Filled && OrdType 1 = Market
+    // add new order in list
+    else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_MARKET ) {
+      cout << prefix << "addMarketOrder " << marketOrder.getPosID() << endl;
+      addMarketOrder( marketOrder );
+    }
+    // MarketOrder with ExecType F = Trade && OrdStatus 2 = Filled && OrdType 2 = Limit
+    // take profit filled -> remove order from list
+    else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_LIMIT ) {
+      cout << prefix << "removeMarketOrder (LIMIT) " << marketOrder.getPosID() << endl;
+      removeMarketOrder( marketOrder.getPosID() );
+    }
+    // MarketOrder with ExecType F = Trade && OrdStatus 2 = Filled && OrdType 3 = Stop
+    // stop loss filled -> remove order form list
+    else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_STOP ) { 
+      cout << prefix << "removeMarketOrder (STOP)" << marketOrder.getPosID() << endl;
+      removeMarketOrder( marketOrder.getPosID() );
+    }
+    // MarketOrder with ExecType 0 = New && OrdStatus 0 = New && OrdType 2 = Limit
+    // update order in list, set take profit
+    /*else if ( execType == FIX::ExecType_NEW && ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT ) {
+      cout << prefix << "updateMarketOrder with take profit" << endl;
+      // set take profit price.
+      marketOrder.setTakePrice( DoubleConvertor::convert( er.getField( FIELD::LastPx ) ) );
+      // update market order.
+      updateMarketOrder( marketOrder, true );
+    }
+    // MarketOrder with ExecType 0 = New && OrdStatus 0 = New && OrdType 3 = Stop
+    // update order in list, set stop loss
+    else if ( execType == FIX::ExecType_NEW && ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP ) {
+      cout << prefix << "updateMarketOrder with stop loss" << endl;
+      // set stop loss price.
+      marketOrder.setStopPrice( DoubleConvertor::convert( er.getField( FIELD::LastPx ) ) );
+      // update market order.
+      updateMarketOrder( marketOrder, true );
+    }*/
+    // MarketOrder with ExecType 4 = Canceled && OrdStatus 4 = Canceled 
+    // remove order from list
+    else if ( execType == FIX::ExecType_CANCELED && ordStatus == FIX::OrdStatus_CANCELED ) {
+      cout << prefix << "removeMarketOrder -> CANCELED" << endl;
+      // remove market order.
+      removeMarketOrder( marketOrder.getPosID() );
+    }
+  }
+  
   // What kind of execution report is this?
-  if(FIX::ExecType_TRADE == execType.getValue()) {
+  /*if(FIX::ExecType_TRADE == execType.getValue()) {
     if( ! fxcm_pos_id.empty() ){
-      MarketOrder marketOrder;
-      marketOrder.setPosID( fxcm_pos_id );
-      marketOrder.setSide( er.getField(FIELD::Side)[0] );
-      marketOrder.setPrice( DoubleConvertor::convert(er.getField(FIELD::LastPx)) );
-      marketOrder.setSymbol( er.getField(FIELD::Symbol) );
-      marketOrder.setQty( DoubleConvertor::convert(er.getField(FIELD::LastQty)) );
-      marketOrder.setAccountID( er.getField(FIELD::Account) );
-      marketOrder.setClOrdID( clOrdID );
-      marketOrder.setSendingTime( er.getField(FIELD::SendingTime) );
-      marketOrder.setStopPrice( DoubleConvertor::convert(er.getField(FIELD::StopPx)) );
-
-      // if this trade is filled, add to market order list
-      string ordStatus = er.getField(FIELD::OrdStatus);
-      if( ordStatus == OrdStatus_FILLED ){
-        addMarketOrder(marketOrder);  
+      // if the communication with counterparty stopped, add to market order list
+      string ordStatus = er.getField( FIELD::OrdStatus );
+      // end of execution with counterparties
+      if( ordStatus == OrdStatus_STOPPED ){
+        // MarketOrder marketOrder;
+        // marketOrder.setPosID( fxcm_pos_id );
+        // marketOrder.setSide( er.getField(FIELD::Side)[0] );
+        // marketOrder.setPrice( DoubleConvertor::convert( er.getField( FIELD::LastPx) ) );
+        // marketOrder.setSymbol( er.getField( FIELD::Symbol) );
+        // marketOrder.setQty( DoubleConvertor::convert( er.getField( FIELD::LastQty ) ) );
+        // marketOrder.setAccountID( er.getField( FIELD::Account ) );
+        // marketOrder.setClOrdID( clOrdID );
+        // marketOrder.setSendingTime( er.getField( FIELD::SendingTime ) );
+        // marketOrder.setStopPrice( DoubleConvertor::convert( er.getField( FIELD::StopPx ) ) );
+        
+        // addMarketOrder( marketOrder );
       } else if ( ordStatus == OrdStatus_CANCELED ){
         // remove trade from market order list
-        remMarketOrder(fxcm_pos_id);
+        //remMarketOrder( fxcm_pos_id );
       }
-      
     } else {
       cout << coutPrefix << "FXCM_POS_ID is empty." << endl;
     }
@@ -453,7 +637,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport &er, const SessionID &se
   } else {
     // No idea
     cout << coutPrefix << "execType: " << execType << ": " << er << endl;
-  }
+  }*/
 
   /*
   cout << "[onMessage:ExecutionReport]" << endl;
@@ -475,6 +659,16 @@ void FIXManager::onMessage(const FIX44::ExecutionReport &er, const SessionID &se
   // much of an order was filled.
 }
 
+// If no allocation report is available
+void FIXManager::onMessage(const FIX44::AllocationReportAck& ack, const SessionID& session_ID){
+  cout << "[onMessage::AllocationReportAck] " << ack << endl;
+}
+
+// If allocation report is available
+void FIXManager::onMessage(const FIX44::AllocationReport& ar, const SessionID& session_ID){
+  cout << "[onMessage:AllocationReport] " << ar << endl;
+}
+
 // Starts the FIX session. Throws FIX::ConfigError exception if our configuration settings
 // do not pass validation required to construct SessionSettings
 void FIXManager::startSession(const string settingsfile) {
@@ -485,7 +679,7 @@ void FIXManager::startSession(const string settingsfile) {
     m_pinitiator = new SocketInitiator(*this, *m_pstore_factory, *m_psettings, *m_plog_factory/* Optional*/);
     m_pinitiator->start();
   } catch(ConfigError& error){
-    cout << error.what() << endl;
+    cout << "[startSession:exception] " << error.what() << endl;
   }
 }
 
@@ -501,204 +695,63 @@ void FIXManager::endSession() {
 // Sends TradingSessionStatusRequest message in order to receive as a response the
 // TradingSessionStatus message
 void FIXManager::queryTradingStatus() {
-  // Request TradingSessionStatus message
-  FIX44::TradingSessionStatusRequest request;
-  request.setField(TradSesReqID(nextRequestID()));
-  request.setField(TradingSessionID("FXCM"));
-  request.setField(SubscriptionRequestType(SubscriptionRequestType_SNAPSHOT));
-
-  Session::sendToTarget(request, getOrderSessionID());
+  auto request = FIXFactory::TradingSessionStatusRequest( nextRequestID() );
+  Session::sendToTarget( request, getOrderSessionID() );
 }
 
 // Sends the CollateralInquiry message in order to receive as a response the CollateralReport message
 void FIXManager::queryAccounts(){
   // Request CollateralReport message. We will receive a CollateralReport for each
   // account under our login
-  FIX44::CollateralInquiry request;
-  request.setField(CollInquiryID(nextRequestID()));
-  request.setField(TradingSessionID("FXCM"));
-  request.setField(SubscriptionRequestType(SubscriptionRequestType_SNAPSHOT));
-
+  auto request = FIXFactory::CollateralInquiry( nextRequestID() );
   Session::sendToTarget(request, getOrderSessionID());
 }
 
-/*!
- * Subscribe and Unsubscribe to/from MarketData
- * @param symbol      FIX::Symbol
- * @param requestType FIX::SubscriptionRequestType
- */
-void FIXManager::queryMarketData(const FIX::Symbol symbol, const FIX::SubscriptionRequestType requestType){
-  FIX44::MarketDataRequest request;
-  request.setField(MDReqID("Request_" + symbol.getValue()));
-  request.setField(requestType);
-  request.setField(MarketDepth(0));
-  request.setField(NoRelatedSym(1));
-
-  // Add the NoRelatedSym group to the request with Symbol
-  // field set to EUR/USD
-  FIX44::MarketDataRequest::NoRelatedSym symbols_group;
-  symbols_group.setField(symbol);
-  request.addGroup(symbols_group);
-
-  // Add the NoMDEntryTypes group to the request for each MDEntryType
-  // that we are subscribing to. This includes Bid, Offer, High and Low
-  FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
-  entry_types.setField(MDEntryType(MDEntryType_BID));
-  request.addGroup(entry_types);
-  entry_types.setField(MDEntryType(MDEntryType_OFFER));
-  request.addGroup(entry_types);
-  entry_types.setField(MDEntryType(MDEntryType_TRADING_SESSION_HIGH_PRICE));
-  request.addGroup(entry_types);
-  entry_types.setField(MDEntryType(MDEntryType_TRADING_SESSION_LOW_PRICE));
-  request.addGroup(entry_types);
-
-  Session::sendToTarget(request, getMarketSessionID());
+// Subscribes to the symbol trading security
+void FIXManager::subscribeMarketData(const std::string symbol) {
+  auto request = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES );
+  Session::sendToTarget( request, getMarketSessionID() );
 }
 
-// Subscribes to the EUR/USD trading security
-void FIXManager::subscribeMarketData(const FIX::Symbol symbol) {
-  queryMarketData(symbol, SubscriptionRequestType(SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES));
-}
-
-// Unsubscribe from the EUR/USD trading security
-void FIXManager::unsubscribeMarketData(const FIX::Symbol symbol) {
-  queryMarketData(symbol, SubscriptionRequestType(
-      SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST));
+// Unsubscribe from the symbol trading security
+void FIXManager::unsubscribeMarketData(const std::string symbol) {
+  auto request = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST );
+  Session::sendToTarget( request, getMarketSessionID() );
 }
 
 /*!
  * Sends a basic market order message to buy/sell at best market price
- * @param symbol [description]
- * @param side   [description]
- * @param qty    [description]
+ * 
+ * @param IDEFIX::MarketOrder marketOrder (Symbol, Qty, Side musst be set!)
+ * @param FIXFactory::SingleOrderType orderType MARKET_ORDER|MARKET_ORDER_SL|MARKET_ORDER_SL_TP
  */
-void FIXManager::marketOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty) {
-  FIX44::NewOrderSingle request;
-  request.setField(ClOrdID(nextOrderID()));
-  request.setField(Account(getAccountID()));
-  request.setField(symbol);
-  request.setField(TradingSessionID("FXCM"));
-  request.setField(TransactTime());
-  request.setField(OrdType(FIX::OrdType_MARKET));
-  request.setField(OrderQty(qty));
-  request.setField(Side(side));
-  request.setField(OrdType(OrdType_MARKET));
-  request.setField(TimeInForce(TimeInForce_FILL_OR_KILL));
-  
-  Session::sendToTarget(request, getOrderSessionID());
-}
-
-/*!
- * Send stop/take profit order at given price with fill or kill validity
- * @param symbol [description]
- * @param side   [description]
- * @param qty    [description]
- * @param price  [description]
- */
-void FIXManager::stopOrder(const FIX::Symbol symbol, const FIX::Side side, const double qty, const double price){
-  FIX44::NewOrderSingle request;
-  request.setField(ClOrdID(nextOrderID()));
-  request.setField(Account(getAccountID()));
-  request.setField(Symbol(symbol));
-  request.setField(TradingSessionID("FXCM"));
-  request.setField(TransactTime());
-  request.setField(OrdType(FIX::OrdType_STOP));
-  request.setField(OrderQty(qty));
-  request.setField(Side(side));
-  request.setField(StopPx(price));
-  request.setField(PositionEffect(PositionEffect_CLOSE));
-
-  Session::sendToTarget(request, getOrderSessionID());
-}
-
-/*!
- * Send market order with stoploss
- * @param marketOrder
- */
-void FIXManager::marketOrderWithStoploss(MarketOrder& marketOrder){
-  FIX44::NewOrderList olist;
-
-  olist.setField(FIX::ListID(nextOrderID()));
-  olist.setField(FIX::TotNoOrders(2));
-  olist.setField(FIELD::ContingencyType, "101");
-
-  // Order
-  FIX44::NewOrderList::NoOrders order;
-  order.setField(ClOrdID(nextOrderID()));
-  order.setField(ListSeqNo(0));
-  order.setField(ClOrdLinkID("1")); // link to another clordid in list
-  order.setField(Account(getAccountID()));
-  order.setField(Symbol(marketOrder.getSymbol()));
-  order.setField(Side(marketOrder.getSide()));
-  order.setField(OrderQty(marketOrder.getQty()));
-  order.setField(OrdType(OrdType_MARKET));
-  olist.addGroup(order);
-
-  // StopLoss
-  FIX44::NewOrderList::NoOrders stop;
-  stop.setField(ClOrdID(nextOrderID()));
-  stop.setField(ListSeqNo(1));
-  stop.setField(ClOrdLinkID("2"));
-  stop.setField(Account(getAccountID()));
-  stop.setField(Side(marketOrder.getSide() == Side_BUY ? Side_SELL : Side_BUY));
-  stop.setField(Symbol(marketOrder.getSymbol()));
-  stop.setField(OrderQty(marketOrder.getQty()));
-  stop.setField(OrdType(OrdType_STOP));
-  stop.setField(StopPx(marketOrder.getStopPrice()));
-  olist.addGroup(stop);
-
-  Session::sendToTarget(olist, getOrderSessionID());
-}
-
-/*!
- * Send market order with stoploss and takeprofit order
- * @param marketOrder [description]
- */
-void FIXManager::marketOrderWithStopLossTakeProfit(IDEFIX::MarketOrder &marketOrder){
-  FIX44::NewOrderList olist;
-  olist.setField(FIX::ListID(nextOrderID()));
-  olist.setField(FIX::TotNoOrders(3));
-  olist.setField(FIELD::ContingencyType, "101");
-
-  // Order
-  FIX44::NewOrderList::NoOrders order;
-  order.setField(ClOrdID(nextOrderID()));
-  order.setField(ListSeqNo(0));
-  order.setField(ClOrdLinkID("1")); // link to another clordid in list
-  order.setField(Account(getAccountID()));
-  order.setField(Symbol(marketOrder.getSymbol()));
-  order.setField(Side(marketOrder.getSide()));
-  order.setField(OrderQty(marketOrder.getQty()));
-  order.setField(OrdType(OrdType_MARKET));
-  olist.addGroup(order);
-
-  // StopLoss
-  FIX44::NewOrderList::NoOrders stop;
-  stop.setField(ClOrdID(nextOrderID()));
-  stop.setField(ListSeqNo(1));
-  stop.setField(ClOrdLinkID("2"));
-  stop.setField(Account(getAccountID()));
-  stop.setField(Side(marketOrder.getSide() == Side_BUY ? Side_SELL : Side_BUY));
-  stop.setField(Symbol(marketOrder.getSymbol()));
-  stop.setField(OrderQty(marketOrder.getQty()));
-  stop.setField(OrdType(OrdType_STOP));
-  stop.setField(StopPx(marketOrder.getStopPrice()));
-  olist.addGroup(stop);
-
-  // TakeProfit
-  FIX44::NewOrderList::NoOrders limit;
-  limit.setField(ClOrdID(nextOrderID()));
-  limit.setField(ListSeqNo(2));
-  limit.setField(ClOrdLinkID("2"));
-  limit.setField(Account(getAccountID()));
-  limit.setField(Side(marketOrder.getSide() == Side_BUY ? Side_SELL : Side_BUY));
-  limit.setField(Symbol(marketOrder.getSymbol()));
-  limit.setField(OrderQty(marketOrder.getQty()));
-  limit.setField(OrdType(OrdType_LIMIT));
-  limit.setField(Price(marketOrder.getTakePrice()));
-  olist.addGroup(limit);
-
-  Session::sendToTarget(olist, getOrderSessionID());
+void FIXManager::marketOrder(const MarketOrder& marketOrder, const FIXFactory::SingleOrderType orderType) {
+  try {
+    // normal market order.
+    if ( orderType == FIXFactory::SingleOrderType::MARKET_ORDER ) {
+      auto request = FIXFactory::NewOrderSingle( nextOrderID(), marketOrder );
+      Session::sendToTarget( request, getOrderSessionID() );  
+    } 
+    // market order with stoploss (OCO)
+    else if ( orderType == FIXFactory::SingleOrderType::MARKET_ORDER_SL ) {
+      const std::vector<std::string> reqIDs = { nextOrderID(), nextOrderID(), nextOrderID() };
+      auto olist = FIXFactory::NewOrderList( reqIDs, marketOrder );
+      Session::sendToTarget( olist, getOrderSessionID() );
+    }
+    // market order with stoploss and takeprofit (ELS)
+    else if ( orderType == FIXFactory::SingleOrderType::MARKET_ORDER_SL_TP ) {
+      const std::vector<std::string> reqIDs = { nextOrderID(), nextOrderID(), nextOrderID(), nextOrderID() };
+      auto olist = FIXFactory::NewOrderList( reqIDs, marketOrder );
+      Session::sendToTarget( olist, getOrderSessionID() );
+    }
+    // stop order
+    else if ( orderType == FIXFactory::SingleOrderType::STOPORDER ) {
+      auto request = FIXFactory::NewOrderSingle( nextOrderID(), marketOrder, orderType );
+      Session::sendToTarget( request, getOrderSessionID() );
+    }
+  } catch(std::exception& e){
+    cout << "[marketOrder:exception] " << e.what() << endl;
+  }
 }
 
 // Generate string value used to identify the request
@@ -736,7 +789,7 @@ bool FIXManager::isOrderSession(const SessionID& session_ID){
  * Add market snapshot for symbol and recalculates prices
  * @param MarketSnapshot snapshot
  */
-void FIXManager::updatePrices(const MarketSnapshot snapshot){
+void FIXManager::updatePrices(const MarketSnapshot& snapshot){
   // Update positions with profit and loss
   // get size of snapshots for symbol
   /*cout << "[updatePrices] Snapshot List Size: " << getMarket(snapshot.getSymbol()).getSize() << endl;
@@ -772,8 +825,21 @@ void FIXManager::closeAllPositions(const string symbol){
   for(auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
     if( it->second.getSymbol() == symbol ){
       cout << it->second.toString() << endl;
-      queryClosePosition(it->second.getPosID(), Symbol(it->second.getSymbol()), Side(it->second.getOpposide()), OrderQty(it->second.getQty()));
-    }    
+      closePosition(it->second);
+    }
+  }
+}
+
+/*!
+ * Send market close order
+ * @param marketOrder [description]
+ */
+void FIXManager::closePosition(const IDEFIX::MarketOrder &marketOrder){
+  try {
+    auto request = FIXFactory::NewOrderSingle( nextOrderID(), marketOrder, FIXFactory::SingleOrderType::CLOSEORDER );
+    Session::sendToTarget(request, getOrderSessionID());  
+  } catch(std::exception& e){
+    cout << "[closePosition:exception] " << e.what() << endl;
   }
 }
 
@@ -784,63 +850,24 @@ void FIXManager::closeAllPositions(const string symbol){
  * @param type FIX::PosReqType http://fixwiki.fixtrading.org/index.php/PosReqType
  */
 void FIXManager::queryPositionReport(const FIX::PosReqType type){
-
-  string accountID = getAccountID();
-
-  // Set default fields
-  FIX44::RequestForPositions request;
-  request.setField(PosReqID("PosRequest_" + nextRequestID()));
-  request.setField(PosReqType(type));
-
-  // AccountID for the request. This must be set for routing purposes. We must
-  // also set the Parties AccountID field in the NoPartySubIDs group
-  request.setField(Account(accountID));
-  request.setField(SubscriptionRequestType(SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES));
-  request.setField(AccountType(AccountType_ACCOUNT_IS_CARRIED_ON_NON_CUSTOMER_SIDE_OF_BOOKS_AND_IS_CROSS_MARGINED));
-  request.setField(TransactTime());
-  request.setField(ClearingBusinessDate());
-  request.setField(TradingSessionID("FXCM"));
-
-  // Set NoPartyIDs group. These values are always as seen below
-  request.setField(NoPartyIDs(1));
-  FIX44::RequestForPositions::NoPartyIDs parties_group;
-  parties_group.setField(PartyID("FXCM ID"));
-  parties_group.setField(PartyIDSource('D'));
-  parties_group.setField(PartyRole(3));
-  parties_group.setField(NoPartySubIDs(1));
-
-  // Set NoPartySubIDs group
-  FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
-  sub_parties.setField(PartySubIDType(PartySubIDType_SECURITIES_ACCOUNT_NUMBER));
-
-  // Set Parties AccountID
-  sub_parties.setField(PartySubID(accountID));
-
-  // Add NoPartySubIds group
-  parties_group.addGroup(sub_parties);
-
-  // Add NoPartyIDs group
-  request.addGroup(parties_group);
-
-  Session::sendToTarget(request, getOrderSessionID());
+  try {
+    auto request = FIXFactory::RequestForPositions( nextRequestID(), getAccountID(), type);
+    Session::sendToTarget(request, getOrderSessionID());
+  } catch( std::exception& e ){
+    cout << "[queryPositionReport:exception] " << e.what() << endl;
+  }
 }
 
 /*!
- * Send message to close position
- * @param position_id [description]
+ * Sends OrderMassStatusRequest to get an ExecutionReport for every order at FXCM
  */
-void FIXManager::queryClosePosition(const std::string position_id, const FIX::Symbol symbol, const FIX::Side side, const FIX::OrderQty qty){
-  FIX44::NewOrderSingle order;
-  order.setField(ClOrdID(nextOrderID()));
-  order.setField(Account(getAccountID()));
-  order.setField(Symbol(symbol));
-  order.setField(Side(side));
-  order.setField(TransactTime());
-  order.setField(OrderQty(qty));
-  order.setField(OrdType(OrdType_MARKET));
-  order.setField(FXCM_POS_ID, position_id);
-
-  Session::sendToTarget(order, getOrderSessionID());
+void FIXManager::queryOrderMassStatus() {
+  try {
+    auto request = FIXFactory::OrderMassStatusRequest( nextRequestID(), getAccountID() );  
+    Session::sendToTarget( request, getOrderSessionID() );
+  } catch( std::exception& e ){
+    cout << "[queryOrderMassStatus:exception] " << e.what() << endl;
+  }
 }
 
 void FIXManager::toggleSnapshotOutput(){
@@ -938,14 +965,59 @@ void FIXManager::addMarketOrder(const MarketOrder marketOrder){
 
 /*!
  * Remove MarketOrder from order list
+ * 
  * @param posID FXCM position id
  */
-void FIXManager::remMarketOrder(const string posID){
+void FIXManager::removeMarketOrder(const string posID){
   FIX::Locker lock(m_mutex);
   map<string, MarketOrder>::iterator moIterator = m_list_marketorders.find(posID);
   if( moIterator != m_list_marketorders.end() ){
     // posID found, remove
     m_list_marketorders.erase(moIterator);
+  }
+}
+
+/*!
+ * Update take profit or stop loss field if isUnsolicitd = true, else update all fields
+ * @param const MarketOrder& rH
+ * @param const bool isUnsolicited set to true to update stop loss or take profit
+ */
+void FIXManager::updateMarketOrder(const MarketOrder& rH, const bool isUnsolicited){
+  FIX::Locker lock(m_mutex);
+  map<string, MarketOrder>::iterator moIterator = m_list_marketorders.find( rH.getPosID() );
+  if( moIterator != m_list_marketorders.end() ){
+    // original order
+    MarketOrder lH = moIterator->second;
+    // update position because of take profit or stop loss.
+    if( isUnsolicited ){
+      // stoploss or takeprofit?
+      if( lH.getSide() == FIX::Side_BUY && rH.getPrice() > lH.getPrice() ) {
+        // take profit buy order
+        moIterator->second.setTakePrice( rH.getTakePrice() );
+      } else if( lH.getSide() == FIX::Side_BUY && rH.getPrice() < lH.getPrice() ) {
+        // stop loss buy order
+        moIterator->second.setStopPrice( rH.getStopPrice() );
+      } else if( lH.getSide() == FIX::Side_SELL && rH.getPrice() > lH.getPrice() ) {
+        // stop loss sell order
+        moIterator->second.setStopPrice( rH.getStopPrice() );
+      } else if ( lH.getSide() == FIX::Side_SELL && rH.getPrice() < lH.getPrice() ) {
+        // take profit sell order
+        moIterator->second.setTakePrice( rH.getTakePrice() );
+      }
+    } else {
+      // Normal all field update
+      lH.setClOrdID( rH.getClOrdID() );
+      lH.setOrderID( rH.getOrderID() );
+      lH.setAccountID( rH.getAccountID() );
+      lH.setSymbol( rH.getSymbol() );
+      lH.setSendingTime( rH.getSendingTime() );
+      lH.setSide( rH.getSide() );
+      lH.setQty( rH.getQty() );
+      lH.setPrice( rH.getPrice() );
+      lH.setStopPrice( rH.getStopPrice() );
+      lH.setTakePrice( rH.getTakePrice() );
+      lH.setProfitLoss( rH.getProfitLoss() );
+    }
   }
 }
 
@@ -1012,9 +1084,8 @@ string FIXManager::getSysParam(const string key){
 
 void FIXManager::debug(){
   // output order list
+  cout << "[debug:MarketOrders] Size " << m_list_marketorders.size() << endl;
   if( m_list_marketorders.empty() ) return;
-
-  cout << "[MarketOrders]" << endl;
   for( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
     cout << it->second.toString() << endl;
   }

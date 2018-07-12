@@ -67,19 +67,27 @@ int main(int argc, char** argv){
       switch(command){
         case 0: // Exit fixmanagerlication
           cout << "--> Exiting..." << endl;
+          cout << "    unsubscribe market data." << endl;
+          fixmanager.unsubscribeMarketData("EUR/USD");
           exit = true;
           break;
         case 1: // Subscribe to MarketData
           cout << "--> Subscribe EUR/USD" << endl;
-          fixmanager.subscribeMarketData(Symbol("EUR/USD"));
+          fixmanager.subscribeMarketData("EUR/USD");
           break;
         case 2: // Unsubscribe from market data
           cout << "--> Unsubscribe EUR/USD" << endl;
-          fixmanager.unsubscribeMarketData(Symbol("EUR/USD"));
+          fixmanager.unsubscribeMarketData("EUR/USD");
           break;
         case 3: // Get positions
-          cout << "--> query Positions +updates" << endl;
-          fixmanager.queryPositionReport(PosReqType_POSITIONS);
+          cout << "--> query Positions" << endl;
+          //fixmanager.queryPositionReport(PosReqType_POSITIONS);
+          /*cout << "--> query Trades" << endl;
+          fixmanager.queryPositionReport(PosReqType_TRADES);
+          cout << "--> query Assignments" << endl;
+          fixmanager.queryPositionReport(PosReqType_ASSIGNMENTS);
+          cout << "--> query Exercises" << endl;
+          fixmanager.queryPositionReport(PosReqType_EXERCISES);*/
           // output array
           fixmanager.debug();
           break;
@@ -96,10 +104,13 @@ int main(int argc, char** argv){
           mo.setQty(10000);
           mo.setPrice(ms.getBid());
           mo.setStopPrice(ms.getBid() - 0.0020);
-          mo.setTakePrice(ms.getAsk() + 0.0040);
+          mo.setTakePrice(ms.getAsk() + 0.0020);
+          mo.setAccountID( fixmanager.getAccountID() );
 
-          //fixmanager.marketOrderWithStopLossTakeProfit(mo);
-          fixmanager.marketOrderWithStoploss(mo);
+          cout << " buy Order: " << endl;
+          cout << mo << endl;
+          
+          fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL_TP );
           fixmanager.queryPositionReport(PosReqType_POSITIONS);
           break;
         case 5: // Account/Collateral Report
@@ -110,7 +121,11 @@ int main(int argc, char** argv){
           cout << "--> Position to close: ";
           cin >> input_value;
           if( "" != input_value ) {
-            fixmanager.queryClosePosition(input_value, Symbol("EUR/USD"), mo.getOpposide(), 10000);
+            mo.setPosID(input_value);
+            mo.setSymbol("EUR/USD");
+            mo.setQty(10000);
+            mo.setAccountID( fixmanager.getAccountID() );
+            fixmanager.closePosition(mo);
           }
           break;
         case 7:
@@ -125,6 +140,9 @@ int main(int argc, char** argv){
           // show help
           show_help();
           break;
+        default:
+          cout << "-- unknown option --" << endl;
+        break;
       }
 
       if(exit){

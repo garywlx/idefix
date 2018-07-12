@@ -3,7 +3,7 @@
 
 #include <string>
 #include <vector>
-#include "types/MarketSnapshot.h"
+#include "MarketSnapshot.h"
 
 using namespace std;
 

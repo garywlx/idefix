@@ -4,7 +4,7 @@
 #include <string>
 #include <ostream>
 #include <iomanip>
-#include "../TradeMath.h"
+#include "TradeMath.h"
 
 using namespace std;
 
