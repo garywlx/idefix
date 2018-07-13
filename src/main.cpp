@@ -19,10 +19,10 @@ void show_help(){
     cout << "-------------------------------------------" << endl;
     cout << "Options: " << endl;
     cout << "  0=Exit" << endl;
-    cout << "  1=Subscribe Marketdata" << endl;
-    cout << "  2=Unsubscribe Marketdata" << endl;
+    // cout << "  1=Subscribe Marketdata" << endl;
+    // cout << "  2=Unsubscribe Marketdata" << endl;
     cout << "  3=Get Positions" << endl;
-    cout << "  4=Send market order with stoploss" << endl;
+    cout << "  4=Send market order with SL & TP" << endl;
     cout << "  5=Account status" << endl;
     cout << "  6=Manual Position Close" << endl;
     cout << "  7=Close all Positions" << endl;
@@ -53,11 +53,15 @@ int main(int argc, char** argv){
     FIXManager fixmanager(client_conf_file);
 
     IDEFIX::MarketSnapshot ms;
-    IDEFIX::MarketOrder mo("EUR/USD");
+    IDEFIX::MarketOrder mo( SUBSCRIBE_PAIR );
     mo.setSide(FIX::Side_BUY);
 
+    IDEFIX::MarketDetail marketDetail;
+
     string input_value;
-    string buy_or_sell;
+    FIX::Side side( FIX::Side_BUY );
+
+    int pips = 20;
 
     while(true){
       int command = 0;
@@ -66,19 +70,26 @@ int main(int argc, char** argv){
 
       switch(command){
         case 0: // Exit fixmanagerlication
-          cout << "--> Exiting..." << endl;
-          cout << "    unsubscribe market data." << endl;
-          fixmanager.unsubscribeMarketData("EUR/USD");
           exit = true;
           break;
-        case 1: // Subscribe to MarketData
-          cout << "--> Subscribe EUR/USD" << endl;
-          fixmanager.subscribeMarketData("EUR/USD");
+        case 1:
+          // toggle BUY/SELL positions to execute
+          if( side == FIX::Side_BUY ) {
+            side = FIX::Side_SELL;
+            cout << "--> toggle Side: next order is SELL" << endl;
+          } else {
+            side = FIX::Side_BUY;
+            cout << "--> toggle Side: next order is BUY" << endl;
+          }
           break;
-        case 2: // Unsubscribe from market data
-          cout << "--> Unsubscribe EUR/USD" << endl;
-          fixmanager.unsubscribeMarketData("EUR/USD");
-          break;
+        // case 1: // Subscribe to MarketData
+        //   cout << "--> Subscribe " << SUBSCRIBE_PAIR << endl;
+        //   fixmanager.subscribeMarketData( SUBSCRIBE_PAIR );
+        //   break;
+        // case 2: // Unsubscribe from market data
+        //   cout << "--> Unsubscribe " << SUBSCRIBE_PAIR << endl;
+        //   fixmanager.unsubscribeMarketData( SUBSCRIBE_PAIR );
+        //   break;
         case 3: // Get positions
           cout << "--> query Positions" << endl;
           //fixmanager.queryPositionReport(PosReqType_POSITIONS);
@@ -93,22 +104,31 @@ int main(int argc, char** argv){
           break;
         case 4: // Open Position with Stoploss
           cout << "--> query Position with Stoploss" << endl;
-          ms = fixmanager.getLatestSnapshot("EUR/USD");
+          ms = fixmanager.getLatestSnapshot( SUBSCRIBE_PAIR );
 
           if( ! ms.isValid() ){
             cout << "MarketSnapshot is invalid: " << ms << endl;
             break;
           }
 
-          // Buy Order
+          marketDetail = fixmanager.getMarketDetails( SUBSCRIBE_PAIR );
+          mo.setPrecision( marketDetail.getSymPrecision() );
+          mo.setPointSize( marketDetail.getSymPointsize() );
+          mo.setSide( side.getValue() );
           mo.setQty(10000);
-          mo.setPrice(ms.getBid());
-          mo.setStopPrice(ms.getBid() - 0.0020);
-          mo.setTakePrice(ms.getAsk() + 0.0020);
+          mo.setPrice( 0 ); // market order
           mo.setAccountID( fixmanager.getAccountID() );
 
-          cout << " buy Order: " << endl;
-          cout << mo << endl;
+          // SELL
+          if( side == FIX::Side_SELL ) {
+            mo.setStopPrice(ms.getBid() + (marketDetail.getSymPointsize() * pips));
+            mo.setTakePrice(ms.getBid() - (marketDetail.getSymPointsize() * pips));
+          } 
+          // BUY
+          else {
+            mo.setStopPrice(ms.getAsk() - (marketDetail.getSymPointsize() * pips));
+            mo.setTakePrice(ms.getAsk() + (marketDetail.getSymPointsize() * pips));
+          }
           
           fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL_TP );
           fixmanager.queryPositionReport(PosReqType_POSITIONS);
@@ -121,8 +141,9 @@ int main(int argc, char** argv){
           cout << "--> Position to close: ";
           cin >> input_value;
           if( "" != input_value ) {
+            mo.setSide( side.getValue() );
             mo.setPosID(input_value);
-            mo.setSymbol("EUR/USD");
+            mo.setSymbol( SUBSCRIBE_PAIR );
             mo.setQty(10000);
             mo.setAccountID( fixmanager.getAccountID() );
             fixmanager.closePosition(mo);
@@ -130,7 +151,7 @@ int main(int argc, char** argv){
           break;
         case 7:
           cout << "--> Close all positions" << endl;
-          fixmanager.closeAllPositions("EUR/USD");
+          fixmanager.closeAllPositions( SUBSCRIBE_PAIR );
           break;
         case 8:
           cout << "--> Toggle Price Output" << endl;

@@ -10,9 +10,7 @@ using namespace std;
 namespace IDEFIX {
 class Market {
 private:
-	string m_symbol;
-	unsigned int m_symbol_precision;
-	double m_symbol_pointsize;
+	std::string m_symbol;
 	vector<MarketSnapshot> m_snapshots;
 
 public:

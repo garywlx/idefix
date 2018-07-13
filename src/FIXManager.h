@@ -6,6 +6,7 @@
 #define IDEFIX_FIXMANAGER_H
 
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <map>
 #include <utility>
@@ -33,13 +34,20 @@
 #include "Market.h"
 #include "MarketOrder.h"
 #include "MarketSnapshot.h"
+#include "MarketDetail.h"
 #include "FXCMFields.h"
 #include "FIXFactory.h"
+#include "Account.h"
+#include <cmath>
 
 using namespace std;
 using namespace FIX;
 
+#define SUBSCRIBE_PAIR "EUR/USD"
+
 namespace IDEFIX {
+  // FOR DEBUGGING! The following pair is un-/subscribed and traded
+
 class FIXManager: public MessageCracker, public Application {
 private:
   // for debugging
@@ -63,8 +71,8 @@ private:
   SessionID m_market_sessionID;
   // the session id for order management, such as open/closing positions
   SessionID m_order_sessionID;
-  // the account id 
-  string m_accountID;
+  // The account
+  IDEFIX::Account m_account;
 
   // hold all market snapshots per symbol list[symbol] = Market
   map<string, Market> m_list_market;
@@ -72,6 +80,9 @@ private:
   map<string, MarketOrder> m_list_marketorders;
   // hold system parameters list[key] = value
   map<string, string> m_system_params;
+  // hold all market details
+  map<string, MarketDetail> m_market_details;
+
   
 public:
   FIXManager();
@@ -118,12 +129,16 @@ public:
 
   // Public Getter & Setter
   MarketSnapshot getLatestSnapshot(const string symbol);
+  MarketDetail getMarketDetails(const std::string& symbol);
 
   void debug();
   void toggleSnapshotOutput();
   string getAccountID() const;
 
 private:
+  void onInit();
+  void onExit();
+
   void updatePrices(const MarketSnapshot& snapshot);
   string nextRequestID();
   string nextOrderID();
@@ -132,7 +147,9 @@ private:
   bool isMarketDataSession(const SessionID& session_ID);
   bool isOrderSession(const SessionID& session_ID);
   
-  void setAccountID(const string accountID);
+  // void setAccountID(const string accountID);
+  void setAccount(const Account account);
+  Account getAccount();
 
   SessionID getMarketSessionID() const;
   void setMarketSessionID(const SessionID& session_ID);
@@ -149,6 +166,8 @@ private:
 
   MarketOrder getMarketOrder(const string fxcm_pos_id) const;
   MarketOrder getMarketOrder(const ClOrdID clOrdID) const;
+
+  void addMarketDetail(const MarketDetail& marketDetail);
 
   void addSysParam(const string key, const string value);
   string getSysParam(const string key);

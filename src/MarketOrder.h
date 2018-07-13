@@ -6,7 +6,6 @@
 #include <string>
 #include <iomanip>
 #include <quickfix/FixValues.h>
-#include "TradeMath.h"
 
 using namespace std;
 
@@ -25,6 +24,8 @@ private:
 	double m_stopPrice;
 	double m_takePrice;
 	double m_profitLossValue; // negativ = loss
+	int m_precision;
+	double m_pointSize;
 
 public:
 	// Construct empty market order
@@ -32,7 +33,7 @@ public:
 	// Construct market order with default values except symbol
 	explicit MarketOrder(const string symbol): m_clOrdID("0"), m_posID(""), m_orderID(""), m_accountID("0"), 
 	m_symbol(symbol), m_qty(0), m_side('1'), m_price(0), m_stopPrice(0), m_takePrice(0),
-	m_profitLossValue(0), m_sending_time("") {}
+	m_profitLossValue(0), m_sending_time(""), m_precision(5) {}
 
 	inline ~MarketOrder(){}
 
@@ -88,14 +89,13 @@ public:
 		return m_side; 
 	}
 	inline string getSideStr() const {
-		const char side = getSide();
-		if( side == FIX::Side_BUY ){
+		if( getSide() == FIX::Side_BUY ){
 			return "Side_BUY";
-		} else if( side == FIX::Side_SELL ){
+		} else if( getSide() == FIX::Side_SELL ){
 			return "Side_SELL";
 		} else {
 			ostringstream out;
-			out << side;
+			out << getSide();
 			return out.str();
 		}
 	}
@@ -161,32 +161,46 @@ public:
 			m_sending_time = sending_time;
 		}
 	}
+	inline int getPrecision() const { return m_precision; }
+	inline void setPrecision(const int precision) {
+		if ( m_precision != precision ) {
+			m_precision = precision;
+		}
+	}
+
+	inline double getPointSize() const { return m_pointSize; }
+	inline void setPointSize(const double pointsize) {
+		if ( m_pointSize != pointsize ) {
+			m_pointSize = pointsize;
+		}
+	}
+
 	inline string toString() const {
 		ostringstream out;
 		out << "MarketOrder {" << endl
-			<< setprecision(TradeMath::getPrecision(getSymbol()))
 			<< "  posID       " << getPosID() << endl
 			<< "  account     " << getAccountID() << endl
 			<< "  clOrdID     " << getClOrdID() << endl
 			<< "  orderID     " << getOrderID() << endl
 			<< "  symbol      " << getSymbol() << endl
-			<< "  qty         " << getQty() << endl
-			<< "  side        " << getSideStr() << endl
-			<< "  price       " << fixed << getPrice() << endl
-			<< "  stopPrice   " << fixed << getStopPrice() << endl
-			<< "  takePrice   " << fixed << getTakePrice() << endl
-			<< "  plValue     " << fixed << getProfitLoss() << endl
+			<< "  side        " << getSide() << ": " << getSideStr() << endl
+			<< "  qty         " << setprecision( 2 ) << fixed << getQty() << endl
+			<< "  price       " << setprecision( getPrecision() ) << fixed << getPrice() << endl
+			<< "  stopPrice   " << setprecision( getPrecision() ) << fixed << getStopPrice() << endl
+			<< "  takePrice   " << setprecision( getPrecision() ) << fixed << getTakePrice() << endl
+			<< "  P&L         " << setprecision( 2 ) << fixed << getProfitLoss() << endl
 			<< "  sendingtime " << getSendingTime() << endl
 			<< "}" << endl;
 
 		return out.str();
 	}
 };
-};
 
 // Operator Magic
 inline std::ostream& operator<<(std::ostream& out, const IDEFIX::MarketOrder& mo){
 	return out << mo.toString();
 }
+
+};
 
 #endif

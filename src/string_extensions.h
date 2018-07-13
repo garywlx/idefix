@@ -5,7 +5,7 @@
 #include <vector>
 #include <sstream>
 
-namespace idefix {
+namespace IDEFIX {
   namespace str {
     // trim from start (in place)
      inline void ltrim(std::string &s) {
@@ -92,6 +92,25 @@ namespace idefix {
 
       for(std::string token; std::getline(iss, token, dlim); ){
         result.push_back(std::move(token));
+      }
+
+      return result;
+    }
+
+    /*!
+     * Return vector<string> with split parts by delimiter
+     *
+     * @param std::string& s
+     * @param const std::string& delim delimiter
+     * @return std::vector<std::string>
+     */
+    inline std::vector<std::string> split(std::string& s, const std::string& delim) {
+      std::vector<std::string> result;
+      
+      size_t pos = 0;
+      while( (pos = s.find(delim)) != std::string::npos ){
+        result.push_back( std::move( s.substr( 0, pos ) ) );
+        s.erase( 0, pos + delim.length() );
       }
 
       return result;
