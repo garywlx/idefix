@@ -94,7 +94,7 @@ void FIXManager::toApp(Message &message, const SessionID &session_ID)
 void FIXManager::fromAdmin(const Message &message, const SessionID &session_ID)
   throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon ) {
   
-  //cout << "[fromAdmin] " << message << endl;
+  // cout << "[fromAdmin] " << message << endl;
   string msgtype = message.getHeader().getField(FIELD::MsgType);
   if(MsgType_Reject == msgtype){
     string text = message.getField(FIELD::Text);
@@ -170,7 +170,7 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
     marketDetail.setCondDistEntryLimit( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_COND_DIST_ENTRY_LIMIT ) ) );
     marketDetail.setTradingStatus( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_TRADING_STATUS ) );
 
-    addMarketDetail(marketDetail);
+    addMarketDetail( marketDetail );
   }
 
   // Also within TradingSessionStatus are FXCM system parameters. This includes important information
@@ -583,7 +583,6 @@ void FIXManager::startSession(const string settingsfile) {
 
 // Logout and end session
 void FIXManager::endSession() {
-
   onExit();
 
   m_pinitiator->stop();
@@ -1078,24 +1077,17 @@ void FIXManager::onInit() {
   // @todo: only for debugging
   cout << "--> subscribeMarketData(" << SUBSCRIBE_PAIR << ")" << endl;
   subscribeMarketData(SUBSCRIBE_PAIR);
-  // cout << "--> subscribeMarketData GBP/USD" << endl;
-  // subscribeMarketData("GBP/USD");
-  // cout << "--> subscribeMarketData GER30" << endl;
-  // subscribeMarketData("GER30");
-  // cout << "--> queryPositionReport" << endl;
-
   queryPositionReport();
 }
 /*!
  * Call this, if you want to handle things before exiting
  */
 void FIXManager::onExit() {
+  // no markets available means no active sessions
+  if( m_list_market.size() == 0 ) return;
+
   cout << "[onExit]" << endl;
   cout << " - unsubscribeMarketData(" << SUBSCRIBE_PAIR << ")" << endl;
   unsubscribeMarketData(SUBSCRIBE_PAIR);
-  // cout << " - unsubscribeMarketData(GBP/USD)" << endl;
-  // unsubscribeMarketData("GBP/USD");
-  // cout << " - unsubscribeMarketData(GER30)" << endl;
-  // unsubscribeMarketData("GER30");
 }
 }; // namespace idefix
