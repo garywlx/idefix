@@ -111,4 +111,19 @@ namespace IDEFIX {
 	double Account::getMMR() const {
 		return getMarginRatio() * getContractSize();
 	}
+
+	/*!
+	 * The minimum trade size allowed in this account. Tag 53 in CollateralReport
+	 * 
+	 * @param const double min
+	 */
+	void Account::setMinTradeSize(const double min) {
+		if ( m_min_trade_size != min ) {
+			m_min_trade_size = min;
+		}
+	}
+
+	double Account::getMinTradeSize() const {
+		return m_min_trade_size;
+	}
 };

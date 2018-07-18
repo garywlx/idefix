@@ -17,6 +17,9 @@ private:
 	bool m_hedging;
 	double m_contract_size;
 	double m_margin_ratio;
+	// This is the base unit size for FX pairs.
+    // If it’s 1000 it means quantities for FX orders must be a multiple of 1000.
+	double m_min_trade_size; // tag 53 in CollateralReport, 
 
 public:
 	Account();
@@ -53,6 +56,9 @@ public:
 
 	double getMMR() const;
 
+	void setMinTradeSize(const double min);
+	double getMinTradeSize() const;
+
 	bool operator==(const Account& other) {
 		return m_account_id == other.getAccountID();
 	}
@@ -64,15 +70,16 @@ public:
 
 inline std::ostream& operator<<(std::ostream& out, const Account& acc) {
 	out << "[Account]" << std::setprecision(2) << std::endl
-		<< " - ID            " << acc.getAccountID() << std::endl 
-		<< " - SecAccount ID " << acc.getSecuritiesAccountID() << std::endl
-		<< " - Person        " << acc.getPerson() << std::endl
-		<< " - Balance       " << std::fixed << acc.getBalance() << " " << acc.getCurrency() << std::endl
-		<< " - Margin used   " << std::fixed << acc.getMarginUsed() << " " << acc.getCurrency() << std::endl
-		<< " - Contract Size " << std::fixed << acc.getContractSize() << std::endl
-		<< " - Margin Ratio  " << std::fixed << acc.getMarginRatio() << std::endl
-		<< " - MMR           " << std::fixed << acc.getMMR() << std::endl
-		<< " - Hedging?      " << ( acc.isHedging() ? "Yes" : "No" ) << std::endl;
+		<< " - ID             " << acc.getAccountID() << std::endl 
+		<< " - SecAccount ID  " << acc.getSecuritiesAccountID() << std::endl
+		<< " - Person         " << acc.getPerson() << std::endl
+		<< " - Balance        " << std::fixed << acc.getBalance() << " " << acc.getCurrency() << std::endl
+		<< " - Margin used    " << std::fixed << acc.getMarginUsed() << " " << acc.getCurrency() << std::endl
+		<< " - Contract Size  " << std::fixed << acc.getContractSize() << std::endl
+		<< " - Min Trade Size " << std::fixed << acc.getMinTradeSize() << std::endl
+		<< " - Margin Ratio   " << std::fixed << acc.getMarginRatio() << std::endl
+		<< " - MMR            " << std::fixed << acc.getMMR() << std::endl
+		<< " - Hedging?       " << ( acc.isHedging() ? "Yes" : "No" ) << std::endl;
 	return out;
 }
 

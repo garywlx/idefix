@@ -5,7 +5,6 @@
 #include "FIXManager.h"
 #include <cmath>
 #include <string>
-#include "TradeMath.h"
 #include <exception>
 
 namespace IDEFIX {
@@ -223,7 +222,8 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
   account.setBalance( DoubleConvertor::convert( cr.getField( FIELD::CashOutstanding ) ) );
   account.setMarginUsed( DoubleConvertor::convert( cr.getField( FXCM_FIX_FIELDS::FXCM_USED_MARGIN ) ) );
   account.setMarginRatio( DoubleConvertor::convert( cr.getField( FIELD::MarginRatio ) ) );
-  account.setContractSize( DoubleConvertor::convert( cr.getField( FIELD::Quantity ) ) );
+  //account.setContractSize( DoubleConvertor::convert( cr.getField( FIELD::Quantity ) ) );
+  account.setMinTradeSize( DoubleConvertor::convert( cr.getField( FIELD::Quantity ) ) );
 
   // The CollateralReport NoPartyIDs group can be inspected for additional information such as AccountName
   // or HedgingStatus
@@ -259,8 +259,8 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
   // get base currency from system parameters
   account.setCurrency( getSysParam("BASE_CRNCY") );
 
-  // Get the number of 
   setAccount( account );
+
   cout << account << endl;
 
   // call init
@@ -387,6 +387,7 @@ void FIXManager::onMessage(const FIX44::MarketDataSnapshotFullRefresh &mds, cons
   // set precision
   MarketDetail marketDetail = getMarketDetails( symbol );
   snapshot.setPrecision( marketDetail.getSymPrecision() );
+  snapshot.setPointSize( marketDetail.getSymPointsize() );
 
   // For each MDEntry in the message, inspect the NoMDEntries group for the presence of either the Bid or Ask
   // (Offer) type
@@ -699,6 +700,8 @@ void FIXManager::updatePrices(const MarketSnapshot& snapshot){
   double symPointSize = marketDetail.getSymPointsize();
   int symPrecision = marketDetail.getSymPrecision();
   double contractMultiplier = marketDetail.getContractMultiplier();
+  auto base_currency = str::explode( BASE_PAIR, '/' );
+  auto snapshot_quote_currency = snapshot.getQuoteCurrency();
 
   // we have open positions
   for( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
@@ -710,12 +713,27 @@ void FIXManager::updatePrices(const MarketSnapshot& snapshot){
       const char _entrySide = it->second.getSide();
       const double _currentPx = ( _entrySide == FIX::Side_SELL ? snapshot.getBid() : snapshot.getAsk() );
 
-      // Formula 
-      profitloss = TradeMath::getPnL( _currentPx, _entryPx, _qty, snapshot.getSymbol() );
+      // Calc PnL
+      profitloss = TradeMath::getProfitLoss( _currentPx, _entryPx, symPointSize, _qty );
+
+      // if quote currency is not account currency, we have to convert the profitloss value to account currency.
+      if ( snapshot_quote_currency != getAccount().getCurrency() ) {
+        cout << snapshot.getQuoteCurrency() << " != " << getAccount().getCurrency() << endl;
+        // convert profitloss price to usd
+        auto base_pair = getLatestSnapshot( BASE_PAIR );
+        cout << base_pair << endl;
+
+        if ( base_pair.isValid() ) {
+          double convert_price = ( getAccount().getCurrency() == base_currency[0] ? base_pair.getBid() : base_pair.getAsk() );
+          cout << "convert_price " << convert_price << " " << getAccount().getCurrency() << endl;
+          cout << "profit_loss " << profitloss << " " << snapshot_quote_currency << endl;
+          profitloss = profitloss / convert_price;
+        }
+      }
+
       it->second.setProfitLoss( profitloss );
 
-      cout << it->second << endl;
-      //cout << prefix << _posID << " P&L " << std::setprecision( symPrecision ) << std::fixed << profitloss << " " << getAccount().getCurrency() << endl;
+      cout << prefix << _posID << " P&L " << formatBaseCurrency( profitloss ) << endl;
     }
   }
 }
@@ -745,10 +763,9 @@ void FIXManager::closeAllPositions(const string symbol){
   if( m_list_marketorders.empty() ) return;
 
   cout << "[closeAllPositions] " << endl;
-  for(auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
-    if( it->second.getSymbol() == symbol ){
-      cout << it->second.toString() << endl;
-      closePosition(it->second);
+  for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
+    if ( it->second.getSymbol() == symbol ){
+      closePosition( it->second );
     }
   }
 }
@@ -759,10 +776,43 @@ void FIXManager::closeAllPositions(const string symbol){
  */
 void FIXManager::closePosition(const IDEFIX::MarketOrder &marketOrder){
   try {
+    auto marketDetail = getMarketDetails( marketOrder.getSymbol() );
+    cout << " - " << marketOrder.getPosID() << " P&L " << std::setprecision( marketDetail.getSymPrecision() ) << std::fixed << marketOrder.getProfitLoss() << " " << getAccount().getCurrency() << endl;
+
     auto request = FIXFactory::NewOrderSingle( nextOrderID(), marketOrder, FIXFactory::SingleOrderType::CLOSEORDER );
     Session::sendToTarget(request, getOrderSessionID());  
   } catch(std::exception& e){
     cout << "[closePosition:exception] " << e.what() << endl;
+  }
+}
+
+/*!
+ * Send request to close each winning position
+ * @param std::string symbol Close only positions for this symbol.
+ */
+void FIXManager::closeWinners(const string symbol) {
+  if ( m_list_marketorders.empty() ) return;
+
+  cout << "[closeWinners]" << endl;
+  for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
+    if ( it->second.getSymbol() == symbol && it->second.getProfitLoss() > 0 ) {
+      closePosition( it->second );
+    }
+  }
+}
+
+/*!
+ * Send request to close each loosing position
+ * @param std::string symbol Close only positions for this symbol.
+ */
+void FIXManager::closeLoosers(const std::string symbol) {
+  if ( m_list_marketorders.empty() ) return;
+
+  cout << "[closeLoosers]" << endl;
+  for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
+    if ( it->second.getSymbol() == symbol && it->second.getProfitLoss() < 0 ) {
+      closePosition( it->second );
+    }
   }
 }
 
@@ -1033,6 +1083,7 @@ MarketDetail FIXManager::getMarketDetails(const std::string& symbol) {
  * @param value [description]
  */
 void FIXManager::addSysParam(const string key, const string value){
+  FIX::Locker lock(m_mutex);
   // check if the key already exisits
   auto it = m_system_params.find(key);
   if( it == m_system_params.end() ){
@@ -1046,12 +1097,75 @@ void FIXManager::addSysParam(const string key, const string value){
  * @return     [description]
  */
 string FIXManager::getSysParam(const string key){
+  FIX::Locker lock(m_mutex);
   string value;
   auto it = m_system_params.find(key);
   if( it != m_system_params.end() ){
     value = m_system_params.at(key);
   }
   return value;
+}
+
+/*!
+ * Show system parameter list
+ */
+void FIXManager::showSysParamList() {
+  FIX::Locker lock(m_mutex);
+  if( m_system_params.empty() ) return;
+
+  cout << "[System Parameters]" << endl;
+  for ( auto it = m_system_params.begin(); it != m_system_params.end(); ++it ) {
+    cout << "  " << it->first << " = " << it->second << endl;
+  }
+}
+
+/*!
+ * Show available market list 
+ */
+void FIXManager::showAvailableMarketList() {
+  FIX::Locker lock(m_mutex);
+  if ( m_market_details.empty() ) return;
+
+  cout << "[Available Markets]" << endl;
+  for ( auto it = m_market_details.begin(); it != m_market_details.end(); ++it ) {
+    cout << "  " << it->first << endl;
+  }
+}
+
+/*!
+ * Show details for given market
+ * 
+ * @param const std::string symbol
+ */
+void FIXManager::showMarketDetail(const string symbol) {
+  FIX::Locker lock(m_mutex);
+  if ( m_market_details.empty() ) return;
+
+  auto it = m_market_details.find( symbol );
+  if( it != m_market_details.end() ) {
+    cout << it->second << endl;
+  } else {
+    cout << " -- not found --" << endl;
+  }
+}
+
+/*!
+ * Returns a string with output format of base currency like 0.00 $
+ * 
+ * @param const double value The value to show.
+ * @return std::string
+ */
+string FIXManager::formatBaseCurrency(const double value) {
+  auto baseCrncyPrecision = IntConvertor::convert( getSysParam( "BASE_CRNCY_PRECISION" ) );
+  auto baseCrncySymbol = getSysParam( "BASE_CRNCY_SYMBOL" );
+
+  ostringstream os;
+  os << std::setprecision( baseCrncyPrecision ) << std::fixed << value;
+
+  string format;
+  format.append( baseCrncySymbol ).append( " " ).append( os.str() );
+
+  return format;
 }
 
 void FIXManager::debug(){
@@ -1074,9 +1188,17 @@ void FIXManager::onInit() {
   // check if we already initialized
   if( m_list_market.size() > 0 ) return;
 
-  // @todo: only for debugging
-  cout << "--> subscribeMarketData(" << SUBSCRIBE_PAIR << ")" << endl;
-  subscribeMarketData(SUBSCRIBE_PAIR);
+
+
+  // subscribe to EUR/USD per default, for account currency conversion
+  cout << "--> subscribeMarketData(EUR/USD)" << endl;
+  subscribeMarketData( "EUR/USD" );
+
+  if ( "EUR/USD" != SUBSCRIBE_PAIR ) {
+    cout << "--> subscribeMarketData(" << SUBSCRIBE_PAIR << ")" << endl;
+    subscribeMarketData(SUBSCRIBE_PAIR);  
+  }
+  
   queryPositionReport();
 }
 /*!
@@ -1087,7 +1209,11 @@ void FIXManager::onExit() {
   if( m_list_market.size() == 0 ) return;
 
   cout << "[onExit]" << endl;
-  cout << " - unsubscribeMarketData(" << SUBSCRIBE_PAIR << ")" << endl;
-  unsubscribeMarketData(SUBSCRIBE_PAIR);
+  cout << " - unsubscribeMarketData(EUR/USD)" << endl;
+  unsubscribeMarketData( "EUR/USD" );
+  if ( "EUR/USD" != SUBSCRIBE_PAIR ) {
+    cout << " - unsubscribeMarketData(" << SUBSCRIBE_PAIR << ")" << endl;
+    unsubscribeMarketData(SUBSCRIBE_PAIR);  
+  }
 }
 }; // namespace idefix

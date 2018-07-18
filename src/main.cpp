@@ -7,8 +7,7 @@
 #include <thread>
 #include <chrono>
 
-//#define SHOW_MARKETSNAPSHOT
-#define IDEFIX_VERSION 1
+#define IDEFIX_VERSION "1.0.1"
 
 #include "FIXManager.h"
 
@@ -16,19 +15,25 @@ using namespace std;
 using namespace IDEFIX;
 
 void show_help(){
-    cout << "-------------------------------------------" << endl;
-    cout << "Options: " << endl;
-    cout << "  0=Exit" << endl;
-    // cout << "  1=Subscribe Marketdata" << endl;
-    // cout << "  2=Unsubscribe Marketdata" << endl;
-    cout << "  3=Get Positions" << endl;
-    cout << "  4=Send market order with SL & TP" << endl;
-    cout << "  5=Account status" << endl;
-    cout << "  6=Manual Position Close" << endl;
-    cout << "  7=Close all Positions" << endl;
-    cout << "  8=Toggle Price Output" << endl;
-    cout << "  9=Show this help" << endl;
-    cout << "-------------------------------------------" << endl;
+  cout << "-------------------------------------------" << endl;
+  cout << "Options: " << endl;
+  cout << "  0=Exit" << endl;
+  cout << "  1=Toggle SELL/BUY" << endl;
+  cout << "  2=Open Position with SL" << endl;
+  cout << "  3=Open Position with SL & TP" << endl;
+  cout << "  4=Get Positions" << endl;
+  cout << "  5=Account status" << endl;
+  cout << "  6=Close position" << endl;
+  cout << "  7=Close all positions" << endl;
+  cout << "    > l=loosers" << endl;
+  cout << "    > w=winners" << endl;
+  cout << "    > a=all" << endl;
+  cout << "  8=Toggle price output" << endl;
+  cout << "  9=Show this help" << endl;
+  cout << " 10=Show sys params" << endl;
+  cout << " 11=Show available markets" << endl;
+  cout << " 12=Show market detail" << endl;
+  cout << "-------------------------------------------" << endl;
 }
 
 int main(int argc, char** argv){
@@ -54,14 +59,16 @@ int main(int argc, char** argv){
 
     IDEFIX::MarketSnapshot ms;
     IDEFIX::MarketOrder mo( SUBSCRIBE_PAIR );
-    mo.setSide(FIX::Side_BUY);
+    mo.setSide( FIX::Side_BUY );
 
     IDEFIX::MarketDetail marketDetail;
 
     string input_value;
     FIX::Side side( FIX::Side_BUY );
 
+    // pips for stop loss || take profit
     int pips = 20;
+    double qty = 100000;
 
     while(true){
       int command = 0;
@@ -82,28 +89,37 @@ int main(int argc, char** argv){
             cout << "--> toggle Side: next order is BUY" << endl;
           }
           break;
-        // case 1: // Subscribe to MarketData
-        //   cout << "--> Subscribe " << SUBSCRIBE_PAIR << endl;
-        //   fixmanager.subscribeMarketData( SUBSCRIBE_PAIR );
-        //   break;
-        // case 2: // Unsubscribe from market data
-        //   cout << "--> Unsubscribe " << SUBSCRIBE_PAIR << endl;
-        //   fixmanager.unsubscribeMarketData( SUBSCRIBE_PAIR );
-        //   break;
-        case 3: // Get positions
-          cout << "--> query Positions" << endl;
-          //fixmanager.queryPositionReport(PosReqType_POSITIONS);
-          /*cout << "--> query Trades" << endl;
-          fixmanager.queryPositionReport(PosReqType_TRADES);
-          cout << "--> query Assignments" << endl;
-          fixmanager.queryPositionReport(PosReqType_ASSIGNMENTS);
-          cout << "--> query Exercises" << endl;
-          fixmanager.queryPositionReport(PosReqType_EXERCISES);*/
-          // output array
-          fixmanager.debug();
+        case 2: // Open Position with StopLoss
+          cout << "--> open position with stop loss" << endl;
+          ms = fixmanager.getLatestSnapshot( SUBSCRIBE_PAIR );
+
+          if( ! ms.isValid() ) {
+            cout << "MarketSnapshot is invalid: " << ms << endl;
+            break;
+          }
+
+          marketDetail = fixmanager.getMarketDetails( SUBSCRIBE_PAIR );
+          mo.setPrecision( marketDetail.getSymPrecision() );
+          mo.setPointSize( marketDetail.getSymPointsize() );
+          mo.setSide( side.getValue() );
+          mo.setQty( qty );
+          mo.setPrice( 0 ); // market order
+          mo.setAccountID( fixmanager.getAccountID() );
+
+          // SELL
+          if ( side == FIX::Side_SELL ) {
+            mo.setStopPrice( ms.getBid() + ( mo.getPointSize() * pips ) );
+          } 
+          // BUY
+          else if ( side == FIX::Side_BUY ) {
+            mo.setStopPrice( ms.getAsk() - ( mo.getPointSize() * pips ) );
+          }
+
+          fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL );
+          fixmanager.queryPositionReport();
           break;
-        case 4: // Open Position with Stoploss
-          cout << "--> query Position with Stoploss" << endl;
+        case 3: // Open Position with Stoploss and Take Profit
+          cout << "--> query position with stop loss and take profit" << endl;
           ms = fixmanager.getLatestSnapshot( SUBSCRIBE_PAIR );
 
           if( ! ms.isValid() ){
@@ -115,43 +131,62 @@ int main(int argc, char** argv){
           mo.setPrecision( marketDetail.getSymPrecision() );
           mo.setPointSize( marketDetail.getSymPointsize() );
           mo.setSide( side.getValue() );
-          mo.setQty(10000);
+          mo.setQty( qty );
           mo.setPrice( 0 ); // market order
           mo.setAccountID( fixmanager.getAccountID() );
 
           // SELL
           if( side == FIX::Side_SELL ) {
-            mo.setStopPrice(ms.getBid() + (marketDetail.getSymPointsize() * pips));
-            mo.setTakePrice(ms.getBid() - (marketDetail.getSymPointsize() * pips));
+            mo.setStopPrice(ms.getBid() + (mo.getPointSize() * pips));
+            mo.setTakePrice(ms.getBid() - (mo.getPointSize() * pips));
           } 
           // BUY
           else {
-            mo.setStopPrice(ms.getAsk() - (marketDetail.getSymPointsize() * pips));
-            mo.setTakePrice(ms.getAsk() + (marketDetail.getSymPointsize() * pips));
+            mo.setStopPrice(ms.getAsk() - (mo.getPointSize() * pips));
+            mo.setTakePrice(ms.getAsk() + (mo.getPointSize() * pips));
           }
           
           fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL_TP );
-          fixmanager.queryPositionReport(PosReqType_POSITIONS);
+          fixmanager.queryPositionReport();
+          break;
+        case 4: // Get positions
+          cout << "--> query positions" << endl;
+          // output array
+          fixmanager.debug();
           break;
         case 5: // Account/Collateral Report
-          cout << "--> Get Account" << endl;
+          cout << "--> Get account status" << endl;
           fixmanager.queryAccounts();
           break;
         case 6:
-          cout << "--> Position to close: ";
+          cout << "--> Position ID to close: ";
           cin >> input_value;
           if( "" != input_value ) {
             mo.setSide( side.getValue() );
             mo.setPosID(input_value);
             mo.setSymbol( SUBSCRIBE_PAIR );
-            mo.setQty(10000);
+            mo.setQty( qty );
             mo.setAccountID( fixmanager.getAccountID() );
-            fixmanager.closePosition(mo);
+            fixmanager.closePosition( mo );
           }
           break;
         case 7:
           cout << "--> Close all positions" << endl;
-          fixmanager.closeAllPositions( SUBSCRIBE_PAIR );
+          cout << " > a=all" << endl;
+          cout << " > w=all winners" << endl;
+          cout << " > l=all loosers" << endl;
+
+          cin >> input_value;
+
+          if ( "a" == input_value ) {
+            fixmanager.closeAllPositions( SUBSCRIBE_PAIR );  
+          } else if ( "w" == input_value ) {
+            fixmanager.closeWinners( SUBSCRIBE_PAIR );
+          } else if ( "l" == input_value ) {
+            fixmanager.closeLoosers( SUBSCRIBE_PAIR );
+          } else {
+            cout << "-- unknown option --" << endl;
+          }
           break;
         case 8:
           cout << "--> Toggle Price Output" << endl;
@@ -160,6 +195,22 @@ int main(int argc, char** argv){
         case 9:
           // show help
           show_help();
+          break;
+        case 10:
+          // show sys param list
+          fixmanager.showSysParamList();
+          break;
+        case 11:
+          // show available market list
+          fixmanager.showAvailableMarketList();
+          break;
+        case 12:
+          // show market detail
+          cout << "--> Show market detail for: ";
+          cin >> input_value;
+          if ( ! input_value.empty() ) {
+            fixmanager.showMarketDetail( input_value );  
+          }
           break;
         default:
           cout << "-- unknown option --" << endl;

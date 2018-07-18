@@ -38,12 +38,19 @@
 #include "FXCMFields.h"
 #include "FIXFactory.h"
 #include "Account.h"
+#include "TradeMath.h"
 #include <cmath>
 
 using namespace std;
 using namespace FIX;
 
-#define SUBSCRIBE_PAIR "EUR/USD"
+// subscribe to a different pair than EUR/USD
+// EUR/USD is subscribed per default. Set to eurusd,
+// if you want to buy and sell in EUR/USD
+#define SUBSCRIBE_PAIR "USD/JPY"
+// change this only if the account currency is other than
+// EUR or USD
+#define BASE_PAIR "EUR/USD"
 
 namespace IDEFIX {
   // FOR DEBUGGING! The following pair is un-/subscribed and traded
@@ -80,9 +87,8 @@ private:
   map<string, MarketOrder> m_list_marketorders;
   // hold system parameters list[key] = value
   map<string, string> m_system_params;
-  // hold all market details
+  // hold all market details list[symbol] = MarketDetail
   map<string, MarketDetail> m_market_details;
-
   
 public:
   FIXManager();
@@ -126,14 +132,23 @@ public:
 
   void closeAllPositions(const string symbol);
   void closePosition(const MarketOrder& marketOrder);
+  void closeWinners(const string symbol);
+  void closeLoosers(const string symbol);
 
   // Public Getter & Setter
   MarketSnapshot getLatestSnapshot(const string symbol);
   MarketDetail getMarketDetails(const std::string& symbol);
+  Account getAccount();
+  string getAccountID() const;
 
   void debug();
   void toggleSnapshotOutput();
-  string getAccountID() const;
+  
+  void showSysParamList();
+  void showAvailableMarketList();
+  void showMarketDetail(const string symbol);
+
+  string formatBaseCurrency(const double value);
 
 private:
   void onInit();
@@ -147,9 +162,7 @@ private:
   bool isMarketDataSession(const SessionID& session_ID);
   bool isOrderSession(const SessionID& session_ID);
   
-  // void setAccountID(const string accountID);
   void setAccount(const Account account);
-  Account getAccount();
 
   SessionID getMarketSessionID() const;
   void setMarketSessionID(const SessionID& session_ID);
