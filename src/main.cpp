@@ -15,7 +15,6 @@ using namespace std;
 using namespace IDEFIX;
 
 void show_help(){
-  cout << "-------------------------------------------" << endl;
   cout << "Options: " << endl;
   cout << "  0=Exit" << endl;
   cout << "  1=Toggle SELL/BUY" << endl;
@@ -33,6 +32,7 @@ void show_help(){
   cout << " 10=Show sys params" << endl;
   cout << " 11=Show available markets" << endl;
   cout << " 12=Show market detail" << endl;
+  cout << " 13=Toggle PnL output" << endl;
   cout << "-------------------------------------------" << endl;
 }
 
@@ -211,6 +211,11 @@ int main(int argc, char** argv){
           if ( ! input_value.empty() ) {
             fixmanager.showMarketDetail( input_value );  
           }
+          break;
+        case 13:
+          // toggle profit loss output
+          cout << "--> Toggle PnL output" << endl;
+          fixmanager.togglePNLOutput();
           break;
         default:
           cout << "-- unknown option --" << endl;

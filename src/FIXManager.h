@@ -47,7 +47,7 @@ using namespace FIX;
 // subscribe to a different pair than EUR/USD
 // EUR/USD is subscribed per default. Set to eurusd,
 // if you want to buy and sell in EUR/USD
-#define SUBSCRIBE_PAIR "USD/JPY"
+#define SUBSCRIBE_PAIR "EUR/USD"
 // change this only if the account currency is other than
 // EUR or USD
 #define BASE_PAIR "EUR/USD"
@@ -59,6 +59,7 @@ class FIXManager: public MessageCracker, public Application {
 private:
   // for debugging
   bool m_debug_toggle_snapshot_output;
+  bool m_debug_toggle_update_prices_output;
 
   // Synchronizing multithreading
   mutable FIX::Mutex m_mutex;
@@ -143,6 +144,7 @@ public:
 
   void debug();
   void toggleSnapshotOutput();
+  void togglePNLOutput();
   
   void showSysParamList();
   void showAvailableMarketList();
