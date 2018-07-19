@@ -724,7 +724,9 @@ void FIXManager::updatePrices(const MarketSnapshot& snapshot){
       const double _qty = position.getQty();
       const double _entryPx = position.getPrice();
       const char _entrySide = position.getSide();
-      const double _currentPx = ( _entrySide == FIX::Side_SELL ? snapshot.getBid() : snapshot.getAsk() );
+      // entry side is long, use bid price because we want to open a sell position for closing
+      // entry side is short, use ask price because we want to open a buy position for closing
+      const double _currentPx = ( _entrySide == FIX::Side_BUY ? snapshot.getBid() : snapshot.getAsk() );
 
       // Calc unsigned PnL in quote currency
       profitloss = profitloss_quote = TradeMath::getProfitLoss( _currentPx, _entryPx, symPointSize, _qty, ( _entrySide == FIX::Side_BUY ? TradeMath::Side::BUY : TradeMath::Side::SELL ) );
