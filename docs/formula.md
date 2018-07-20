@@ -42,18 +42,6 @@ $$
 
 
 
-## Pip Difference Calculation
-
-$$
-pipDiff = abs( leftPx - rightPx ) * ( 1 \div pointSize)
-$$
-
-- **leftPx** this is the left price, like entry price.
-- **rightPx** this is the right price, like the current price.
-- **pointSize** is how many decimal places has the price of a symbol. default is 0.0001 for major currency pairs.
-
-
-
 ## Profit Loss Calculation
 
 $$
@@ -65,6 +53,8 @@ $$
 - **rightPx** this is the right price, like current price. check pipDiff.
 - **pointSize** is how many decimal places has the price of a symbol. default is 0.0001 for major currency pairs.
 
+
+
 ## Convert Price to USD
 
 $$
@@ -73,4 +63,22 @@ $$
 
 - **otherCurrencyValue** the value to convert
 - **usdPrice** the current usd price.
+
+
+
+
+
+
+
+## Andre Hedging Formel
+
+$$
+pnlVLong = (( currentAsk - entry ) * pipV * 100 ) * ( qty / 100000 )\\
+pnlVShort = (( entry - currentBid ) * pipV * 100 ) * ( qty / 100000 )
+$$
+
+- **currentAsk** this is the ask value of the traded pair 
+- **entry** this is the entry price of the position
+- **pipV** this is the pip value for the traded pair
+- **qty** this is the position size
 

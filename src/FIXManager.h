@@ -10,6 +10,7 @@
 #include <vector>
 #include <map>
 #include <utility>
+#include <algorithm>
 #include <quickfix/Application.h>
 #include <quickfix/FileLog.h>
 #include <quickfix/FileStore.h>
@@ -39,18 +40,14 @@
 #include "FIXFactory.h"
 #include "Account.h"
 #include "TradeMath.h"
+#include "Pairs.h"
 #include <cmath>
 
 using namespace std;
 using namespace FIX;
 
-// subscribe to a different pair than EUR/USD
-// EUR/USD is subscribed per default. Set to eurusd,
-// if you want to buy and sell in EUR/USD
-#define SUBSCRIBE_PAIR "EUR/USD"
-// change this only if the account currency is other than
-// EUR or USD
-#define BASE_PAIR "EUR/USD"
+// subscribe and trade this pair
+#define SUBSCRIBE_PAIR "EUR/GBP"
 
 namespace IDEFIX {
   // FOR DEBUGGING! The following pair is un-/subscribed and traded
@@ -90,6 +87,8 @@ private:
   map<string, string> m_system_params;
   // hold all market details list[symbol] = MarketDetail
   map<string, MarketDetail> m_market_details;
+  // hold all subscriptions symbols
+  vector<string> m_symbol_subscriptions;
   
 public:
   FIXManager();
@@ -186,6 +185,10 @@ private:
 
   void addSysParam(const string key, const string value);
   string getSysParam(const string key);
+
+  void addSubscription(const string symbol);
+  void removeSubscription(const string symbol);
+
 }; // class fixmanager
 }; // namespace idefix
 

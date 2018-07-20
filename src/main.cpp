@@ -19,7 +19,8 @@ void show_help(){
   cout << "  0=Exit" << endl;
   cout << "  1=Toggle SELL/BUY" << endl;
   cout << "  2=Open Position with SL" << endl;
-  cout << "  3=Open Position with SL & TP" << endl;
+  cout << "  3=Close all positions no matter what" << endl;
+  //cout << "  3=Open Position with SL & TP" << endl;
   cout << "  4=Get Positions" << endl;
   cout << "  5=Account status" << endl;
   cout << "  6=Close position" << endl;
@@ -33,6 +34,9 @@ void show_help(){
   cout << " 11=Show available markets" << endl;
   cout << " 12=Show market detail" << endl;
   cout << " 13=Toggle PnL output" << endl;
+  cout << " 14=Subscribe to Symbol" << endl;
+  cout << " 15=Unsubscribe from Symbol" << endl;
+
   cout << "-------------------------------------------" << endl;
 }
 
@@ -118,7 +122,11 @@ int main(int argc, char** argv){
           fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL );
           fixmanager.queryPositionReport();
           break;
-        case 3: // Open Position with Stoploss and Take Profit
+        case 3: // Close all positions
+          fixmanager.closeAllPositions( SUBSCRIBE_PAIR );
+          fixmanager.queryAccounts();
+          break;
+        /*case 3: // Open Position with Stoploss and Take Profit
           cout << "--> query position with stop loss and take profit" << endl;
           ms = fixmanager.getLatestSnapshot( SUBSCRIBE_PAIR );
 
@@ -148,7 +156,7 @@ int main(int argc, char** argv){
           
           fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL_TP );
           fixmanager.queryPositionReport();
-          break;
+          break;*/
         case 4: // Get positions
           cout << "--> query positions" << endl;
           // output array
@@ -160,8 +168,9 @@ int main(int argc, char** argv){
           break;
         case 6:
           cout << "--> Position ID to close: ";
+          input_value.clear();
           cin >> input_value;
-          if( "" != input_value ) {
+          if( ! input_value.empty() ) {
             mo.setSide( side.getValue() );
             mo.setPosID(input_value);
             mo.setSymbol( SUBSCRIBE_PAIR );
@@ -175,7 +184,7 @@ int main(int argc, char** argv){
           cout << " > a=all" << endl;
           cout << " > w=all winners" << endl;
           cout << " > l=all loosers" << endl;
-
+          input_value.clear();
           cin >> input_value;
 
           if ( "a" == input_value ) {
@@ -207,6 +216,7 @@ int main(int argc, char** argv){
         case 12:
           // show market detail
           cout << "--> Show market detail for: ";
+          input_value.clear();
           cin >> input_value;
           if ( ! input_value.empty() ) {
             fixmanager.showMarketDetail( input_value );  
@@ -216,6 +226,32 @@ int main(int argc, char** argv){
           // toggle profit loss output
           cout << "--> Toggle PnL output" << endl;
           fixmanager.togglePNLOutput();
+          break;
+        case 14:
+          // subscribe to symbol
+          cout << "--> Subscribe to: ";
+          input_value.clear();
+          cin >> input_value;
+
+          if( input_value.empty() ) {
+            cout << "-- no symbol found --" << endl;
+            break;
+          }
+
+          fixmanager.subscribeMarketData( input_value );
+          break;
+        case 15:
+          // unsubscribe from symbol
+          cout << "--> Unsubscribe from: ";
+          input_value.clear();
+          cin >> input_value;
+
+          if( input_value.empty() ) {
+            cout << "-- no symbol found--" << endl;
+            break;
+          }
+
+          fixmanager.unsubscribeMarketData( input_value );
           break;
         default:
           cout << "-- unknown option --" << endl;

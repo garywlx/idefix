@@ -608,16 +608,50 @@ void FIXManager::queryAccounts(){
   Session::sendToTarget(request, getOrderSessionID());
 }
 
-// Subscribes to the symbol trading security
+/*!
+ * Subscribe to market data for symbol
+ * If symbol quote or base is not account currency, we will subscribe automatically
+ * to the counter pair. E.g.: Symbol AUD/CAD, account = USD, subscribe to USD/CAD
+ * 
+ * @param const std::string symbol EUR/USD
+ */
 void FIXManager::subscribeMarketData(const std::string symbol) {
+  cout << "--> subscribeMarketData( " << symbol << " )" << endl;
   auto request = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES );
   Session::sendToTarget( request, getMarketSessionID() );
+
+  // add to subscriptions
+  addSubscription( symbol );
+
+  // check if we need a counter pair for price conversion
+  auto counterPair = getCounterPair( symbol );
+  if ( counterPair != symbol ) {
+    if ( m_list_market.find( counterPair ) == m_list_market.end() ) {
+      cout << "--> subscribeMarketData( " << counterPair << " ) for price conversion of " << symbol << endl;
+      auto request2 = FIXFactory::MarketDataRequest( counterPair, SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES );
+      Session::sendToTarget( request2, getMarketSessionID() );  
+    }
+  }
 }
 
 // Unsubscribe from the symbol trading security
 void FIXManager::unsubscribeMarketData(const std::string symbol) {
+  cout << "--> unsubscribeMarketData( " << symbol << " )" << endl;
   auto request = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST );
   Session::sendToTarget( request, getMarketSessionID() );
+
+  removeSubscription( symbol );
+
+  // check base and quote of symbol
+  // check if we need a counter pair for price conversion
+  auto counterPair = getCounterPair( symbol );
+  if ( counterPair != symbol ) {
+    if ( m_list_market.find( counterPair ) != m_list_market.end() ) {
+      cout << "--> unsubscribeMarketData( " << counterPair << " ) for price conversion of " << symbol << endl;
+      auto request2 = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST );
+      Session::sendToTarget( request2, getMarketSessionID() );
+    }
+  }
 }
 
 /*!
@@ -691,67 +725,160 @@ bool FIXManager::isOrderSession(const SessionID& session_ID){
  * @param MarketSnapshot snapshot
  */
 void FIXManager::updatePrices(const MarketSnapshot& snapshot){
+
   // check if there are open positions
+  FIX::Locker lock(m_mutex);
   if( m_list_marketorders.size() == 0 ) return;
 
   std::string prefix = "[updatePrices] ";
   double profitloss;
-  double profitloss_quote;
-  MarketDetail marketDetail = getMarketDetails( snapshot.getSymbol() );
-  double symPointSize = marketDetail.getSymPointsize();
-  int symPrecision = marketDetail.getSymPrecision();
-  double contractMultiplier = marketDetail.getContractMultiplier();
-  
-  auto snapshot_quote_currency = snapshot.getQuoteCurrency();
-  auto snapshot_base_currency = snapshot.getBaseCurrency();
 
-  // get base currency string array
-  auto base_currency = str::explode( BASE_PAIR, '/' );
-  // get base pair
-  auto base_pair = getLatestSnapshot( BASE_PAIR );
-  const double baseAskPx = base_pair.getAsk();
   // get account currency
-  auto account_currency = getAccount().getCurrency();
+  auto accountCurrency = getAccount().getCurrency();
+
+  // get market detail for snapshot
+  auto marketDetail = getMarketDetails( snapshot.getSymbol() );
+  auto snapshotQuote = snapshot.getQuoteCurrency();
+  auto snapshotBase = snapshot.getBaseCurrency();
+
+  auto symPointSize = marketDetail.getSymPointsize();
+  auto symPrecision = marketDetail.getSymPrecision();
+  auto contractMultiplier = marketDetail.getContractMultiplier();
+
+  auto baseBidPx = snapshot.getBid();
+  auto baseAskPx = snapshot.getAsk();
+
+  /*if ( snapshotBase == accountCurrency ) {
+    baseBidPx = 1 / snapshot.getBid();
+    baseAskPx = 1 / snapshot.getAsk();
+  }*/
+
+  std::string baseSymbol = snapshot.getSymbol();
+  MarketSnapshot baseSnapshot = snapshot;
+
+  // check if we need a base pair for price conversion to account currency
+  if ( snapshotQuote != accountCurrency && snapshotBase != accountCurrency ) {
+
+    baseSymbol   = getCounterPair( snapshot.getSymbol() );
+    baseSnapshot = getLatestSnapshot( baseSymbol );
+
+    baseBidPx    = baseSnapshot.getBid();
+    baseAskPx    = baseSnapshot.getAsk();
+
+    /*if ( baseSnapshot.getQuoteCurrency() == accountCurrency ) {
+      baseBidPx = 1 / baseBidPx;
+      baseAskPx = 1 / baseAskPx;
+    }*/
+  }
+
+  double baseDivPx = baseBidPx;
 
   // we have open positions
   for( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
 
+    // get position
     auto position = it->second;
 
     // calculate for this snapshot symbol only
     if( position.getSymbol() == snapshot.getSymbol() ) {
+      // position ID
       const std::string _posID = position.getPosID();
-      const double _qty = position.getQty();
-      const double _entryPx = position.getPrice();
-      const char _entrySide = position.getSide();
+      // position QTY
+      const double _qty        = position.getQty();
+      // position Entry Price
+      const double _entryPx    = position.getPrice();
+      // position Side
+      const char _entrySide    = position.getSide();
       // entry side is long, use bid price because we want to open a sell position for closing
       // entry side is short, use ask price because we want to open a buy position for closing
-      const double _currentPx = ( _entrySide == FIX::Side_BUY ? snapshot.getBid() : snapshot.getAsk() );
+      const double _closePx = snapshot.getBid(); // ( _entrySide == FIX::Side_BUY ? snapshot.getBid() : snapshot.getAsk() );
 
-      // Calc unsigned PnL in quote currency
-      profitloss = profitloss_quote = TradeMath::getProfitLoss( _currentPx, _entryPx, symPointSize, _qty, ( _entrySide == FIX::Side_BUY ? TradeMath::Side::BUY : TradeMath::Side::SELL ) );
+
+      cout << std::setprecision(symPrecision) << fixed;
+      cout << "Position Side  : " << ( _entrySide == FIX::Side_BUY ? "BUY" : "SELL") << endl;
+      cout << "Position Symbol: " << position.getSymbol() << endl;
+      cout << "Counter Symbol : " << baseSymbol << endl;
+
+      // get pip difference
+      // ------------------------------------------------------------------------------------
+      double pip_diff = 0;
+      if ( _entrySide == FIX::Side_BUY ) {
+        pip_diff = ( _closePx - _entryPx );
+        cout << " pip_diff = ( _closePx - _entryPx ) = ( " << _closePx << " - " << _entryPx << " ) = " << pip_diff << endl;
+      } else if ( _entrySide == FIX::Side_SELL ) {
+        pip_diff = ( _entryPx - _closePx );
+        cout << " pip_diff = ( _entryPx - _closePx ) = ( " << _entryPx << " - " << _closePx << " ) = " << pip_diff << endl;
+      }
+
+      // get pip value for 1 pip in position currency
+      // ------------------------------------------------------------------------------------
+      double pip_value = 0;
+      // quote == account currency
+      if ( snapshotQuote == accountCurrency ) {
+        pip_value = symPointSize * _qty;
+        cout << " quote == account: pip_value " << symPointSize << " * " << _qty << " = " << pip_value << endl;
+      } 
+      // base == account currency
+      else if ( snapshotBase == accountCurrency ) {
+        pip_value = symPointSize * _qty * ( 1 / _closePx );
+        cout << " base == account: pip_value " << symPointSize << " * " << _qty << " * ( 1 / " << _closePx << ") " << endl;
+      }
+      // base != account && quote != account
+      else if ( snapshotBase != accountCurrency && snapshotQuote != accountCurrency ) {
+        cout << " snapshotBase & snapshotQuote != accountCurrency:" << endl;
+
+        if ( baseSnapshot.getQuoteCurrency() == accountCurrency && snapshot.getQuoteCurrency() == baseSnapshot.getBaseCurrency() ) {
+          cout << " baseSnapshotQuote == accountCurrency && snapshot.Quote == baseSnapshot.Base: baseDivPx = 1 / baseDivPx" << endl;
+          baseDivPx = 1 / baseDivPx;
+        }
+
+        pip_value = symPointSize * _qty / baseDivPx;
+        cout << " pip_value = " << symPointSize << " * " << _qty << " / " << baseDivPx << endl;
+      }
+      cout << " pip_value = " << pip_value << endl; 
+      cout << " baseDivPx = " << baseDivPx << endl;
+      cout << " qty       = " << _qty << endl; 
+
+      // Profit Loss
+      // ------------------------------------------------------------------------------------
+      profitloss = ( pip_diff * pip_value / symPointSize ) * ( _qty / 100000 );
+      cout << " ( pip_diff * pip_value / symPointSize ) * ( qty / 100000 )" << endl;
+      cout << " ( " << pip_diff << " * " << pip_value << " / " << symPointSize << " ) * ( " << _qty << " / 100000 )" << endl;
+      cout << " ( " << ( pip_diff * pip_value / symPointSize ) << " ) * ( " << (_qty / 100000) << " )" << endl;
+      cout << " PnL           = " << profitloss << " " << accountCurrency << endl;
+      cout << " Balance       = " << getAccount().getBalance() << " " << accountCurrency << endl;
+      cout << " Balance + PnL = " << ( getAccount().getBalance() + profitloss ) << " " << accountCurrency << endl;
+      cout << "---" << endl;
 
       // if quote currency != account currency, convert to base
-      if ( snapshot_quote_currency != account_currency ) {
-        // convert with base pair quote price
-        profitloss = profitloss / baseAskPx;
-      }
+      /*if ( snapshotQuote != accountCurrency ) {
+        // if account is USD
+        if ( accountCurrency == "USD" ) {
+          // convert with base pair quote price
+          profitloss = profitloss / baseDivPx;
+        }
+        // if account is EUR
+        else if ( accountCurrency == "EUR" ) {
+          // convert with the price of 1 EUR per USD  
+          profitloss = profitloss / ( 1 / baseDivPx );
+        }
+      }*/
 
       position.setProfitLoss( profitloss );
 
       // show output only if needed
-      if ( ! m_debug_toggle_update_prices_output ) return;
+      /*if ( ! m_debug_toggle_update_prices_output ) return;
 
-      const double pips = TradeMath::getPipDiff( _currentPx, _entryPx, symPointSize);
       cout << ( _entrySide == FIX::Side_SELL ? "S" : "L" ) 
            << " qty " << std::setprecision(2) << fixed << _qty
            << " entryPx " << std::setprecision(symPrecision) << fixed << _entryPx
            << " currBidPx " << std::setprecision(symPrecision) << fixed << snapshot.getBid()
            << " currAskPx " << std::setprecision(symPrecision) << fixed << snapshot.getAsk()
-           << " pips " << std::setprecision(2) << fixed << pips 
-           << " usdAskPx " << std::setprecision(5) << fixed << baseAskPx
-           << " P&L quote " << std::setprecision(2) << fixed << profitloss_quote << " " << snapshot_quote_currency
-           << " P&L " << std::setprecision(2) << fixed << profitloss << " " << account_currency << endl;
+           << " pips " << std::setprecision(symPrecision) << fixed << pip_diff 
+           << " usdPx " << std::setprecision(5) << fixed << baseDivPx
+           << " P&L quote " << std::setprecision(2) << fixed << profitloss_quote << " " << snapshotQuote
+           << " P&L " << std::setprecision(2) << fixed << profitloss << " " << accountCurrency << endl;
+       */
     }
   }
 }
@@ -873,12 +1000,6 @@ string FIXManager::getAccountID() const {
   return m_account.getAccountID();
 }
 
-// void FIXManager::setAccountID(const string accountID){
-//   if( m_accountID != accountID ){
-//     m_accountID = accountID;
-//   }
-// }
-
 /*!
  * Set Account
  * 
@@ -988,7 +1109,7 @@ void FIXManager::removeMarketOrder(const string posID){
   map<string, MarketOrder>::iterator moIterator = m_list_marketorders.find(posID);
   if( moIterator != m_list_marketorders.end() ){
     // posID found, remove
-    m_list_marketorders.erase(moIterator);
+    m_list_marketorders.erase( moIterator );
   }
 }
 
@@ -1210,17 +1331,9 @@ void FIXManager::onInit() {
   // check if we already initialized
   if( m_list_market.size() > 0 ) return;
 
-
-
-  // subscribe to EUR/USD per default, for account currency conversion
-  cout << "--> subscribeMarketData(EUR/USD)" << endl;
-  subscribeMarketData( "EUR/USD" );
-
-  if ( "EUR/USD" != SUBSCRIBE_PAIR ) {
-    cout << "--> subscribeMarketData(" << SUBSCRIBE_PAIR << ")" << endl;
-    subscribeMarketData(SUBSCRIBE_PAIR);  
-  }
-  
+  cout << "[onInit]" << endl;
+  subscribeMarketData( SUBSCRIBE_PAIR );
+    
   queryPositionReport();
 }
 /*!
@@ -1231,11 +1344,35 @@ void FIXManager::onExit() {
   if( m_list_market.size() == 0 ) return;
 
   cout << "[onExit]" << endl;
-  cout << " - unsubscribeMarketData(EUR/USD)" << endl;
-  unsubscribeMarketData( "EUR/USD" );
-  if ( "EUR/USD" != SUBSCRIBE_PAIR ) {
-    cout << " - unsubscribeMarketData(" << SUBSCRIBE_PAIR << ")" << endl;
-    unsubscribeMarketData(SUBSCRIBE_PAIR);  
+  
+  if ( ! m_symbol_subscriptions.empty() ) {
+    for( auto it = m_symbol_subscriptions.begin(); it != m_symbol_subscriptions.end(); ++it ) {
+      unsubscribeMarketData( *it );
+    }
+  }
+}
+
+/*!
+ * Add symbol to subscription list
+ * @param const std::string symbol
+ */
+void FIXManager::addSubscription(const string symbol) {
+  FIX::Locker lock(m_mutex);
+  if ( std::find( m_symbol_subscriptions.begin(), m_symbol_subscriptions.end(), symbol ) != m_symbol_subscriptions.end() ) {
+    m_symbol_subscriptions.push_back( symbol );
+  }
+}
+
+/*!
+ * Remove symbol from subscription list
+ * @param const std::string symbol
+ */
+void FIXManager::removeSubscription(const string symbol) {
+  FIX::Locker lock(m_mutex);
+  for( auto it = m_symbol_subscriptions.begin(); it != m_symbol_subscriptions.end(); ++it ) {
+    if ( *it == symbol ) {
+      m_symbol_subscriptions.erase( it );  
+    }
   }
 }
 }; // namespace idefix
