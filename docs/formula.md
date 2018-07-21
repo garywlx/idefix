@@ -2,56 +2,88 @@
 
 ## Currency Pairs
 
-| Major   | USD Major | EUR Major | Crossrates Major |
-| ------- | --------- | --------- | ---------------- |
-| EUR/USD | EUR/USD   | EUR/USD   | AUD/CAD          |
-| USD/JPY | USD/JPY   | EUR/GBP   | AUD/CHF          |
-| GBP/USD | GBP/USD   | EUR/JPY   | AUD/JPY          |
-| USD/CHF | USD/CHF   | EUR/CHF   | AUD/NZD          |
-| EUR/GBP | AUD/USD   | EUR/AUD   | CAD/CHF          |
-| EUR/JPY | USD/CAD   | EUR/CAD   | CAD/JPY          |
-| EUR/CHF | NZD/USD   | EUR/NZD   | CHF/JPY          |
-| AUD/USD |           |           | GBP/AUD          |
-| USD/CAD |           |           | GBP/CAD          |
-| NZD/USD |           |           | GBP/CHF          |
-|         |           |           | GBP/JPY          |
-|         |           |           | GBP/NZD          |
-|         |           |           | NZD/CAD          |
-|         |           |           | NZD/CHF          |
-|         |           |           | NZD/JPY          |
+| MAJORS              | MINOR                   | EXOTIC       |
+| ------------------- | ----------------------- | ------------ |
+| EUR/USD * (fiber)   | EUR/GBP (chunnel)       | USD/MXN (--) |
+| USD/JPY * (gopher)  | EUR/JPY (yuppy)         | GBP/NOK (--) |
+| GBP/USD * (cable)   | GBP/JPY (guppy)         | GBP/DKK (--) |
+| USD/CHF * (swissie) | NZD/JPY (kiwi yen)      | CHF/NOK (--) |
+| AUD/USD (aussie)    | CAD/CHF (loonie swissy) | EUR/TRY (--) |
+| USD/CAD (loonie)    | AUD/JPY (--)            | USD/TRY (--) |
+| NZD/USD (kiwi)      |                         |              |
 
-## Bid/Ask
+\* Popular Currency Pair
 
-|                   | Bid    | Ask    |                  |
-| ----------------- | ------ | ------ | ---------------- |
-|                   | 95.620 | 95.650 | Open BUY use ASK |
-| Open SELL use BID | 96.400 | 96.430 |                  |
-|                   | USD /  | JPY    |                  |
+() The names of the pair.
+
+
+
+## Bid & Ask Price
+
+|                               | Bid    | Ask    |                              |
+| ----------------------------- | ------ | ------ | ---------------------------- |
+|                               | 1.0916 | 1.0918 | Buy 1 EUR for 1.0918 USD ask |
+| Sell 1 EUR for 1.0916 USD bid | 1.0916 | 1.0918 |                              |
+|                               | EUR    | USD    |                              |
+
+| Spread =          | AskPrice - | BidPrice |
+| ----------------- | ---------- | -------- |
+| 0.0002 ( 2 Pips ) | 1.0918 -   | 1.0916   |
+
+AskPrice > BidPrice
 
 
 
 ## Pip Value Calculation
 
+https://www.thebalance.com/calculating-pip-value-in-forex-pairs-1031022
+
+Formular for USD account:
 $$
-pipV = ( pointSize \div symbolPrice ) * lotSize
+pipV = symbolPointSize * positionQty
+$$
+Formular for EUR account:
+$$
+pipV = ( symbolPointSize * positionQty ) \div symbolPrice
 $$
 
-- **pointSize** is how many decimal places has the price of a symbol. default is 0.0001 for major currency pairs.
-- **symbolPrice** is the current symbol price. bid for selling, ask for buying.
-- **lotSize** is the value for one standard lot. Default is 100.000 units.
+
+- **pointSize** is how many decimal places has the price of a symbol. default is 0.0001.
+- **symbolPrice** is the current symbol ask price.
+- **positionQty** is the value for the position qty.
 
 
 
 ## Profit Loss Calculation
 
+Step 1: get pip difference of current bid price and position entry price.
+
+Formular for BUY position: 
 $$
-pnlV =( (abs(leftPx - rightPx) * 1 \div pointSize ) * ( qty * pointSize ) 
+pipDiff = snapshotBidPrice - positionEntryPrice
+$$
+Formular for SELL position:
+$$
+pipDiff = positionEntryPrice - snapshotBidPrice
+$$
+Step 2: 
+
+Formular for USD account:
+$$
+profitLoss = pipDiff * positionQty
+$$
+Formular for EUR account:
+$$
+profitLoss = ( pipDiff * positionQty ) / snapshotBidPrice
 $$
 
-- **abs** the absolute value of the substraction
-- **leftPx** this is the left price, like entry price. check pipDiff.
-- **rightPx** this is the right price, like current price. check pipDiff.
-- **pointSize** is how many decimal places has the price of a symbol. default is 0.0001 for major currency pairs.
+
+- **pipDiff** price difference in pip in decimal.
+- **snapshotBidPrice** the bid price of the current symbol market snapshot.
+- **positionEntryPrice** the entry price of the position.
+- **positionQty** the quantity of the position.
+
+
 
 
 
