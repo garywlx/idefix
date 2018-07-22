@@ -111,7 +111,21 @@ The same as in PipValue Calculation but with EUR/JPY as pair to calculate.
 
 
 
-## (A) Profit Loss Calculation
+## Profit & Loss
+
+### Realized Profit
+
+Realized profit is profit that comes from a completed trade; in other words, a trade that has been exited. Realized profit is usually already deposited into the trader's trading account and can be withdrawn from their trading account to a bank account.
+
+Realized profit is included in the account balance in trading account statements and is often shown on trading software as a daily profit that is reset to zero at the beginning of each trading day, to keep track of each day's trading success.
+
+### Unrealized or Paper Profit
+
+Unrealized profit, sometimes called "paper profit" (or "paper loss" if negative), is profit that comes from a currently active trade, such as a trade that has not yet been exited. Unrealized profit is the amount of profit you would take if the trade was exited at that time.
+
+Unrealized profit will change with each price change, so it can be reduced to zero or become an unrealized loss at any time. Unrealized profit becomes realized profit at the moment that a trade is exited.
+
+### (A) Profit Loss Calculation
 
 Step 1: get pip difference of current bid price and position entry price.
 
@@ -140,9 +154,7 @@ $$
 - **positionEntryPrice** the entry price of the position.
 - **positionQty** the quantity of the position.
 
-
-
-## Profit Loss USD/JPY Calculation
+### Profit Loss USD/JPY Calculation
 
 Step 1 as descibed in A.
 

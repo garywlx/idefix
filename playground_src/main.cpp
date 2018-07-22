@@ -115,21 +115,22 @@ double get_pip_value(const Symbol snapshot, const double pos_qty, const std::str
 	// account currency is EUR
 	else if ( account_currency == "EUR" ) {
 		// if symbol base equals account currency: EUR/... in EUR account
-		if ( snapshot.base_currency == account_currency && snapshot.quote_currency != "USD" ) {
+		if ( snapshot.base_currency == account_currency ) {
 			pip_v /= snapshot.ask;
+		}
+		// if ( base or quote == USD ) && conversion_price > 0
+		// USD/... or .../USD
+		else if ( ( snapshot.base_currency == "USD" || snapshot.quote_currency == "USD" ) && conversion_price > 0 ) {
+			pip_v /= conversion_price;
 		}
 
 		// if symbol base equals usd in euro account: USD/... in EUR account
-		if ( snapshot.base_currency == "USD" && account_currency == "EUR" && conversion_price > 0 ) {
+		/*if ( snapshot.base_currency == "USD" && conversion_price > 0 ) {
 			pip_v /= conversion_price;
-		}
+		} else if ( snapshot.quote_currency == "USD" && conversion_price > 0 ) {
+			pip_v /= conversion_price;
+		}*/
 	}
-
-	// if account is denominated in EUR, devide by ask price
-	// OR if symbol base is USD and account is USD
-	// if ( account_currency == "EUR" || ( snapshot.base_currency == "USD" && account_currency == "USD" ) ) {
-	// 	pip_v /= snapshot.ask;
-	// }
 
 	return pip_v;
 }
@@ -194,28 +195,39 @@ double get_profit_loss(const Symbol snapshot, const Position pos, const std::str
 	return profit_loss;
 }
 
+/*!
+ * Calculate Profit / Loss based on pip_value
+ * 
+ * @param const double   pip_value The pip value for this symbol
+ * @param const Symbol   snapshot  The current price data for the position
+ * @param const Position position  The position to calculate
+ * @return double
+ */
+double get_profit_loss2(const double pip_value, const Symbol snapshot, const Position position) {
+	double pip_diff_decimal = 0;
+	double pnl = 0;
+
+	if ( position.side == Side::BUY ) {
+		pip_diff_decimal = snapshot.bid - position.entry_price;
+	} else {
+		pip_diff_decimal = position.entry_price - snapshot.bid;
+	}
+
+	double pips = pip_diff_decimal / snapshot.point_size;
+
+	cout << " pip_diff  " << pip_diff_decimal << endl;
+	cout << " pips      " << pips << endl;
+	cout << " qty       " << position.qty << endl;
+	cout << " pip_value " << pip_value << endl;
+
+	pnl = ( ( pips * ( position.qty / snapshot.contract_size ) ) * pip_value );
+
+	return pnl;
+}
+
 // --------------------------------------------------------------------------------
 
 int main(int argc, char** argv){
-
-	cout << endl;
-
-	// The account
-	Account account = {"USD", 1000, 0};
-
-	// set account_currency by argument
-	if ( argc == 2 ) {
-		account.currency = argv[1];
-	}
-
-	cout << account << endl;
-
-	
-	// Exchange Symbols for EUR account
-	Symbol eurjpy = {"EUR/JPY", "EUR", "JPY", 130.624, 130.624, 0.01, 4, 100000};
-	Symbol eurgbp = {"EUR/GBP", "EUR", "GBP", 0.89254, 0.89254, 0.0001, 5, 100000};
-	Symbol eurchf = {"EUR/CHF", "EUR", "CHF", 1.16319, 1.16319, 0.0001, 5, 100000};
-	Symbol eurcad = {"EUR/CAD", "EUR", "CAD", 1.53933, 1.53933, 0.0001, 5, 100000};
 
 	// MAJORS
 	Symbol audusd = {"AUD/USD", "AUD", "USD", 0.74202, 0.74212, 0.0001, 5, 100000};
@@ -237,8 +249,52 @@ int main(int argc, char** argv){
 	majors.insert( major_pair(usdcad.symbol, usdcad) );
 	majors.insert( major_pair(nzdusd.symbol, nzdusd) );
 
+	if ( argc < 3 ) {
+		cout << "Test pip value and profit loss calculation." << endl;
+		cout << " USAGE: " << argv[0] << " ACCOUNT_CURRENCY TRADE_SYMBOL" << endl;
+		cout << " Symbols: ";
+		for ( auto it = majors.begin(); it != majors.end(); ++it ) {
+			cout << it->first << ", ";
+		}
+		cout << endl;
+		return EXIT_SUCCESS;
+	}
+
+	cout << endl;
+
+	// default values
+	std::string arg_account_currency = "USD";
+	std::string arg_trade_symbol = "EUR/USD";
+
+	// set account_currency by argument
+	if ( strcmp(argv[1], "USD") != 0 || strcmp(argv[1], "EUR") != 0 ) {
+		arg_account_currency = argv[1];
+	} else {
+		cout << argv[1] << " is not a valid accound currency." << endl;
+		return EXIT_FAILURE;
+	}
+
+	// set trade symbol
+	arg_trade_symbol = argv[2];
+
+	// The account
+	Account account = {arg_account_currency, 1000, 0};
+	cout << account << endl;
+
+	// Exchange Symbols for EUR account
+	Symbol eurjpy = {"EUR/JPY", "EUR", "JPY", 130.624, 130.624, 0.01, 4, 100000};
+	Symbol eurgbp = {"EUR/GBP", "EUR", "GBP", 0.89254, 0.89254, 0.0001, 5, 100000};
+	Symbol eurchf = {"EUR/CHF", "EUR", "CHF", 1.16319, 1.16319, 0.0001, 5, 100000};
+	Symbol eurcad = {"EUR/CAD", "EUR", "CAD", 1.53933, 1.53933, 0.0001, 5, 100000};
+
+	auto trade_symbol = majors.find( arg_trade_symbol );
+	if ( trade_symbol == majors.end() ) {
+		cout << "Symbol " << arg_trade_symbol << " not found. " << endl;
+		return EXIT_FAILURE;
+	}
+
 	// Traded symbol
-	Symbol snapshot = eurusd;
+	Symbol snapshot = trade_symbol->second;
 	cout << snapshot << endl;
 
 	// Position
@@ -251,7 +307,27 @@ int main(int argc, char** argv){
 
 	// IMPORTANT FOR EUR ACCOUNT
 	if ( account.currency == "EUR" ) {
-		for ( auto it = majors.begin(); it != majors.end(); ++it ) {
+		// AUD/USD, EUR/USD, GBP/USD, NZD/USD, ...
+		if ( snapshot.quote_currency == "USD" ) {
+			pip_value = get_pip_value( snapshot, position.qty, account.currency, eurusd.ask );
+		} 
+		// USD/CAD, USD/CHF, USD/JPY, ...
+		else if ( snapshot.base_currency == "USD" ) {
+
+			// get conversion rate
+			conversion_price = 1 / eurusd.ask;
+
+			if ( snapshot.quote_currency == "CAD" ) {
+				conversion_price = eurcad.ask;
+			} else if ( snapshot.quote_currency == "CHF" ) {
+				conversion_price = eurchf.ask;
+			} else if ( snapshot.quote_currency == "JPY" ) {
+				conversion_price = eurjpy.ask;
+			}
+
+			pip_value = get_pip_value( snapshot, position.qty, account.currency, conversion_price );
+		}
+		/*for ( auto it = majors.begin(); it != majors.end(); ++it ) {
 			// AUD/USD, EUR/USD, GBP/USD, NZD/USD, ...
 			if ( it->second.quote_currency == "USD" ) {
 				pip_value = get_pip_value( it->second, position.qty, account.currency );
@@ -274,21 +350,25 @@ int main(int argc, char** argv){
 			}
 
 			cout << it->first << " pip_v " << pip_value << " " << account.currency << endl;
-		}
+		}*/
 	} 
 	// USD ACCOUNT
 	else {
-		for ( auto it = majors.begin(); it != majors.end(); ++it ) {
+		pip_value = get_pip_value( snapshot, position.qty, account.currency );
+
+		/*for ( auto it = majors.begin(); it != majors.end(); ++it ) {
 			pip_value = get_pip_value( it->second, position.qty, account.currency );
 			cout << it->first << " pip_v " << pip_value << " " << account.currency << endl;
-		}
+		}*/
 		
 	}
-	//cout << " pip_v         " << pip_value << " " << account.currency << endl;
-	//cout << " conversion_p  " << conversion_price << endl;
+	
+	cout << " pip_v         " << pip_value << " " << account.currency << endl;
+	cout << " conversion_p  " << conversion_price << endl;
 
 	// Profit/Loss Value
-	const double pnl = get_profit_loss( snapshot, position, account.currency, conversion_price );
+	//const double pnl = get_profit_loss( snapshot, position, account.currency, conversion_price );
+	const double pnl = get_profit_loss2(pip_value, snapshot, position);
 	cout << std::setprecision(5) << fixed;
 	cout << " profit_loss   " << pnl << " " << account.currency << endl;
 
