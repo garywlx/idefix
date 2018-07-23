@@ -39,7 +39,7 @@
 #include "FXCMFields.h"
 #include "FIXFactory.h"
 #include "Account.h"
-#include "TradeMath.h"
+#include "Math.h"
 #include "Pairs.h"
 #include <cmath>
 
@@ -47,11 +47,9 @@ using namespace std;
 using namespace FIX;
 
 // subscribe and trade this pair
-#define SUBSCRIBE_PAIR "EUR/GBP"
+#define SUBSCRIBE_PAIR "AUD/USD"
 
 namespace IDEFIX {
-  // FOR DEBUGGING! The following pair is un-/subscribed and traded
-
 class FIXManager: public MessageCracker, public Application {
 private:
   // for debugging
@@ -156,6 +154,7 @@ private:
   void onExit();
 
   void updatePrices(const MarketSnapshot& snapshot);
+  void onMarketSnapshot(const MarketSnapshot& snapshot);
   string nextRequestID();
   string nextOrderID();
 

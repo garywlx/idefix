@@ -123,76 +123,9 @@ double get_pip_value(const Symbol snapshot, const double pos_qty, const std::str
 		else if ( ( snapshot.base_currency == "USD" || snapshot.quote_currency == "USD" ) && conversion_price > 0 ) {
 			pip_v /= conversion_price;
 		}
-
-		// if symbol base equals usd in euro account: USD/... in EUR account
-		/*if ( snapshot.base_currency == "USD" && conversion_price > 0 ) {
-			pip_v /= conversion_price;
-		} else if ( snapshot.quote_currency == "USD" && conversion_price > 0 ) {
-			pip_v /= conversion_price;
-		}*/
 	}
 
 	return pip_v;
-}
-
-/*!
- * Profit/Loss calculation
- * 
- * @param const Symbol      snapshot         The current market snapshot.
- * @param const Position    pos              The current position to calculate.
- * @param const std::string account_currency The account currency in capital letters.
- * @paran const double      conversion_price The price to convert the pnl to. e.g. USD/JPY && account EUR => EURJPY.bid
- * @return double
- */
-double get_profit_loss(const Symbol snapshot, const Position pos, const std::string account_currency, const double conversion_price = 0) {
-
-	double pip_diff_decimal = 0;
-	double profit_loss = 0;
-
-	// Get price difference in pips in decimal
-	if ( pos.side == Side::BUY ) {
-		pip_diff_decimal = snapshot.bid - pos.entry_price;
-	} else {
-		pip_diff_decimal = pos.entry_price - snapshot.bid;
-	}
-	cout << " pip_diff      " << pip_diff_decimal << endl;
-
-	// Profit&Loss
-	// Formula: Profit in Account Currency = ((close price – open price) * Position size / (or *) Currency rate) ± (swap in account currency value *period)
-	
-	// for USD/JPY
-	if ( snapshot.symbol == "USD/JPY" ) {
-		profit_loss = ( ( pip_diff_decimal / ( account_currency == "EUR" ? conversion_price : snapshot.bid ) ) * pos.qty );
-	} 
-	// Account = EUR && GBP/USD
-	/*else if ( account_currency == "EUR" && snapshot.quote_currency == "USD" && snapshot.base_currency != "EUR" ) {
-		profit_loss = ( ( pip_diff_decimal / conversion_price ) * pos.qty ) / snapshot.bid;
-	} */
-	// other pairs with USD/... || .../USD
-	else {
-
-		// check for quote .../USD
-		if ( snapshot.quote_currency == "USD" && snapshot.base_currency != "EUR" ) {
-			profit_loss = ( ( pip_diff_decimal / conversion_price ) * pos.qty );
-			cout << ".../USD" << endl;
-		} 
-		// USD/...
-		else if ( snapshot.quote_currency != "USD" && snapshot.base_currency == "USD" ) {
-			profit_loss = ( pip_diff_decimal * pos.qty );
-			cout << "USD/..." << endl;
-			cout << pip_diff_decimal << " " << pos.qty << endl;
-		}
-		else {
-			profit_loss = ( pip_diff_decimal * pos.qty );
-		}
-
-		// if account is denominated in EUR, divide by currency_rate
-		if ( account_currency == "EUR" ) {
-			profit_loss /= snapshot.bid;
-		}
-	}
-	
-	return profit_loss;
 }
 
 /*!
@@ -298,7 +231,7 @@ int main(int argc, char** argv){
 	cout << snapshot << endl;
 
 	// Position
-	Position position = {Side::BUY, 100000, snapshot.bid - snapshot.point_size, 0, 0};
+	Position position = {Side::SELL, 100000, snapshot.bid - snapshot.point_size, 0, 0};
 	cout << position << endl;
 
 	// PipValue

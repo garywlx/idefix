@@ -420,8 +420,8 @@ void FIXManager::onMessage(const FIX44::MarketDataSnapshotFullRefresh &mds, cons
 
   // Add market snapshot for symbol snapshot.getSymbol()
   addMarketSnapshot( snapshot );
-  // save/update last snapshot
-  updatePrices( snapshot );
+  // handle market snapshot
+  onMarketSnapshot( snapshot );
 
   if( m_debug_toggle_snapshot_output ){
     cout << "[onMessage:MarketData] " << snapshot << endl;
@@ -624,7 +624,7 @@ void FIXManager::subscribeMarketData(const std::string symbol) {
   addSubscription( symbol );
 
   // check if we need a counter pair for price conversion
-  auto counterPair = getCounterPair( symbol );
+  auto counterPair = getCounterPair( symbol, getAccount().getCurrency() );
   if ( counterPair != symbol ) {
     if ( m_list_market.find( counterPair ) == m_list_market.end() ) {
       cout << "--> subscribeMarketData( " << counterPair << " ) for price conversion of " << symbol << endl;
@@ -644,7 +644,7 @@ void FIXManager::unsubscribeMarketData(const std::string symbol) {
 
   // check base and quote of symbol
   // check if we need a counter pair for price conversion
-  auto counterPair = getCounterPair( symbol );
+  auto counterPair = getCounterPair( symbol, getAccount().getCurrency() );
   if ( counterPair != symbol ) {
     if ( m_list_market.find( counterPair ) != m_list_market.end() ) {
       cout << "--> unsubscribeMarketData( " << counterPair << " ) for price conversion of " << symbol << endl;
@@ -721,6 +721,89 @@ bool FIXManager::isOrderSession(const SessionID& session_ID){
 }
 
 /*!
+ * Handle everything which relys on a new market snapshot
+ * 
+ * @param const MarketSnapshot&   snapshot The current market snapshot
+ */
+void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
+  FIX::Locker lock(m_mutex);
+  if ( m_list_marketorders.empty() ) return;
+
+  // get account currency
+  auto accountCurrency = getAccount().getCurrency();
+  // get market detail for snapshot
+  auto marketDetail = getMarketDetails( snapshot.getSymbol() );
+
+  for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
+    // handle only positions with the same symbol trading
+    if ( it->second.getSymbol() == snapshot.getSymbol() ) {
+      // the position (MarketOrder)
+      auto position = it->second;
+      // the pip value
+      double pip_value = 0;
+      // the conversion price
+      double conversion_price = 0;
+
+      // calculate pip value for this snapshot
+      if ( accountCurrency == "USD" ) {
+        pip_value = Math::get_pip_value( snapshot, position.getQty() );
+      }
+      // calculate pip value for EUR account
+      else if ( accountCurrency == "EUR" ) {
+        // get EUR/USD snapshot
+        auto eurusd_snapshot = getLatestSnapshot( "EUR/USD" );
+
+        // AUD/USD, EUR/USD, GBP/USD, NZD/USD, ...
+        if ( snapshot.getQuoteCurrency() == "USD" ) {
+          // calculate pip value
+          pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, eurusd_snapshot.getAsk() );
+        }
+        // USD/CAD, USD/CHF, USD/JPY...
+        else if ( snapshot.getBaseCurrency() == "USD" ) {
+          // set conversion price 
+          //conversion_price = 1 / eurusd_snapshot.getAsk();
+
+          // USD/CAD use EUR/CAD
+          if ( snapshot.getQuoteCurrency() == "CAD" ) {
+            // get latest snapshot for EUR/CAD
+            auto eurcad_snapshot = getLatestSnapshot( "EUR/CAD" );
+            // set conversion price
+            conversion_price = eurcad_snapshot.getAsk();
+          }
+          // USD/CHF use EUR/CHF
+          else if ( snapshot.getQuoteCurrency() == "CHF" ) {
+            // get latest snapshot for EUR/CHF
+            auto eurchf_snapshot = getLatestSnapshot( "EUR/CHF" );
+            // set conversion price
+            conversion_price = eurchf_snapshot.getAsk();
+          }
+          // USD/JPY use EUR/JPY
+          else if ( snapshot.getQuoteCurrency() == "JPY" ) {
+            // get latest snapshot for EUR/JPY
+            auto eurjpy_snapshot = getLatestSnapshot( "EUR/JPY" );
+            // set conversion price
+            conversion_price = eurjpy_snapshot.getAsk();
+          }
+
+          // calculate pip value with conversion price
+          pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, conversion_price );
+        } // - else if base currency == USD
+      } // - else if account currency == EUR
+
+      // Calculate Profit / Loss
+      const double profitloss = Math::get_profit_loss( pip_value, snapshot, position );
+      // update position
+      position.setProfitLoss( profitloss );
+
+      // DEBUG output
+      cout << " pip_v        " << pip_value << " " << accountCurrency << endl;
+      cout << " conversion_p " << conversion_price << endl;
+      cout << " profit_loss  " << profitloss << " " << accountCurrency << endl;
+    } // - if snapshot symbol == position symbol
+  } // - for marketorder loop
+} // - onMarketOrder
+
+/*!
  * Recalculate position PnL
  * @param MarketSnapshot snapshot
  */
@@ -759,7 +842,7 @@ void FIXManager::updatePrices(const MarketSnapshot& snapshot){
   // check if we need a base pair for price conversion to account currency
   if ( snapshotQuote != accountCurrency && snapshotBase != accountCurrency ) {
 
-    baseSymbol   = getCounterPair( snapshot.getSymbol() );
+    baseSymbol   = getCounterPair( snapshot.getSymbol(), accountCurrency );
     baseSnapshot = getLatestSnapshot( baseSymbol );
 
     baseBidPx    = baseSnapshot.getBid();
