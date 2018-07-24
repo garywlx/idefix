@@ -15,9 +15,10 @@ namespace IDEFIX {
 		 * @param const double              pos_qty          The current position qty.
 		 * @param const std::string         account_currency The account currency in capital letters. Default is USD
 		 * @param const double              conversion_price The conversion_price for snapshot if it does not contain account_currency. eg. ACC=USD, Snapshot=EUR/GBP => USD/GBP
+		 * @param const char				side 			 The side of the current position.
 		 * @return double
 		 */
-		inline double get_pip_value(const MarketSnapshot snapshot, const double pos_qty, const std::string account_currency = "USD", const double conversion_price = 0) {
+		inline double get_pip_value(const MarketSnapshot snapshot, const double pos_qty, const std::string account_currency = "USD", const double conversion_price = 0, const char side = FIX::Side_BUY) {
 			
 			// Whatever currency the account is, when that currency is listed second in a pair the pip values are fixed. 
 			// For example, if you have a Canadian dollar (CAD) account, any pair that is XXX/CAD, such as the USD/CAD 
@@ -29,7 +30,7 @@ namespace IDEFIX {
 				// if the USD isn't listed second,
 				// divide the pip value by the USD/xxx rate
 				if ( snapshot.getBaseCurrency() == "USD" ) {
-					pip_v /= snapshot.getAsk();	
+					pip_v /= ( side == FIX::Side_BUY ? snapshot.getAsk() : snapshot.getBid() );
 				}
 
 				// if the snapshot does not contain account currency
@@ -72,12 +73,19 @@ namespace IDEFIX {
 			if ( position.getSide() == FIX::Side_BUY ) {
 				pip_diff_decimal = snapshot.getBid() - position.getPrice();
 			} else {
-				pip_diff_decimal = position.getPrice() - snapshot.getBid();
+				pip_diff_decimal = position.getPrice() - snapshot.getAsk();
 			}
 
 			double pips = pip_diff_decimal / snapshot.getPointSize();
 
 			pnl = ( ( pips * ( position.getQty() / snapshot.getContractSize() ) ) * pip_value );
+
+			// cout << "--------------" << endl;
+			// cout << " Side         " << position.getSideStr() << endl;
+			// cout << std::setprecision(5) << fixed;
+			// cout << " Entry        " << position.getPrice() << endl;
+			// cout << " Snapshot Px  " << snapshot.getBid() << endl;
+			// cout << " Difference   " << pip_diff_decimal << endl;
 
 			return pnl;
 		} // END get_profit_loss

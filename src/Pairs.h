@@ -14,9 +14,10 @@ namespace IDEFIX {
 	 */
 	inline std::string getCounterPair(const std::string symbol, const std::string account_currency) {
 
+		// get symbol parts
+		auto split = str::explode( symbol, '/' );
+
 		if ( account_currency == "EUR" ) {
-			// get symbol parts
-			auto split = str::explode( symbol, '/' );
 			// if quote is USD, return EUR/USD
 			if ( split[1] == "USD" ) {
 				return "EUR/USD";
@@ -33,7 +34,7 @@ namespace IDEFIX {
 			}
 		} 
 
-		// as default or USD account, return EUR/USD
+		// as default
 		return "EUR/USD";
 	}
 };

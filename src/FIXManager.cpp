@@ -746,7 +746,7 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
 
       // calculate pip value for this snapshot
       if ( accountCurrency == "USD" ) {
-        pip_value = Math::get_pip_value( snapshot, position.getQty() );
+        pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, 0, position.getSide() );
       }
       // calculate pip value for EUR account
       else if ( accountCurrency == "EUR" ) {
@@ -756,7 +756,7 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
         // AUD/USD, EUR/USD, GBP/USD, NZD/USD, ...
         if ( snapshot.getQuoteCurrency() == "USD" ) {
           // calculate pip value
-          pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, eurusd_snapshot.getAsk() );
+          pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, eurusd_snapshot.getAsk(), position.getSide() );
         }
         // USD/CAD, USD/CHF, USD/JPY...
         else if ( snapshot.getBaseCurrency() == "USD" ) {
@@ -786,7 +786,7 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
           }
 
           // calculate pip value with conversion price
-          pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, conversion_price );
+          pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, conversion_price, position.getSide() );
         } // - else if base currency == USD
       } // - else if account currency == EUR
 
@@ -796,175 +796,12 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
       position.setProfitLoss( profitloss );
 
       // DEBUG output
-      cout << " pip_v        " << pip_value << " " << accountCurrency << endl;
-      cout << " conversion_p " << conversion_price << endl;
-      cout << " profit_loss  " << profitloss << " " << accountCurrency << endl;
+      // cout << " pip_v        " << pip_value << " " << accountCurrency << endl;
+      // cout << " conversion_p " << conversion_price << endl;
+      // cout << " profit_loss  " << profitloss << " " << accountCurrency << endl;
     } // - if snapshot symbol == position symbol
   } // - for marketorder loop
 } // - onMarketOrder
-
-/*!
- * Recalculate position PnL
- * @param MarketSnapshot snapshot
- */
-void FIXManager::updatePrices(const MarketSnapshot& snapshot){
-
-  // check if there are open positions
-  FIX::Locker lock(m_mutex);
-  if( m_list_marketorders.size() == 0 ) return;
-
-  std::string prefix = "[updatePrices] ";
-  double profitloss;
-
-  // get account currency
-  auto accountCurrency = getAccount().getCurrency();
-
-  // get market detail for snapshot
-  auto marketDetail = getMarketDetails( snapshot.getSymbol() );
-  auto snapshotQuote = snapshot.getQuoteCurrency();
-  auto snapshotBase = snapshot.getBaseCurrency();
-
-  auto symPointSize = marketDetail.getSymPointsize();
-  auto symPrecision = marketDetail.getSymPrecision();
-  auto contractMultiplier = marketDetail.getContractMultiplier();
-
-  auto baseBidPx = snapshot.getBid();
-  auto baseAskPx = snapshot.getAsk();
-
-  /*if ( snapshotBase == accountCurrency ) {
-    baseBidPx = 1 / snapshot.getBid();
-    baseAskPx = 1 / snapshot.getAsk();
-  }*/
-
-  std::string baseSymbol = snapshot.getSymbol();
-  MarketSnapshot baseSnapshot = snapshot;
-
-  // check if we need a base pair for price conversion to account currency
-  if ( snapshotQuote != accountCurrency && snapshotBase != accountCurrency ) {
-
-    baseSymbol   = getCounterPair( snapshot.getSymbol(), accountCurrency );
-    baseSnapshot = getLatestSnapshot( baseSymbol );
-
-    baseBidPx    = baseSnapshot.getBid();
-    baseAskPx    = baseSnapshot.getAsk();
-
-    /*if ( baseSnapshot.getQuoteCurrency() == accountCurrency ) {
-      baseBidPx = 1 / baseBidPx;
-      baseAskPx = 1 / baseAskPx;
-    }*/
-  }
-
-  double baseDivPx = baseBidPx;
-
-  // we have open positions
-  for( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
-
-    // get position
-    auto position = it->second;
-
-    // calculate for this snapshot symbol only
-    if( position.getSymbol() == snapshot.getSymbol() ) {
-      // position ID
-      const std::string _posID = position.getPosID();
-      // position QTY
-      const double _qty        = position.getQty();
-      // position Entry Price
-      const double _entryPx    = position.getPrice();
-      // position Side
-      const char _entrySide    = position.getSide();
-      // entry side is long, use bid price because we want to open a sell position for closing
-      // entry side is short, use ask price because we want to open a buy position for closing
-      const double _closePx = snapshot.getBid(); // ( _entrySide == FIX::Side_BUY ? snapshot.getBid() : snapshot.getAsk() );
-
-
-      cout << std::setprecision(symPrecision) << fixed;
-      cout << "Position Side  : " << ( _entrySide == FIX::Side_BUY ? "BUY" : "SELL") << endl;
-      cout << "Position Symbol: " << position.getSymbol() << endl;
-      cout << "Counter Symbol : " << baseSymbol << endl;
-
-      // get pip difference
-      // ------------------------------------------------------------------------------------
-      double pip_diff = 0;
-      if ( _entrySide == FIX::Side_BUY ) {
-        pip_diff = ( _closePx - _entryPx );
-        cout << " pip_diff = ( _closePx - _entryPx ) = ( " << _closePx << " - " << _entryPx << " ) = " << pip_diff << endl;
-      } else if ( _entrySide == FIX::Side_SELL ) {
-        pip_diff = ( _entryPx - _closePx );
-        cout << " pip_diff = ( _entryPx - _closePx ) = ( " << _entryPx << " - " << _closePx << " ) = " << pip_diff << endl;
-      }
-
-      // get pip value for 1 pip in position currency
-      // ------------------------------------------------------------------------------------
-      double pip_value = 0;
-      // quote == account currency
-      if ( snapshotQuote == accountCurrency ) {
-        pip_value = symPointSize * _qty;
-        cout << " quote == account: pip_value " << symPointSize << " * " << _qty << " = " << pip_value << endl;
-      } 
-      // base == account currency
-      else if ( snapshotBase == accountCurrency ) {
-        pip_value = symPointSize * _qty * ( 1 / _closePx );
-        cout << " base == account: pip_value " << symPointSize << " * " << _qty << " * ( 1 / " << _closePx << ") " << endl;
-      }
-      // base != account && quote != account
-      else if ( snapshotBase != accountCurrency && snapshotQuote != accountCurrency ) {
-        cout << " snapshotBase & snapshotQuote != accountCurrency:" << endl;
-
-        if ( baseSnapshot.getQuoteCurrency() == accountCurrency && snapshot.getQuoteCurrency() == baseSnapshot.getBaseCurrency() ) {
-          cout << " baseSnapshotQuote == accountCurrency && snapshot.Quote == baseSnapshot.Base: baseDivPx = 1 / baseDivPx" << endl;
-          baseDivPx = 1 / baseDivPx;
-        }
-
-        pip_value = symPointSize * _qty / baseDivPx;
-        cout << " pip_value = " << symPointSize << " * " << _qty << " / " << baseDivPx << endl;
-      }
-      cout << " pip_value = " << pip_value << endl; 
-      cout << " baseDivPx = " << baseDivPx << endl;
-      cout << " qty       = " << _qty << endl; 
-
-      // Profit Loss
-      // ------------------------------------------------------------------------------------
-      profitloss = ( pip_diff * pip_value / symPointSize ) * ( _qty / 100000 );
-      cout << " ( pip_diff * pip_value / symPointSize ) * ( qty / 100000 )" << endl;
-      cout << " ( " << pip_diff << " * " << pip_value << " / " << symPointSize << " ) * ( " << _qty << " / 100000 )" << endl;
-      cout << " ( " << ( pip_diff * pip_value / symPointSize ) << " ) * ( " << (_qty / 100000) << " )" << endl;
-      cout << " PnL           = " << profitloss << " " << accountCurrency << endl;
-      cout << " Balance       = " << getAccount().getBalance() << " " << accountCurrency << endl;
-      cout << " Balance + PnL = " << ( getAccount().getBalance() + profitloss ) << " " << accountCurrency << endl;
-      cout << "---" << endl;
-
-      // if quote currency != account currency, convert to base
-      /*if ( snapshotQuote != accountCurrency ) {
-        // if account is USD
-        if ( accountCurrency == "USD" ) {
-          // convert with base pair quote price
-          profitloss = profitloss / baseDivPx;
-        }
-        // if account is EUR
-        else if ( accountCurrency == "EUR" ) {
-          // convert with the price of 1 EUR per USD  
-          profitloss = profitloss / ( 1 / baseDivPx );
-        }
-      }*/
-
-      position.setProfitLoss( profitloss );
-
-      // show output only if needed
-      /*if ( ! m_debug_toggle_update_prices_output ) return;
-
-      cout << ( _entrySide == FIX::Side_SELL ? "S" : "L" ) 
-           << " qty " << std::setprecision(2) << fixed << _qty
-           << " entryPx " << std::setprecision(symPrecision) << fixed << _entryPx
-           << " currBidPx " << std::setprecision(symPrecision) << fixed << snapshot.getBid()
-           << " currAskPx " << std::setprecision(symPrecision) << fixed << snapshot.getAsk()
-           << " pips " << std::setprecision(symPrecision) << fixed << pip_diff 
-           << " usdPx " << std::setprecision(5) << fixed << baseDivPx
-           << " P&L quote " << std::setprecision(2) << fixed << profitloss_quote << " " << snapshotQuote
-           << " P&L " << std::setprecision(2) << fixed << profitloss << " " << accountCurrency << endl;
-       */
-    }
-  }
-}
 
 /*!
  * Returns last market snapshot for symbol

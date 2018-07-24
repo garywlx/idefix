@@ -47,7 +47,7 @@ using namespace std;
 using namespace FIX;
 
 // subscribe and trade this pair
-#define SUBSCRIBE_PAIR "AUD/USD"
+#define SUBSCRIBE_PAIR "EUR/USD"
 
 namespace IDEFIX {
 class FIXManager: public MessageCracker, public Application {
@@ -153,7 +153,6 @@ private:
   void onInit();
   void onExit();
 
-  void updatePrices(const MarketSnapshot& snapshot);
   void onMarketSnapshot(const MarketSnapshot& snapshot);
   string nextRequestID();
   string nextOrderID();
