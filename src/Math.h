@@ -187,15 +187,15 @@ namespace IDEFIX {
 		/*!
 		 * Get conversion price based on account currency and symbol
 		 * 
-		 * @param const double         price             The current price bid or ask
-		 * @param const std::string    account_currency  The account currency
-		 * @param const MarketSnapshot conversion_symbol The symbol of the price
+		 * @param const double         price                            The current price bid or ask
+		 * @param const std::string    account_currency                 The account currency
+		 * @param const std:string     conversion_symbol_quote_currency The quote currency of the conversion price
 		 * @return double
 		 */
-		inline double get_conversion_price(const double price, const std::string account_currency, const MarketSnapshot conversion_symbol) {
+		inline double get_conversion_price(const double price, const std::string account_currency, const std::string conversion_symbol_quote_currency) {
 			double result = 0;
 			
-			if ( account_currency == "EUR" || ( account_currency == "USD" && conversion_symbol.getQuoteCurrency() != "USD" ) ) {
+			if ( account_currency == "EUR" || ( account_currency == "USD" && conversion_symbol_quote_currency != "USD" ) ) {
 				result = price / 1;
 			}
 

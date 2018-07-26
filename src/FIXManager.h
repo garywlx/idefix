@@ -41,6 +41,7 @@
 #include "Account.h"
 #include "Math.h"
 #include "Pairs.h"
+#include "Candle.h"
 #include <cmath>
 
 using namespace std;
@@ -50,6 +51,8 @@ using namespace FIX;
 #define SUBSCRIBE_PAIR "EUR/USD"
 
 namespace IDEFIX {
+class Strategy;
+
 class FIXManager: public MessageCracker, public Application {
 private:
   // for debugging
@@ -67,6 +70,8 @@ private:
   FileLogFactory *m_plog_factory;
   // Pointer to Socket
   SocketInitiator *m_pinitiator;
+  // The strategy to use
+  Strategy *m_pstrategy;
   // RequestID Manager
   RequestId m_reqid_manager;
 
@@ -90,7 +95,7 @@ private:
   
 public:
   FIXManager();
-  FIXManager(const string settingsFile);
+  FIXManager(const string settingsFile, Strategy* strategy);
 
   void onCreate(const SessionID& sessionID);
   void onLogon(const SessionID& sessionID);
@@ -139,7 +144,6 @@ public:
   Account getAccount();
   string getAccountID() const;
 
-  void debug();
   void toggleSnapshotOutput();
   void togglePNLOutput();
   
@@ -148,12 +152,16 @@ public:
   void showMarketDetail(const string symbol);
 
   string formatBaseCurrency(const double value);
+  void onExit();
 
 private:
   void onInit();
-  void onExit();
 
   void onMarketSnapshot(const MarketSnapshot& snapshot);
+  
+  void processMarketOrders(const MarketSnapshot& snapshot);
+  void processStrategy(const MarketSnapshot& snapshot);
+
   string nextRequestID();
   string nextOrderID();
 
@@ -187,6 +195,7 @@ private:
   void addSubscription(const string symbol);
   void removeSubscription(const string symbol);
 
+  void setStrategy(Strategy* strategy);
 }; // class fixmanager
 }; // namespace idefix
 

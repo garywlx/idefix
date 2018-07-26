@@ -3,6 +3,7 @@
  *  http://www.arnegockeln.com
  */
 #include "FIXManager.h"
+#include "Strategy.h"
 #include <cmath>
 #include <string>
 #include <exception>
@@ -15,9 +16,13 @@ FIXManager::FIXManager(): m_debug_toggle_snapshot_output(false), m_debug_toggle_
 
 /*!
  * Constructs FIXManager and starts a FIX Session from settings file
+ *
+ * @param const std::string settingsFile The FIX settings file
+ * @param Strategy*         strategy     The strategy to use
  */
-FIXManager::FIXManager(const string settingsFile): m_debug_toggle_snapshot_output(false), m_debug_toggle_update_prices_output(false) {
+FIXManager::FIXManager(const string settingsFile, Strategy* strategy): m_debug_toggle_snapshot_output(false), m_debug_toggle_update_prices_output(false) {
   startSession(settingsFile);
+  setStrategy( strategy );
 }
 
 // Gets called when quickfix creates a new session. A session comes into and remains in existence
@@ -200,13 +205,20 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
 // - When the inquiry is otherwise valid but no collateral is found to match the criteria specified on the Collateral Inquiry message.
 // - When the Collateral Inquiry is invalid based upon the business rules of the counterparty.
 void FIXManager::onMessage(const FIX44::CollateralInquiryAck& ack, const SessionID& session_ID){
-  std::string prefix = "[onMessage:CollateralInquiryAck] ";
-  if( ack.isSetField(FIELD::Text) ){
-    cout << prefix << ack.getField(FIELD::Text) << endl;
+  if( ack.isSetField( FIELD::Text ) ){
+    // Call strategy onRequestAck
+    if ( m_pstrategy != NULL ) {
+      auto text = ack.getField( FIELD::Text );
+      m_pstrategy->onRequestAck( *this, "CollateralInquiryAck", text );
+    }
   }
 
   if( ack.isSetField( FXCM_FIX_FIELDS::FXCM_REQUEST_REJECT_REASON ) ) {
-    cout << prefix << ack.getField( FXCM_FIX_FIELDS::FXCM_REQUEST_REJECT_REASON ) << endl;
+    // Call strategy onRequestAck
+    if ( m_pstrategy != NULL ) {
+      auto text = ack.getField( FXCM_FIX_FIELDS::FXCM_REQUEST_REJECT_REASON );
+      m_pstrategy->onRequestAck( *this, "CollateralInquiryAck", text );
+    }
   }
 }
 
@@ -261,10 +273,13 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
 
   setAccount( account );
 
-  cout << account << endl;
-
   // call init
   onInit();
+
+  // call strategy on account change
+  if ( m_pstrategy != NULL ) {
+    m_pstrategy->onAccountChange( *this, account );
+  }
 }
 
 /*!
@@ -282,14 +297,17 @@ void FIXManager::onMessage(const FIX44::RequestForPositionsAck &ack, const Sessi
 
   // No Positions found
   if ( posReqStatus == FIX::PosReqStatus_REJECTED && posReqResult == FIX::PosReqResult_NO_POSITIONS_FOUND_THAT_MATCH_CRITERIA ) {
-    cout << prefix << "No open positions found." << endl;
     // clear positions
     m_list_marketorders.clear();
   }
-  // if a PositionReport is requested and no positions exist for that rquest, the Text field will
+  // if a PositionReport is requested and no positions exist for that request, the Text field will
   // indicate that no positions matched the requested criteria
   else if( ack.isSetField(FIELD::Text) ){
-    cout << prefix << "Text " << ack.getField(FIELD::Text) << endl;
+    // Call strategy onRequestAck
+    if ( m_pstrategy != NULL ) {
+      auto text = ack.getField( FIELD::Text );
+      m_pstrategy->onRequestAck( *this, "RequestForPositionsAck", text );
+    }
   }
 }
 
@@ -347,8 +365,13 @@ void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& ses
     MarketDetail marketDetail = getMarketDetails( marketOrder.getSymbol() );
     marketOrder.setPrecision( marketDetail.getSymPrecision() );
 
-    cout << prefix << "addMarketOrder(" << fxcm_pos_id << ")" << endl;
+    // add order to list
     addMarketOrder( marketOrder );
+
+    // Update strategy
+    if ( m_pstrategy != NULL ) {
+      m_pstrategy->onPositionChange( *this, marketOrder, MarketOrder::Status::NEW );
+    }
 
     // queryOrderMassStatusRequest to update order with SL and TP values
     queryOrderMassStatus();
@@ -364,9 +387,12 @@ void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& ses
 void FIXManager::onMessage(const FIX44::MarketDataRequestReject &mdr, const SessionID &session_ID) {
   // If MarketDataRequestReject is returned as the result of a MarketDataRequest message
   // print out the contents of the Text field but first check that it is set
-  cout << "[onMessage:MarketDataRequestReject] " << endl;
-  if(mdr.isSetField(FIELD::Text)){
-    cout << " Text -> " << mdr.getField(FIELD::Text) << endl;
+  if ( mdr.isSetField( FIELD::Text ) ) {
+    // Call strategy onRequestAck
+    if ( m_pstrategy != NULL ) {
+      auto text = mdr.getField( FIELD::Text );
+      m_pstrategy->onRequestAck( *this, "MarketDataRequestReject", text );
+    }
   }
 }
 
@@ -561,11 +587,15 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
 // If no allocation report is available
 void FIXManager::onMessage(const FIX44::AllocationReportAck& ack, const SessionID& session_ID){
   cout << "[onMessage::AllocationReportAck] " << ack << endl;
+  if ( m_pstrategy != NULL && ack.isSetField( FIELD::Text ) ) {
+    auto text = ack.getField( FIELD::Text );
+    m_pstrategy->onRequestAck( *this, "AllocationReportAck", text );
+  }
 }
 
 // If allocation report is available
 void FIXManager::onMessage(const FIX44::AllocationReport& ar, const SessionID& session_ID){
-  cout << "[onMessage:AllocationReport] " << ar << endl;
+  //cout << "[onMessage:AllocationReport] " << ar << endl;
 }
 
 // Starts the FIX session. Throws FIX::ConfigError exception if our configuration settings
@@ -584,8 +614,6 @@ void FIXManager::startSession(const string settingsfile) {
 
 // Logout and end session
 void FIXManager::endSession() {
-  onExit();
-
   m_pinitiator->stop();
   delete m_pinitiator;
   delete m_psettings;
@@ -723,9 +751,24 @@ bool FIXManager::isOrderSession(const SessionID& session_ID){
 /*!
  * Handle everything which relys on a new market snapshot
  * 
- * @param const MarketSnapshot&   snapshot The current market snapshot
+ * @param const MarketSnapshot& snapshot The current market snapshot.
  */
 void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
+  
+  // Process market orders
+  processMarketOrders( snapshot );
+
+  // Process strategies
+  processStrategy( snapshot );
+
+} // - onMarketSnapshot
+
+/*!
+ * Calculate pip values and profit loss for open positions
+ * 
+ * @param const MarketSnapshot& snapshot The market snapshot.
+ */
+void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
   FIX::Locker lock(m_mutex);
   if ( m_list_marketorders.empty() ) return;
 
@@ -739,6 +782,10 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
     if ( it->second.getSymbol() == snapshot.getSymbol() ) {
       // the position (MarketOrder)
       auto position = it->second;
+
+      // -----------------------------------------------------------------------------------------------------------------------
+      // Calculate Pip & Profit/Loss Value
+      // -----------------------------------------------------------------------------------------------------------------------
       // the pip value
       double pip_value = 0;
       // the conversion price
@@ -792,16 +839,52 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
 
       // Calculate Profit / Loss
       const double profitloss = Math::get_profit_loss( pip_value, snapshot, position );
+      
       // update position
       position.setProfitLoss( profitloss );
 
+      // -----------------------------------------------------------------------------------------------------------------------
+      // Update Account
+      // -----------------------------------------------------------------------------------------------------------------------
+      auto account = getAccount();
+      // account equity
+      account.setEquity( Math::get_equity( account.getBalance(), position.getProfitLoss() ) );
+      // free margin
+      account.setFreeMargin( Math::get_free_margin( account.getBalance(), account.getEquity(), account.getMarginUsed() ) );
+      // margin ratio
+      account.setMarginRatio( Math::get_margin_ratio( account.getEquity(), account.getFreeMargin() ) );
+      // -----------------------------------------------------------------------------------------------------------------------
+      // Update Strategy -> onPosition
+      // -----------------------------------------------------------------------------------------------------------------------      
+      // @todo Update strategy onPosition
+      
+      // -----------------------------------------------------------------------------------------------------------------------
       // DEBUG output
+      // -----------------------------------------------------------------------------------------------------------------------
+      cout << "-----" << endl;
       // cout << " pip_v        " << pip_value << " " << accountCurrency << endl;
       // cout << " conversion_p " << conversion_price << endl;
       // cout << " profit_loss  " << profitloss << " " << accountCurrency << endl;
+      cout << " PnL          " << position.getProfitLoss() << " " << accountCurrency << endl;
+      cout << " Balance      " << account.getBalance() << " " << accountCurrency << endl;
+      cout << " Equity       " << account.getEquity() << " " << accountCurrency << endl;
+      cout << " Margin Used  " << account.getMarginUsed() << " " << accountCurrency << endl;
+      cout << " Free Margin  " << account.getFreeMargin() << " " << accountCurrency << endl;
+      cout << " Margin Ratio " << account.getMarginRatio() << " %" << endl;
     } // - if snapshot symbol == position symbol
   } // - for marketorder loop
-} // - onMarketOrder
+}
+
+/*!
+ * Update strategies
+ * 
+ * @param const MarketSnapshot& snapshot The current market snapshot
+ */
+void FIXManager::processStrategy(const MarketSnapshot& snapshot) {
+  if ( m_pstrategy != NULL ) {
+    m_pstrategy->onTick(*this, snapshot);
+  }
+}
 
 /*!
  * Returns last market snapshot for symbol
@@ -1028,6 +1111,10 @@ void FIXManager::removeMarketOrder(const string posID){
   FIX::Locker lock(m_mutex);
   map<string, MarketOrder>::iterator moIterator = m_list_marketorders.find(posID);
   if( moIterator != m_list_marketorders.end() ){
+    // Update strategy
+    if ( m_pstrategy != NULL ) {
+      m_pstrategy->onPositionChange( *this, moIterator->second, MarketOrder::Status::REMOVED );
+    }
     // posID found, remove
     m_list_marketorders.erase( moIterator );
   }
@@ -1049,16 +1136,16 @@ void FIXManager::updateMarketOrder(const MarketOrder& rH, const bool isUnsolicit
       // stoploss or takeprofit?
       if( lH.getSide() == FIX::Side_BUY && rH.getPrice() > lH.getPrice() ) {
         // take profit buy order
-        moIterator->second.setTakePrice( rH.getTakePrice() );
+        lH.setTakePrice( rH.getTakePrice() );
       } else if( lH.getSide() == FIX::Side_BUY && rH.getPrice() < lH.getPrice() ) {
         // stop loss buy order
-        moIterator->second.setStopPrice( rH.getStopPrice() );
+        lH.setStopPrice( rH.getStopPrice() );
       } else if( lH.getSide() == FIX::Side_SELL && rH.getPrice() > lH.getPrice() ) {
         // stop loss sell order
-        moIterator->second.setStopPrice( rH.getStopPrice() );
+        lH.setStopPrice( rH.getStopPrice() );
       } else if ( lH.getSide() == FIX::Side_SELL && rH.getPrice() < lH.getPrice() ) {
         // take profit sell order
-        moIterator->second.setTakePrice( rH.getTakePrice() );
+        lH.setTakePrice( rH.getTakePrice() );
       }
     } else {
       // Normal all field update
@@ -1073,6 +1160,11 @@ void FIXManager::updateMarketOrder(const MarketOrder& rH, const bool isUnsolicit
       lH.setStopPrice( rH.getStopPrice() );
       lH.setTakePrice( rH.getTakePrice() );
       lH.setProfitLoss( rH.getProfitLoss() );
+    }
+
+    // Update strategy
+    if ( m_pstrategy != NULL ) {
+      m_pstrategy->onPositionChange( *this, lH, MarketOrder::Status::UPDATE );
     }
   }
 }
@@ -1231,19 +1323,6 @@ string FIXManager::formatBaseCurrency(const double value) {
   return format;
 }
 
-void FIXManager::debug(){
-  // output market details
-  cout << "[debug:MarketDetails] Size " << m_market_details.size() << endl;
-  // for( auto it = m_market_details.begin(); it != m_market_details.end(); ++it ) {
-  //   cout << it->second << endl;
-  // }
-  // output order list
-  cout << "[debug:MarketOrders] Size " << m_list_marketorders.size() << endl;
-  for( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
-    cout << it->second << endl;
-  }
-}
-
 /*!
  * Call this, if you want to handle things after login, establishing sessions and receiving collateral report
  */
@@ -1251,8 +1330,10 @@ void FIXManager::onInit() {
   // check if we already initialized
   if( m_list_market.size() > 0 ) return;
 
-  cout << "[onInit]" << endl;
-  subscribeMarketData( SUBSCRIBE_PAIR );
+  // call strategy init
+  if ( m_pstrategy != NULL ) {
+    m_pstrategy->onInit( *this );
+  }
     
   queryPositionReport();
 }
@@ -1260,11 +1341,12 @@ void FIXManager::onInit() {
  * Call this, if you want to handle things before exiting
  */
 void FIXManager::onExit() {
-  // no markets available means no active sessions
-  if( m_list_market.size() == 0 ) return;
-
-  cout << "[onExit]" << endl;
+  // call strategy exit
+  if ( m_pstrategy != NULL ) {
+    m_pstrategy->onExit( *this );
+  }
   
+  // unsubscribe from all subscriptions
   if ( ! m_symbol_subscriptions.empty() ) {
     for( auto it = m_symbol_subscriptions.begin(); it != m_symbol_subscriptions.end(); ++it ) {
       unsubscribeMarketData( *it );
@@ -1294,5 +1376,19 @@ void FIXManager::removeSubscription(const string symbol) {
       m_symbol_subscriptions.erase( it );  
     }
   }
+}
+
+/*!
+ * Set a strategy
+ * 
+ * @param Strategy* strategy The Strategy to add
+ */
+void FIXManager::setStrategy(Strategy* strategy) {
+  if ( strategy->getIdentifier().empty() ) {
+    // throw error?
+    return;
+  }
+
+  m_pstrategy = strategy;
 }
 }; // namespace idefix

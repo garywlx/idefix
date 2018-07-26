@@ -61,11 +61,32 @@ namespace IDEFIX {
 		return m_margin_used;
 	}
 	
+	void Account::setFreeMargin(const double free_margin) {
+		if ( m_free_margin != free_margin ) {
+			m_free_margin = free_margin;
+		}
+	}
+
+	double Account::getFreeMargin() const {
+		return m_free_margin;
+	}
+
+	void Account::setEquity(const double equity) {
+		if ( m_equity != equity ) {
+			m_equity = equity;
+		}
+	}
+
+	double Account::getEquity() const {
+		return m_equity;
+	}
+
 	void Account::setCurrency(const std::string& currency) {
 		if ( m_currency != currency ) {
 			m_currency = currency;
 		}
 	}
+	
 	std::string Account::getCurrency() const {
 		return m_currency;
 	}

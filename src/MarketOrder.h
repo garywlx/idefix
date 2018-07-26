@@ -28,6 +28,10 @@ private:
 	double m_pointSize;
 
 public:
+	enum Status {
+		NEW, FILLED, REMOVED, STOPPED, UPDATE
+	};
+
 	// Construct empty market order
 	explicit MarketOrder() {}
 	// Construct market order with default values except symbol

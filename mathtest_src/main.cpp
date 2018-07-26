@@ -146,7 +146,7 @@ int main(int argc, char* argv[]) {
 		TestCase c = *it;
 
 		const double point_size       = c.symbol.getPointSize();
-		const double conversion_price = Math::get_conversion_price( c.conversion_symbol.getAsk(), account_currency, c.conversion_symbol );		
+		const double conversion_price = Math::get_conversion_price( c.conversion_symbol.getAsk(), account_currency, c.conversion_symbol.getQuoteCurrency() );		
 		const double units            = Math::get_unit_size( free_margin, max_risk, pip_risk, conversion_price, point_size, contract_size );
 		const double std_lot          = units / contract_size;
 		const double mini_lot         = units / 10000;

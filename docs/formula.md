@@ -4,13 +4,13 @@
 
 | MAJORS              | MINOR                   | EXOTIC       |
 | ------------------- | ----------------------- | ------------ |
-| EUR/USD * (fiber)   | EUR/GBP (chunnel)       | USD/MXN (--) |
-| USD/JPY * (gopher)  | EUR/JPY (yuppy)         | GBP/NOK (--) |
+| AUD/USD (aussie)    | EUR/GBP (chunnel)       | USD/MXN (--) |
+| EUR/USD * (fiber)   | EUR/JPY (yuppy)         | GBP/NOK (--) |
 | GBP/USD * (cable)   | GBP/JPY (guppy)         | GBP/DKK (--) |
-| USD/CHF * (swissie) | NZD/JPY (kiwi yen)      | CHF/NOK (--) |
-| AUD/USD (aussie)    | CAD/CHF (loonie swissy) | EUR/TRY (--) |
-| USD/CAD (loonie)    | AUD/JPY (--)            | USD/TRY (--) |
-| NZD/USD (kiwi)      |                         |              |
+| NZD/USD (kiwi)      | NZD/JPY (kiwi yen)      | CHF/NOK (--) |
+| USD/CAD (loonie)    | CAD/CHF (loonie swissy) | EUR/TRY (--) |
+| USD/CHF * (swissie) | AUD/JPY (--)            | USD/TRY (--) |
+| USD/JPY * (gopher)  |                         |              |
 
 \* Popular Currency Pair
 
@@ -26,9 +26,9 @@
 | Sell 1 EUR for 1.0916 USD bid | 1.0916 | 1.0918 |                              |
 |                               | EUR    | USD    |                              |
 
-| Spread =          | AskPrice - | BidPrice |
-| ----------------- | ---------- | -------- |
-| 0.0002 ( 2 Pips ) | 1.0918 -   | 1.0916   |
+| Spread =           | AskPrice - | BidPrice |
+| ------------------ | ---------- | -------- |
+| 0.00020 ( 2 Pips ) | 1.0918 -   | 1.0916   |
 
 AskPrice > BidPrice
 
@@ -99,18 +99,6 @@ If your account currency is euros and you want to know the pip value of the AUD/
 
 Always consider which currency is providing the pip value: the second currency (YYY). Once you know that, convert the fixed pip value in that currency to your own by dividing it by XXX/YYY, where XXX is your own account currency. 
 
-
-
-## Pip Value Calculation USD/JPY in EUR account
-
-$$
-pipV = (symbolPointSize * positionQty ) \div snapshotEurJpyAsk
-$$
-
-The same as in PipValue Calculation but with EUR/JPY as pair to calculate.
-
-
-
 ## Profit & Loss
 
 ### Realized Profit
@@ -125,64 +113,5 @@ Unrealized profit, sometimes called "paper profit" (or "paper loss" if negative)
 
 Unrealized profit will change with each price change, so it can be reduced to zero or become an unrealized loss at any time. Unrealized profit becomes realized profit at the moment that a trade is exited.
 
-### (A) Profit Loss Calculation
 
-Step 1: get pip difference of current bid price and position entry price.
-
-Formular for BUY position: 
-$$
-pipDiff = snapshotBidPrice - positionEntryPrice
-$$
-Formular for SELL position:
-$$
-pipDiff = positionEntryPrice - snapshotBidPrice
-$$
-Step 2: 
-
-Formular for USD account:
-$$
-profitLoss = pipDiff * positionQty
-$$
-Formular for EUR account:
-$$
-profitLoss = ( pipDiff * positionQty ) / snapshotBidPrice
-$$
-
-
-- **pipDiff** price difference in pip in decimal.
-- **snapshotBidPrice** the bid price of the current symbol market snapshot.
-- **positionEntryPrice** the entry price of the position.
-- **positionQty** the quantity of the position.
-
-### Profit Loss USD/JPY Calculation
-
-Step 1 as descibed in A.
-
-Step 2: 
-
-Formular for USD account:
-$$
-profitLoss = ( ( pipDiff / snapshotBidPrice ) * positionQty )
-$$
-Formular for EUR account:
-$$
-profitLoss = ( (pipDiff / eurjpyBidPrice ) * positionQty )
-$$
-
-* **eurjpyBidPrice** the snapshot for EUR/JPY to convert to EUR account.
-
-
-
-## Profit Loss Calculation for NON EUR Pairs in EUR Account
-
-Pairs like GBP/USD needs to be converted.
-
-Step 1 as described in A.
-
-Step 2:
-$$
-profitLoss = (( pipDiff / conversionPrice ) * positionQty ) \div snapshotBidPrice
-$$
-
-* **conversionPrice** The price to convert to. e.g. for GBP/USD use EUR/GBP Bid as conversion price.
 
