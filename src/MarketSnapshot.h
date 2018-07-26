@@ -5,7 +5,7 @@
 #include <ostream>
 #include <iomanip>
 #include <cmath>
-#include "string_extensions.h"
+#include "String.h"
 
 using namespace std;
 
@@ -13,6 +13,8 @@ namespace IDEFIX {
 class MarketSnapshot {
 private:
 	string m_symbol;
+	string m_base_currency;
+	string m_quote_currency;
 	double m_bid;
 	double m_ask;
 	double m_session_high;
@@ -26,7 +28,9 @@ private:
 public:
 	explicit MarketSnapshot(): m_symbol(""), m_bid(0), m_ask(0), m_session_high(0), m_session_low(0), m_spread(0), m_precision(5), m_point_size(0.0001), m_contract_size(100000), m_sending_time("") {}
 	explicit MarketSnapshot(const string symbol, const double bid, const double ask, const double spread, const double high, const double low, const string sending_time)
-	: m_symbol(symbol), m_bid(bid), m_ask(ask), m_spread(spread), m_session_high(high), m_session_low(low), m_sending_time(sending_time), m_precision(5), m_point_size(0.0001), m_contract_size(100000) {}
+	: m_symbol(symbol), m_bid(bid), m_ask(ask), m_spread(spread), m_session_high(high), m_session_low(low), m_sending_time(sending_time), m_precision(5), m_point_size(0.0001), m_contract_size(100000) {
+		setBaseAndQuote( symbol );
+	}
 	
 	inline ~MarketSnapshot() {}
 	inline string getSymbol() const {
@@ -35,7 +39,14 @@ public:
 	inline void setSymbol(const string symbol) {
 		if( m_symbol != symbol ) {
 			m_symbol = symbol;
+			setBaseAndQuote( symbol );
 		}
+	}
+	inline void setBaseAndQuote(const std::string symbol) {
+		// set base and quote currency
+		auto parts = str::explode( symbol, '/' );
+		m_base_currency  = parts[0];
+		m_quote_currency = parts[1];
 	}
 	inline double getBid() const {
 		return m_bid;
@@ -113,8 +124,7 @@ public:
 	 * @return std::string
 	 */
 	inline std::string getQuoteCurrency() const {
-		auto parts = str::explode( getSymbol(), '/' );
-		return parts[1];
+		return m_quote_currency;
 	}
 	/*!
 	 * Get base currency of forex pair
@@ -123,8 +133,7 @@ public:
 	 * @return std::string
 	 */
 	inline std::string getBaseCurrency() const {
-		auto parts = str::explode( getSymbol(), '/' );
-		return parts[0];
+		return m_base_currency;
 	}
 
 	inline double getPointSize() const {

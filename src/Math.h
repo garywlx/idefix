@@ -80,16 +80,128 @@ namespace IDEFIX {
 
 			pnl = ( ( pips * ( position.getQty() / snapshot.getContractSize() ) ) * pip_value );
 
-			// cout << "--------------" << endl;
-			// cout << " Side         " << position.getSideStr() << endl;
-			// cout << std::setprecision(5) << fixed;
-			// cout << " Entry        " << position.getPrice() << endl;
-			// cout << " Snapshot Px  " << snapshot.getBid() << endl;
-			// cout << " Difference   " << pip_diff_decimal << endl;
-
 			return pnl;
 		} // END get_profit_loss
-	};
-};
+
+		/*!
+		 * Calculate Equity
+		 * 
+		 * @param const double balance    The account balance.
+		 * @param const double profitloss The current profit loss of a position
+		 * @return double
+		 */
+		inline double get_equity(const double balance, const double profitloss) {
+			if ( profitloss == 0 ) {
+				return balance;
+			}
+
+			double equity = balance + profitloss;
+			
+			return equity;
+		}
+
+		/*!
+		 * Calculate Free Margin
+		 * 
+		 * @param const double balance         The account balance.
+		 * @param const double equity          The calculated equity (get_equity).
+		 * @param const double required_margin The required margin actually in use.
+		 * @return double
+		 */
+		inline double get_free_margin(const double balance, const double equity, const double required_margin) {
+			// no open positions, balance value is free margin
+			if ( equity == 0 && required_margin == 0 ) {
+				return balance;
+			}
+
+			double free_margin = equity - required_margin;
+
+			return free_margin;
+		}
+
+		/*!
+		 * Calculate Margin Ratio
+		 * 
+		 * @param const double equity The account equity.
+		 * @param const double margin The required margin actually in use.
+		 * @return double
+		 */
+		inline double get_margin_ratio(const double equity, const double margin) {
+			// check if margin is 0
+			if ( margin == 0 ) {
+				return 0;
+			}
+
+			double margin_ratio = ( equity / margin ) * 100;
+
+			return margin_ratio;
+		}
+
+		/*!
+		 * Calculate unit size based on pip distance, account currency and risk in percent of free margin
+		 * 
+		 * @param const double  free_margin      The free margin.
+		 * @param const double  risk             Risk in percent of free margin. 
+		 * @param const double  pip_risk         Risk in pips e.g. the distance between entry and stoploss.
+		 * @param const double  conversion_price The conversion price for non USD accounts. Defaults to 0.
+		 * @param const double  point_size       The point size of the currency pair. Defaults to 0.0001
+		 * @param const double  contract_size    The contract size of the asset. Defaults to 100000
+		 * @return double
+		 */
+		inline double get_unit_size(const double free_margin, const double risk, const double pip_risk, const double conversion_price = 0, const double point_size = 0.0001, const double contract_size = 100000) {
+			if ( free_margin <= 0 || risk <= 0 || pip_risk <= 0 ) {
+				return 0;
+			}
+
+			double result = 0;
+
+			// Using his account balance and the percentage amount he wants to risk, we can calculate the dollar amount risked.
+			double risk_in_currency = free_margin * ( risk / 100 );
+
+			// if conversion price is available, convert the risk in currency by the conversion
+			if ( conversion_price > 0 ) {				
+				risk_in_currency = conversion_price * risk_in_currency;
+			}
+
+			// Next, we divide the amount risked by the stop to find the value per pip.
+			const double value_per_pip = risk_in_currency / pip_risk;
+			// Lastly, we multiply the value per pip by a known unit/pip value ratio of currency pair. 
+			// In this case, with 100k units (or one lot), each pip move is worth USD 10.
+			result = value_per_pip * ( contract_size / ( contract_size * point_size ) );
+
+			return result;
+		}
+
+		/*!
+		 * Get amount at risk in account currency
+		 * 
+		 * @param const double  free_margin The current free margin.
+		 * @param const double  risk        The risk in percent.
+		 * @return double
+		 */
+		inline double get_amount_at_risk(const double free_margin, const double risk) {
+			const double result = free_margin * ( risk / 100 );
+			return result;
+		}
+
+		/*!
+		 * Get conversion price based on account currency and symbol
+		 * 
+		 * @param const double         price             The current price bid or ask
+		 * @param const std::string    account_currency  The account currency
+		 * @param const MarketSnapshot conversion_symbol The symbol of the price
+		 * @return double
+		 */
+		inline double get_conversion_price(const double price, const std::string account_currency, const MarketSnapshot conversion_symbol) {
+			double result = 0;
+			
+			if ( account_currency == "EUR" || ( account_currency == "USD" && conversion_symbol.getQuoteCurrency() != "USD" ) ) {
+				result = price / 1;
+			}
+
+			return result;
+		}
+	}; // END NS MATH
+}; // END NS IDEFIX
 
 #endif
