@@ -758,6 +758,9 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
   // Process market orders
   processMarketOrders( snapshot );
 
+  // Process candles
+  processCandles( snapshot );
+
   // Process strategies
   processStrategy( snapshot );
 
@@ -883,6 +886,28 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
 void FIXManager::processStrategy(const MarketSnapshot& snapshot) {
   if ( m_pstrategy != NULL ) {
     m_pstrategy->onTick(*this, snapshot);
+  }
+}
+
+/*!
+ * Update candle periods
+ * 
+ * @param const MarketSnapshot& snapshot The current market snapshot
+ */
+void FIXManager::processCandles(const MarketSnapshot& snapshot) {
+  FIX::Locker lock(m_mutex);
+
+  if ( m_list_candle_periods.empty() ) return;
+
+  // look for candle periods for this symbol
+  auto periods_it = m_list_candle_periods.find( snapshot.getSymbol() );
+  if ( periods_it != m_list_candle_periods.end() ) {
+    // get periods vector
+    auto periods_list = periods_it->second;
+    // iterate through periods and add tick
+    for ( auto period_it = periods_list.begin(); period_it != periods_list.end(); ++period_it ) {
+      addCandleTick( snapshot, *period_it );
+    }
   }
 }
 
@@ -1390,5 +1415,154 @@ void FIXManager::setStrategy(Strategy* strategy) {
   }
 
   m_pstrategy = strategy;
+}
+
+/*!
+ * Add candle period 
+ * 
+ * @param const std::string  symbol The symbol to add er period for
+ * @param const unsigned int period The period in seconds
+ */
+void FIXManager::addCandlePeriod(const std::string symbol, const unsigned int period) {
+  FIX::Locker lock(m_mutex);
+  auto it = m_list_candle_periods.find( symbol );
+  if ( it != m_list_candle_periods.end() ) {
+    // add period to list
+    auto periods = it->second;
+    if ( std::find( periods.begin(), periods.end(), period ) == periods.end() ) {
+      periods.push_back( period );
+    }
+  } else {
+    // add new pair    
+    std::vector<unsigned int> v;
+    v.push_back( period );
+    
+    typedef std::pair<std::string, std::vector<unsigned int> > periodPair;
+    m_list_candle_periods.insert( periodPair( symbol, v ) );
+  }
+}
+
+/*!
+ * Remove candle period abo, frees space by removing candles from stack
+ * 
+ * @param const std::string  symbol The symbol to remove the period
+ * @param const unsigned int period The period to remove
+ */
+void FIXManager::remCandlePeriod(const std::string symbol, const unsigned int period) {
+  FIX::Locker lock(m_mutex);
+  auto periodit = m_list_candle_periods.find( symbol );
+  if ( periodit != m_list_candle_periods.end() ) {
+    // // remove candle data from candle list
+    // auto candleit = m_list_candles.find( symbol );
+    // // if candles exists
+    // if ( candleit != m_list_candles.end() ) {
+    //   // get candle list
+    //   auto candle_list = candleit->second;
+    //   // loop through all candles
+    //   for ( auto candlei = 0; candlei < candle_list.size(); candlei++ ) {
+    //     // check if the candle period is the same to remove
+    //     auto candle = candle_list.at( candlei );
+    //     if ( candle.getPeriod() == period ) {
+    //       // remove candle
+    //       candle_list.remove( candlei );
+    //     } // - if candle period
+    //   } // - for
+    // } // if candleit != end
+    
+    // remove candle period
+    auto period_list = periodit->second;
+    auto period_it = std::find( period_list.begin(), period_list.end(), period );
+    if ( period_it != period_list.end() ) {
+      // erase
+      period_list.erase( period_it );
+    }
+  } // if periodit != end
+}
+
+/*!
+ * Add tick to candle from market snapshot
+ * 
+ * @param const MarketSnapshot& snapshot The market snapshot
+ * @param const unsigned int    period   The candle period to add for
+ */
+void FIXManager::addCandleTick(const MarketSnapshot& snapshot, const unsigned int period) {
+  FIX::Locker lock(m_mutex);
+  
+  // The tick to add
+  Tick tick( snapshot.getBid(), snapshot.getAsk(), snapshot.getSendingTime() );
+
+  // check if candle list already exists
+  auto candleit = m_list_candles.find( snapshot.getSymbol() );
+  if ( candleit != m_list_candles.end() ) {
+    // get period list
+    auto period_list = candleit->second;
+    // check if period exists
+    auto periodit = period_list.find( period );
+    if ( periodit != period_list.end() ) {
+      // get candle list
+      auto candle_list = periodit->second;
+      // get last candle
+      auto candle = candle_list.back();
+
+      // tick utc stimestamp
+      FIX::UtcTimeStamp tickTime = UtcTimeStampConvertor::convert( tick.getSendingTime() );
+      // check if tick time is less then ( last candle open time + period )
+      FIX::UtcTimeStamp futureTime = UtcTimeStampConvertor::convert( candle.getOpenTime() );
+      // add seconds
+      futureTime += period;
+
+      cout << "TickTime " << tickTime.getHour() << ":" << tickTime.getMinute() << ":" << tickTime.getSecond() << "." << tickTime.getFraction(3) << endl;
+      cout << "FutuTime " << futureTime.getHour() << ":" << futureTime.getMinute() << ":" << futureTime.getSecond() << "." << futureTime.getFraction(3) << endl;
+
+      if ( tickTime < futureTime ) {
+        // add tick to candle
+        candle.addTick( tick );
+      }
+      // else close candle
+      else {
+        // add new candle with tick
+        candle.close( tick.getSendingTime() );
+        // create new candle
+        Candle next_candle( candle.getPeriod(), candle.getPrecision() );
+        next_candle.addTick( tick );
+        // add candle to stack
+        candle_list.push_back( next_candle );
+        // call strategy with new candle
+        if ( m_pstrategy != NULL ) {
+          m_pstrategy->onCandle( *this, next_candle );
+        }
+      } // else end
+    } // if periodit != period_list end
+  }
+  // add symbol with fresh candle list
+  else {
+
+    // if checkTS second is not equal period seconds, return and wait for it
+    FIX::UtcTimeStamp checkTS = UtcTimeStamp();
+    if( checkTS.getSecond() != period ) {
+      return;
+    }
+
+    cout << "Add next or first candle" << endl;
+    // Next Candle
+    Candle next_candle( period, snapshot.getPrecision() );
+    next_candle.addTick( tick );
+
+    // Next Candle List
+    std::vector<Candle> next_candle_list;
+    next_candle_list.push_back( next_candle );
+
+    // Next Period Map -> Candle List
+    map<unsigned int, std::vector<Candle> > next_period_map;
+    next_period_map.insert( std::pair<unsigned int, std::vector<Candle> >( period, next_candle_list ) );
+
+    // Add to total list
+    m_list_candles.insert( std::pair<string, map<unsigned int, std::vector<Candle> > >( snapshot.getSymbol(), next_period_map ) );
+
+    // call strategy with new candle
+    if ( m_pstrategy != NULL ) {
+      m_pstrategy->onCandle( *this, next_candle );
+    }
+  }
 }
 }; // namespace idefix

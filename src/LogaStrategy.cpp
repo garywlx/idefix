@@ -20,16 +20,25 @@ namespace IDEFIX {
  		// subscribe market data
  		cout << " - subscribe EUR/USD" << endl;
  		manager.subscribeMarketData( "EUR/USD" );
- 		
+
+ 		// subscribe candle period 30 seconds
+ 		manager.addCandlePeriod( "EUR/USD", 30 );
 	}
 	
+	/*!
+	 * Is called on every tick
+	 * 
+	 * @param FIXManager&           manager   The reference to FIXManager
+	 * @param const MarketSnapshot& snapshot  The snapshot
+	 */
 	void LogaStrategy::onTick(FIXManager& manager, const MarketSnapshot &snapshot) {
-		cout << "[onTick]" << endl;
-		cout << snapshot << endl; 
+		/*cout << "[onTick]" << endl;
+		cout << snapshot << endl; */
 	}
 
 	void LogaStrategy::onCandle(FIXManager& manager, const Candle& candle) {
 		cout << "[onCandle]" << endl;
+		cout << candle << endl;
 	}
 
 	void LogaStrategy::onAccountChange(FIXManager& manager, Account& account) {

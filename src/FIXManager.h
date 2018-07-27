@@ -11,6 +11,7 @@
 #include <map>
 #include <utility>
 #include <algorithm>
+#include <cmath>
 #include <quickfix/Application.h>
 #include <quickfix/FileLog.h>
 #include <quickfix/FileStore.h>
@@ -31,6 +32,7 @@
 #include <quickfix/SessionSettings.h>
 #include <quickfix/SocketInitiator.h>
 #include <quickfix/Mutex.h>
+#include <quickfix/Fields.h>
 #include "RequestId.h"
 #include "Market.h"
 #include "MarketOrder.h"
@@ -42,7 +44,6 @@
 #include "Math.h"
 #include "Pairs.h"
 #include "Candle.h"
-#include <cmath>
 
 using namespace std;
 using namespace FIX;
@@ -92,6 +93,11 @@ private:
   map<string, MarketDetail> m_market_details;
   // hold all subscriptions symbols
   vector<string> m_symbol_subscriptions;
+  // hold all candles per symbol
+  // list[symbol][period] = [candles]
+  map<string, map<unsigned int, std::vector<Candle> > > m_list_candles;
+  // hold all candle period abos per symbol
+  map<string, std::vector<unsigned int> > m_list_candle_periods;
   
 public:
   FIXManager();
@@ -143,6 +149,8 @@ public:
   MarketDetail getMarketDetails(const std::string& symbol);
   Account getAccount();
   string getAccountID() const;
+  void addCandlePeriod(const std::string symbol, const unsigned int period);
+  void remCandlePeriod(const std::string symbol, const unsigned int period);
 
   void toggleSnapshotOutput();
   void togglePNLOutput();
@@ -157,10 +165,12 @@ public:
 private:
   void onInit();
 
+  void addCandleTick(const MarketSnapshot& snapshot, const unsigned int period);
   void onMarketSnapshot(const MarketSnapshot& snapshot);
   
   void processMarketOrders(const MarketSnapshot& snapshot);
   void processStrategy(const MarketSnapshot& snapshot);
+  void processCandles(const MarketSnapshot& snapshot);
 
   string nextRequestID();
   string nextOrderID();
