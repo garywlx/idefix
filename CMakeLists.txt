@@ -18,3 +18,6 @@ add_subdirectory(pipnl_src)
 
 # import mathtest_src/CMakeLists.txt
 add_subdirectory(mathtest_src)
+
+# import timetest_src/CMakeLists.txt
+add_subdirectory(timetest_src)
