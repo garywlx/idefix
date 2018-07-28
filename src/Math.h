@@ -3,6 +3,7 @@
 
 #include "MarketSnapshot.h"
 #include "MarketOrder.h"
+#include <quickfix/Field.h>
 
 namespace IDEFIX {
 	namespace Math {
@@ -200,6 +201,33 @@ namespace IDEFIX {
 			}
 
 			return result;
+		}
+
+		/*!
+		 * Check if the timestamp hits the period
+		 * 
+		 * @param const std::string&  timestamp Timestamp in format yyyymmdd-H:i:s.u
+		 * @param const int           period    Period in seconds, e.g. 60 = 1 Minute
+		 * @return bool
+		 */
+		inline bool is_period_hit(const std::string& timestamp, const int period) {
+			// convert string to UtcTimeStamp
+			FIX::UtcTimeStamp nowTS = FIX::UtcTimeStampConvertor::convert( timestamp );
+
+			// seconds 0 - 59
+			if ( period < 60 && ( nowTS.getSecond() % period == 0 ) ) {
+				return true;
+			}
+			// minutes 0 - 59
+			else if ( ( period > 60 && period < 3540 ) && nowTS.getSecond() == 0 && ( nowTS.getMinute() % ( period / 60 ) == 0 ) ) {
+				return true;
+			} 
+			// hours 0 - 23
+			else if ( ( period > 3540 && period < 82800 ) && nowTS.getMinute() == 0 && nowTS.getSecond() == 0 && ( nowTS.getHour() % ( period / 3600 ) == 0 ) ) {
+				return true;
+			}
+
+			return false;
 		}
 	}; // END NS MATH
 }; // END NS IDEFIX

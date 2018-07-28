@@ -1451,23 +1451,17 @@ void FIXManager::addCandlePeriod(const std::string symbol, const unsigned int pe
 void FIXManager::remCandlePeriod(const std::string symbol, const unsigned int period) {
   FIX::Locker lock(m_mutex);
   auto periodit = m_list_candle_periods.find( symbol );
-  if ( periodit != m_list_candle_periods.end() ) {
-    // // remove candle data from candle list
-    // auto candleit = m_list_candles.find( symbol );
-    // // if candles exists
-    // if ( candleit != m_list_candles.end() ) {
-    //   // get candle list
-    //   auto candle_list = candleit->second;
-    //   // loop through all candles
-    //   for ( auto candlei = 0; candlei < candle_list.size(); candlei++ ) {
-    //     // check if the candle period is the same to remove
-    //     auto candle = candle_list.at( candlei );
-    //     if ( candle.getPeriod() == period ) {
-    //       // remove candle
-    //       candle_list.remove( candlei );
-    //     } // - if candle period
-    //   } // - for
-    // } // if candleit != end
+  if ( periodit != m_list_candle_periods.end() ) {    
+    // remove candle data for period
+    auto candle_it = m_list_candles.find( symbol );
+    if ( candle_it != m_list_candles.end() ) {
+      // we have candle data for the symbol, check if we have at least one for period
+      auto candle_period_it = candle_it->second.find( period );
+      if ( candle_period_it != candle_it->second.end() ) {
+        // we have candle[period] data, erase
+        candle_it->second.erase( candle_period_it );
+      }
+    }
     
     // remove candle period
     auto period_list = periodit->second;
@@ -1504,22 +1498,15 @@ void FIXManager::addCandleTick(const MarketSnapshot& snapshot, const unsigned in
       // get last candle
       auto candle = candle_list.back();
 
-      // tick utc stimestamp
-      FIX::UtcTimeStamp tickTime = UtcTimeStampConvertor::convert( tick.getSendingTime() );
-      // check if tick time is less then ( last candle open time + period )
-      FIX::UtcTimeStamp futureTime = UtcTimeStampConvertor::convert( candle.getOpenTime() );
-      // add seconds
-      futureTime += period;
-
-      cout << "TickTime " << tickTime.getHour() << ":" << tickTime.getMinute() << ":" << tickTime.getSecond() << "." << tickTime.getFraction(3) << endl;
-      cout << "FutuTime " << futureTime.getHour() << ":" << futureTime.getMinute() << ":" << futureTime.getSecond() << "." << futureTime.getFraction(3) << endl;
-
-      if ( tickTime < futureTime ) {
+      // if we are inside a period, add tick to candle
+      if ( ! Math::is_period_hit( tick.getSendingTime(), period ) ) {
+        cout << "Add tick to candle." << endl;
         // add tick to candle
         candle.addTick( tick );
       }
-      // else close candle
+      // else close candle, and open new candle with the tick
       else {
+        cout << "Close candle, open new and add tick to new candle." << endl;
         // add new candle with tick
         candle.close( tick.getSendingTime() );
         // create new candle

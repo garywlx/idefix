@@ -49,12 +49,23 @@ bool is_period_hit(const std::string& timestamp, const int period) {
 // Entry
 int main(int argc, char** argv) {
 
+	if ( argc < 3 ) {
+		cout << "Period time test." << endl;
+		cout << "Usage:" << endl;
+		cout << "   ./timetest period step" << endl;
+		cout << endl;
+		cout << " period in seconds" << endl;
+		cout << " step   in seconds" << endl;
+		return EXIT_SUCCESS;
+	}
+
 	// Start
 	string now = "20180728-12:00:00.555";
 	UtcTimeStamp nowTS = UtcTimeStampConvertor::convert( now );
 
-	int period = 30; // seconds
-	int step   = 1;  // seconds
+	int period = stoi( argv[1] ); // seconds
+	int step   = stoi( argv[2] );  // seconds
+
 	cout << "Period " << period << endl;
 	cout << "Step   " << step << endl;
 
