@@ -13,11 +13,11 @@ project(idefix VERSION 0.1 LANGUAGES CXX)
 # import src/CMakeLists.txt
 add_subdirectory(src)
 
-# import pipnl_src/CMakeLists.txt
-add_subdirectory(pipnl_src)
+# import src_pipnl/CMakeLists.txt
+add_subdirectory(src_pipnl)
 
-# import mathtest_src/CMakeLists.txt
-add_subdirectory(mathtest_src)
+# import src_mathtest/CMakeLists.txt
+add_subdirectory(src_mathtest)
 
-# import timetest_src/CMakeLists.txt
-add_subdirectory(timetest_src)
+# import src_timetest/CMakeLists.txt
+add_subdirectory(src_timetest)
