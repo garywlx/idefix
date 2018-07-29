@@ -1524,9 +1524,8 @@ void FIXManager::addCandleTick(const MarketSnapshot& snapshot, const unsigned in
   // add symbol with fresh candle list
   else {
 
-    // if checkTS second is not equal period seconds, return and wait for it
-    FIX::UtcTimeStamp checkTS = UtcTimeStamp();
-    if( checkTS.getSecond() != period ) {
+    // only add a new candle on period hit
+    if( ! Math::is_period_hit( tick.getSendingTime(), period ) ) {
       return;
     }
 

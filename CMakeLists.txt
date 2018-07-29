@@ -21,3 +21,6 @@ add_subdirectory(src_mathtest)
 
 # import src_timetest/CMakeLists.txt
 add_subdirectory(src_timetest)
+
+# import src_gui/CMakeLists.txt
+add_subdirectory(src_gui)
