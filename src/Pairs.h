@@ -35,7 +35,7 @@ namespace IDEFIX {
 		} 
 
 		// as default
-		return "EUR/USD";
+		return "";
 	}
 };
 

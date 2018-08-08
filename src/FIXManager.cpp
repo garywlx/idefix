@@ -654,7 +654,7 @@ void FIXManager::subscribeMarketData(const std::string symbol) {
 
   // check if we need a counter pair for price conversion
   auto counterPair = getCounterPair( symbol, getAccount().getCurrency() );
-  if ( counterPair != symbol ) {
+  if ( ! counterPair.empty() && counterPair != symbol ) {
     if ( m_list_market.find( counterPair ) == m_list_market.end() ) {
       console()->info( "[subscribeMarketData] {} for price conversion of {}", counterPair, symbol );
       auto request2 = FIXFactory::MarketDataRequest( counterPair, SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES );
@@ -675,7 +675,7 @@ void FIXManager::unsubscribeMarketData(const std::string symbol) {
   // check base and quote of symbol
   // check if we need a counter pair for price conversion
   auto counterPair = getCounterPair( symbol, getAccount().getCurrency() );
-  if ( counterPair != symbol ) {
+  if ( ! counterPair.empty() && counterPair != symbol ) {
     if ( m_list_market.find( counterPair ) != m_list_market.end() ) {
       console()->info( "[unsubscribeMarketData] {} for price conversion of {}", counterPair, symbol );
       auto request2 = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST );
@@ -1333,9 +1333,9 @@ void FIXManager::onExit() {
     m_pstrategy->onExit( *this );
   }
   
-  // unsubscribe from all subscriptions
-  for( auto it = m_symbol_subscriptions.begin(); it != m_symbol_subscriptions.end(); ++it ) {
-    unsubscribeMarketData( *it );
+  // unsubscribe all symbols
+  while( ! m_symbol_subscriptions.empty() ) {
+    unsubscribeMarketData( m_symbol_subscriptions.back() );
   }
 
   // End Session and logout
