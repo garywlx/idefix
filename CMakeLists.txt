@@ -26,4 +26,4 @@ add_subdirectory(src)
 #add_subdirectory( src_gui )
 
 # import src_tradelog/CMakeLists.txt
-add_subdirectory( src_tradelog )
+#add_subdirectory( src_tradelog )

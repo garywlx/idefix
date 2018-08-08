@@ -75,20 +75,12 @@ public:
 	bool operator!=(const Account& other) {
 		return m_account_id != other.getAccountID();
 	}
+
+	std::string toString() const;
 };
 
 inline std::ostream& operator<<(std::ostream& out, const Account& acc) {
-	out << "[Account]" << std::setprecision(2) << std::endl
-		<< " - ID             " << acc.getAccountID() << std::endl 
-		<< " - SecAccount ID  " << acc.getSecuritiesAccountID() << std::endl
-		<< " - Person         " << acc.getPerson() << std::endl
-		<< " - Balance        " << std::fixed << acc.getBalance() << " " << acc.getCurrency() << std::endl
-		<< " - Margin used    " << std::fixed << acc.getMarginUsed() << " " << acc.getCurrency() << std::endl
-		<< " - Contract Size  " << std::fixed << acc.getContractSize() << std::endl
-		<< " - Min Trade Size " << std::fixed << acc.getMinTradeSize() << std::endl
-		<< " - Margin Ratio   " << std::fixed << acc.getMarginRatio() << std::endl
-		<< " - MMR            " << std::fixed << acc.getMMR() << std::endl
-		<< " - Hedging?       " << ( acc.isHedging() ? "Yes" : "No" ) << std::endl;
+	out << acc.toString();
 	return out;
 }
 

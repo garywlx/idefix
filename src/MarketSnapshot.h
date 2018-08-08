@@ -152,17 +152,23 @@ public:
 			m_contract_size = contract_size;
 		}
 	}
+	inline std::string toString() const {
+		std::ostringstream oss;
+		oss << getSymbol() << std::setprecision(getPrecision())
+		<< " bid: " << std::fixed << getBid() 
+		<< " ask: " << std::fixed << getAsk() 
+		<< " spread: " << std::fixed << std::setprecision(2) << getSpread() 
+		<< " shigh: " << std::fixed << std::setprecision( getPrecision() ) << getSessionHigh()
+		<< " slow: " << std::fixed << getSessionLow()
+		<< " ts: " << getSendingTime();
+
+		return oss.str();
+	}
 };
 
 // Operator Magic
 inline std::ostream& operator<<(std::ostream& out, const IDEFIX::MarketSnapshot& ms){
-	out << ms.getSymbol() << std::setprecision(ms.getPrecision())
-		<< " bid: " << std::fixed << ms.getBid() 
-		<< " ask: " << std::fixed << ms.getAsk() 
-		<< " spread: " << std::fixed << std::setprecision(2) << ms.getSpread() 
-		<< " shigh: " << std::fixed << std::setprecision( ms.getPrecision() ) << ms.getSessionHigh()
-		<< " slow: " << std::fixed << ms.getSessionLow()
-		<< " ts: " << ms.getSendingTime();
+	out << ms.toString();
 	return out;
 }
 };

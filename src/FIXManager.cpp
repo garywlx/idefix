@@ -3,6 +3,7 @@
  *  http://www.arnegockeln.com
  */
 #include "FIXManager.h"
+#include <quickfix/Utility.h>
 #include "Strategy.h"
 #include <cmath>
 #include <string>
@@ -12,7 +13,7 @@ namespace IDEFIX {
 /*!
  * Constructs FIXManager
  */
-FIXManager::FIXManager() {}
+FIXManager::FIXManager(): m_is_exiting( false ) {}
 
 /*!
  * Constructs FIXManager and starts a FIX Session from settings file
@@ -20,15 +21,43 @@ FIXManager::FIXManager() {}
  * @param const std::string settingsFile The FIX settings file
  * @param Strategy*         strategy     The strategy to use
  */
-FIXManager::FIXManager(const string settingsFile, Strategy* strategy) {
-  startSession(settingsFile);
-  setStrategy( strategy );
+FIXManager::FIXManager(const string settingsFile, Strategy* strategy): m_is_exiting( false ) {
+
+  // set up console
+  m_console = spdlog::stdout_color_mt( "console" );
+  // set console pattern
+  m_console->set_pattern( "%Y-%m-%d %T.%e: %^%v%$" );
+
+  // check if folder trades exists, if not create it
+  file_mkdir( "trades/" );
+
+  // set up trade log
+  m_tradelog = spdlog::daily_logger_mt("tradelog", "trades/trades.log", 0, 0 );
+  // set tradelog pattern
+  m_tradelog->set_pattern( "%Y-%m-%d %T.%e,%v" );
+  // flush logger every
+  spdlog::flush_every( chrono::seconds( 3 ) );
+
+  // setup strategy
+  if ( setStrategy( strategy ) ) {
+    // start FIX session
+    startSession(settingsFile);  
+  } else {
+    console()->warn( "Exiting..." );
+    // close app
+    m_is_exiting = true;
+  }
 }
+
+/*!
+ * Deconstructor FIXManager
+ */
+FIXManager::~FIXManager() {}
 
 // Gets called when quickfix creates a new session. A session comes into and remains in existence
 // for the life of the application
 void FIXManager::onCreate(const SessionID &sessionID) {
-  cout << "[onCreate] send Logon(A) message." << endl;
+  console()->info( "[onCreate] send Logon(A) message." );
   // FIX Session created. We must now logon. Quickfix will automatically send
   // the Logon(A) message.
 }
@@ -40,14 +69,13 @@ void FIXManager::onLogon(const SessionID &sessionID) {
   // and to obtain important FXCM system parameters
   if( isMarketDataSession(sessionID) ){
     setMarketSessionID(sessionID);
-    cout << "[onLogon] " << getMarketSessionID() << " (MarketDataSession)" << endl;
-
+    console()->info( "[onLogon] {} (MarketSession)", getMarketSessionID().toString() );
     queryTradingStatus();
   }
 
   if( isOrderSession(sessionID) ){
     setOrderSessionID(sessionID);
-    cout << "[onLogon] " << getOrderSessionID() << " (OrderSession)" << endl;
+    console()->info( "[onLogon] {} (OrderSession)", getOrderSessionID().toString() );
   }
 }
 
@@ -56,11 +84,11 @@ void FIXManager::onLogon(const SessionID &sessionID) {
 void FIXManager::onLogout(const SessionID &session_ID) {
   // Session logout
   if( isMarketDataSession(session_ID) ){
-    cout << "[onLogout] MarketDataSession" << endl;
+    console()->info( "[onLogout] MarketSession" );
   }
 
   if( isOrderSession(session_ID) ){
-    cout << "[onLogout] OrderSession" << endl;
+    console()->info( "[onLogout] OrderSession" );
   }
 }
 
@@ -98,13 +126,13 @@ void FIXManager::toApp(Message &message, const SessionID &session_ID)
 void FIXManager::fromAdmin(const Message &message, const SessionID &session_ID)
   throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::RejectLogon ) {
   
-  // cout << "[fromAdmin] " << message << endl;
   string msgtype = message.getHeader().getField(FIELD::MsgType);
   if(MsgType_Reject == msgtype){
     string text = message.getField(FIELD::Text);
     string tagID = message.getField(371); // RefTagID
     string msgType = message.getField(372); // RefMsgType
-    cout << "[fromAdmin:Reject] tagID " << tagID << " msgType " << msgType << ": " << text << endl;
+
+    console()->warn( "[fromAdmin:Reject] tagID {} msgType {}: {}", tagID, msgType, text );
   }
 
   // Call MessageCracker.crack method to handle the message by one of our
@@ -117,14 +145,14 @@ void FIXManager::fromApp(const Message &message, const SessionID &session_ID)
   throw( FIX::FieldNotFound, FIX::IncorrectDataFormat, FIX::IncorrectTagValue, FIX::UnsupportedMessageType ) {
   // Call MessageCracker.crack method to handle the message by one of our
   // overloaded onMessage methods below
-  // cout << "[fromApp] " << message << endl;
   // 
   string msgtype = message.getHeader().getField(FIELD::MsgType);
   if(MsgType_Reject == msgtype){
     string text = message.getField(FIELD::Text);
     string tagID = message.getField(371); // RefTagID
     string msgType = message.getField(372); // RefMsgType
-    cout << "[fromApp:Reject] tagID " << tagID << " msgType " << msgType << ": " << text << endl;
+
+    console()->warn( "[fromApp:Reject] tagID {} msgType {}: {}", tagID, msgType, text );
   }
   crack(message, session_ID);
 }
@@ -139,12 +167,11 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
   // Check TradSesStatus field to see if the trading desk is open or closed
   // 2 = open; 3 = closed
   string trad_status = tss.getField(FIELD::TradSesStatus);
-  cout << "[onMessage:TradingSessionStatus] Markets are " << (trad_status == "2" ? "open" : "closed") << endl;
+  console()->info( "[onMessage::TradingSessionStatus] Markets are {}", (trad_status == "2" ? "open" : "closed") );
 
   // Within the TradingSessionStatus message is an embeded SecurityList. From SecurityList we can see
   // the list of available trading securities and information relevant to each; e.g., point sizes,
   // minimum and maximum order quantities by security, etc.
-  // cout << " SecurityList via TradingSessionStatus -> " << endl;
   int symbols_count = IntConvertor::convert( tss.getField( FIELD::NoRelatedSym ) );
   for(int i = 1; i <= symbols_count; i++){
     // Get the NoRelatedSym group and for each, print out the Symbol value
@@ -179,7 +206,6 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
 
   // Also within TradingSessionStatus are FXCM system parameters. This includes important information
   // such as account base currency, server time zone, the time at which the trading day ends, and more.
-  //cout << "  System Parameters via TradingSessionStatus -> " << endl;
   // Read field FXCMNoParam (9016) which shows us how many system parameters are in the message
   int params_count = IntConvertor::convert( tss.getField( FXCM_NO_PARAMS ) ); // FXCMNoParam (9016)
   for( int i = 1; i < params_count; i++ ) {
@@ -187,8 +213,6 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
     // FXCMParamName (9017) is the name of the parameter and FXCMParamValue(9018) is of course the value
     FIX::FieldMap field_map = tss.getGroupRef( i, FXCM_NO_PARAMS );
     addSysParam( field_map.getField( FXCM_PARAM_NAME ), field_map.getField( FXCM_PARAM_VALUE ) );
-
-    // cout << field_map.getField(FXCM_PARAM_NAME) << " = " << field_map.getField(FXCM_PARAM_VALUE) << endl;
   }
  
   // Request accounts under our login
@@ -227,8 +251,6 @@ void FIXManager::onMessage(const FIX44::CollateralInquiryAck& ack, const Session
 // under your login. Notable fields include Account(1) which is the AccountID and CashOutstanding(901) which
 // is the account balance
 void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &session_ID) {
-  cout << "[onMessage:CollateralReport] " << endl;
-
   IDEFIX::Account account;
   account.setAccountID( cr.getField( FIELD::Account ) );
   account.setBalance( DoubleConvertor::convert( cr.getField( FIELD::CashOutstanding ) ) );
@@ -241,7 +263,6 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
   // or HedgingStatus
   FIX44::CollateralReport::NoPartyIDs group;
   cr.getGroup(1, group); // CollateralReport will only have 1 NoPartyIDs group
-  //cout << "  Parties -> " << endl;
 
   // Get the number of NoPartySubIDs repeating groups
   int number_subID = IntConvertor::convert( group.getField( FIELD::NoPartySubIDs ) );
@@ -255,7 +276,6 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
     string sub_value = sub_group.getField(FIELD::PartySubID);
     // hedging
     if( sub_type == "4000" ){
-      // cout << "    Hedging? " << " -> " << (sub_value == "0" ? "Netting." : sub_value) << endl; 
       account.setHedging( (sub_value == "0" ? false : true ) );
     } 
     // securities account id
@@ -288,8 +308,6 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
  * @param session_ID [description]
  */
 void FIXManager::onMessage(const FIX44::RequestForPositionsAck &ack, const SessionID &session_ID) {
-  string prefix = "[onMessage:RequestForPositionsAck] ";
-
   FIX::PosReqStatus posReqStatus;
   FIX::PosReqResult posReqResult;
   ack.get( posReqStatus );
@@ -316,10 +334,7 @@ void FIXManager::onMessage(const FIX44::RequestForPositionsAck &ack, const Sessi
  * @param pr         [description]
  * @param session_ID [description]
  */
-void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& session_ID){
-
-  // cout prefix
-  string prefix = "[onMessage:PositionReport] ";
+void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& session_ID) {
   // fxcm position id
   string fxcm_pos_id = pr.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
   // Set to 'Y' if message is sent as a result of a subscription request or out of band configuration as opposed to a Position Request (AN)
@@ -507,7 +522,8 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
       // MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 2 = Limit
       // update order in list, set take profit
       if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT ) {
-        cout << prefix << "OrderStatus->updateMarketOrder (LIMIT)" << endl;
+        // console output
+        console()->info( "{} OrderStatus->updateMarketOrder (LIMIT)", prefix );
         // set take profit price.
         marketOrder.setTakePrice( marketOrder.getPrice() );
         // set OrderQty
@@ -518,7 +534,8 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
       // MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 3 = Stop
       // update order in list, set stop loss
       else if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP ) {
-        cout << prefix << "OrderStatus->updateMarketOrder (STOP)" << endl;
+        // console output
+        console()->info( "{} OrderStatus->updateMarketOrder (STOP)", prefix );
         // set stop price.
         marketOrder.setStopPrice( marketOrder.getPrice() );
         // set OrderQty
@@ -530,43 +547,32 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     // MarketOrder with ExecTyp F = Trade && OrdStatus 2 = Filled && OrdType 1 = Market
     // add new order in list
     else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_MARKET ) {
-      cout << prefix << "addMarketOrder " << marketOrder.getPosID() << endl;
+      // console output
+      console()->info( "{} addMarketOrder {}", prefix, marketOrder.getPosID() );
+      // add order  
       addMarketOrder( marketOrder );
     }
     // MarketOrder with ExecType F = Trade && OrdStatus 2 = Filled && OrdType 2 = Limit
     // take profit filled -> remove order from list
     else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_LIMIT ) {
-      cout << prefix << "removeMarketOrder (LIMIT) " << marketOrder.getPosID() << endl;
+      // console output
+      console()->info( "{} removeMarketOrder (LIMIT) {}", prefix, marketOrder.getPosID() );
+      // remove market order
       removeMarketOrder( marketOrder.getPosID() );
     }
     // MarketOrder with ExecType F = Trade && OrdStatus 2 = Filled && OrdType 3 = Stop
     // stop loss filled -> remove order form list
     else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_STOP ) { 
-      cout << prefix << "removeMarketOrder (STOP)" << marketOrder.getPosID() << endl;
+      // console output
+      console()->info( "{} removeMarketOrder (STOP) {}", prefix, marketOrder.getPosID() );
+      // remove market order
       removeMarketOrder( marketOrder.getPosID() );
     }
-    // MarketOrder with ExecType 0 = New && OrdStatus 0 = New && OrdType 2 = Limit
-    // update order in list, set take profit
-    /*else if ( execType == FIX::ExecType_NEW && ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT ) {
-      cout << prefix << "updateMarketOrder with take profit" << endl;
-      // set take profit price.
-      marketOrder.setTakePrice( DoubleConvertor::convert( er.getField( FIELD::LastPx ) ) );
-      // update market order.
-      updateMarketOrder( marketOrder, true );
-    }
-    // MarketOrder with ExecType 0 = New && OrdStatus 0 = New && OrdType 3 = Stop
-    // update order in list, set stop loss
-    else if ( execType == FIX::ExecType_NEW && ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP ) {
-      cout << prefix << "updateMarketOrder with stop loss" << endl;
-      // set stop loss price.
-      marketOrder.setStopPrice( DoubleConvertor::convert( er.getField( FIELD::LastPx ) ) );
-      // update market order.
-      updateMarketOrder( marketOrder, true );
-    }*/
     // MarketOrder with ExecType 4 = Canceled && OrdStatus 4 = Canceled 
     // remove order from list
     else if ( execType == FIX::ExecType_CANCELED && ordStatus == FIX::OrdStatus_CANCELED ) {
-      cout << prefix << "removeMarketOrder -> CANCELED" << endl;
+      // console output
+      console()->warn( "{} removeMarketOrder (CANCELED) {}", prefix, marketOrder.getPosID() );
       // remove market order.
       removeMarketOrder( marketOrder.getPosID() );
     }
@@ -582,7 +588,6 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
 
 // If no allocation report is available
 void FIXManager::onMessage(const FIX44::AllocationReportAck& ack, const SessionID& session_ID){
-  cout << "[onMessage::AllocationReportAck] " << ack << endl;
   if ( m_pstrategy != NULL && ack.isSetField( FIELD::Text ) ) {
     auto text = ack.getField( FIELD::Text );
     m_pstrategy->onRequestAck( *this, "AllocationReportAck", text );
@@ -591,7 +596,7 @@ void FIXManager::onMessage(const FIX44::AllocationReportAck& ack, const SessionI
 
 // If allocation report is available
 void FIXManager::onMessage(const FIX44::AllocationReport& ar, const SessionID& session_ID){
-  //cout << "[onMessage:AllocationReport] " << ar << endl;
+  
 }
 
 // Starts the FIX session. Throws FIX::ConfigError exception if our configuration settings
@@ -604,17 +609,17 @@ void FIXManager::startSession(const string settingsfile) {
     m_pinitiator = new SocketInitiator(*this, *m_pstore_factory, *m_psettings, *m_plog_factory/* Optional*/);
     m_pinitiator->start();
   } catch(ConfigError& error){
-    cout << "[startSession:exception] " << error.what() << endl;
+    console()->error( "[startSession:exception] {}", error.what() );
   }
 }
 
 // Logout and end session
 void FIXManager::endSession() {
-  m_pinitiator->stop();
-  delete m_pinitiator;
-  delete m_psettings;
-  delete m_pstore_factory;
-  delete m_plog_factory;
+  if ( m_pstrategy != nullptr ) m_pinitiator->stop();
+  if ( m_pinitiator != nullptr ) delete m_pinitiator;
+  if ( m_psettings ) delete m_psettings;
+  if ( m_pstore_factory != nullptr ) delete m_pstore_factory;
+  if ( m_plog_factory != nullptr ) delete m_plog_factory;
 }
 
 // Sends TradingSessionStatusRequest message in order to receive as a response the
@@ -640,7 +645,7 @@ void FIXManager::queryAccounts(){
  * @param const std::string symbol EUR/USD
  */
 void FIXManager::subscribeMarketData(const std::string symbol) {
-  cout << "--> subscribeMarketData( " << symbol << " )" << endl;
+  console()->info( "[subscribeMarketData] {}", symbol );
   auto request = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES );
   Session::sendToTarget( request, getMarketSessionID() );
 
@@ -651,7 +656,7 @@ void FIXManager::subscribeMarketData(const std::string symbol) {
   auto counterPair = getCounterPair( symbol, getAccount().getCurrency() );
   if ( counterPair != symbol ) {
     if ( m_list_market.find( counterPair ) == m_list_market.end() ) {
-      cout << "--> subscribeMarketData( " << counterPair << " ) for price conversion of " << symbol << endl;
+      console()->info( "[subscribeMarketData] {} for price conversion of {}", counterPair, symbol );
       auto request2 = FIXFactory::MarketDataRequest( counterPair, SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES );
       Session::sendToTarget( request2, getMarketSessionID() );  
     }
@@ -660,7 +665,8 @@ void FIXManager::subscribeMarketData(const std::string symbol) {
 
 // Unsubscribe from the symbol trading security
 void FIXManager::unsubscribeMarketData(const std::string symbol) {
-  cout << "--> unsubscribeMarketData( " << symbol << " )" << endl;
+  console()->info( "[unsubscribeMarketData] {}", symbol );
+
   auto request = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST );
   Session::sendToTarget( request, getMarketSessionID() );
 
@@ -671,7 +677,7 @@ void FIXManager::unsubscribeMarketData(const std::string symbol) {
   auto counterPair = getCounterPair( symbol, getAccount().getCurrency() );
   if ( counterPair != symbol ) {
     if ( m_list_market.find( counterPair ) != m_list_market.end() ) {
-      cout << "--> unsubscribeMarketData( " << counterPair << " ) for price conversion of " << symbol << endl;
+      console()->info( "[unsubscribeMarketData] {} for price conversion of {}", counterPair, symbol );
       auto request2 = FIXFactory::MarketDataRequest( symbol, SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST );
       Session::sendToTarget( request2, getMarketSessionID() );
     }
@@ -709,7 +715,7 @@ void FIXManager::marketOrder(const MarketOrder& marketOrder, const FIXFactory::S
       Session::sendToTarget( request, getOrderSessionID() );
     }
   } catch(std::exception& e){
-    cout << "[marketOrder:exception] " << e.what() << endl;
+    console()->error( "[marketOrder:exception] {}", e.what() );
   }
 }
 
@@ -770,6 +776,8 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
 void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
   FIX::Locker lock(m_mutex);
   if ( m_list_marketorders.empty() ) return;
+
+  // logger()->console()->info( "MarketSnapshot {}", snapshot.toString() );
 
   // get account currency
   auto accountCurrency = getAccount().getCurrency();
@@ -860,16 +868,13 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
       // -----------------------------------------------------------------------------------------------------------------------
       // DEBUG output
       // -----------------------------------------------------------------------------------------------------------------------
-      cout << "-----" << endl;
-      // cout << " pip_v        " << pip_value << " " << accountCurrency << endl;
-      // cout << " conversion_p " << conversion_price << endl;
-      // cout << " profit_loss  " << profitloss << " " << accountCurrency << endl;
-      cout << " PnL          " << position.getProfitLoss() << " " << accountCurrency << endl;
-      cout << " Balance      " << account.getBalance() << " " << accountCurrency << endl;
-      cout << " Equity       " << account.getEquity() << " " << accountCurrency << endl;
-      cout << " Margin Used  " << account.getMarginUsed() << " " << accountCurrency << endl;
-      cout << " Free Margin  " << account.getFreeMargin() << " " << accountCurrency << endl;
-      cout << " Margin Ratio " << account.getMarginRatio() << " %" << endl;
+      console()->info( "---" );
+      console()->info( " PnL           {:f} {}", position.getProfitLoss(), accountCurrency );
+      console()->info( " Balance       {:f} {}", account.getBalance(), accountCurrency );
+      console()->info( " Equity        {:f} {}", account.getEquity(), accountCurrency );
+      console()->info( " Margin Used   {:f} {}", account.getMarginUsed(), accountCurrency );
+      console()->info( " Free Margin   {:f} {}", account.getFreeMargin(), accountCurrency );
+      console()->info( " Margin Ration {:f} %%", account.getMarginRatio() );
     } // - if snapshot symbol == position symbol
   } // - for marketorder loop
 }
@@ -882,28 +887,6 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
 void FIXManager::processStrategy(const MarketSnapshot& snapshot) {
   if ( m_pstrategy != NULL ) {
     m_pstrategy->onTick(*this, snapshot);
-  }
-}
-
-/*!
- * Update candle periods
- * 
- * @param const MarketSnapshot& snapshot The current market snapshot
- */
-void FIXManager::processCandles(const MarketSnapshot& snapshot) {
-  FIX::Locker lock(m_mutex);
-
-  if ( m_list_candle_periods.empty() ) return;
-
-  // look for candle periods for this symbol
-  auto periods_it = m_list_candle_periods.find( snapshot.getSymbol() );
-  if ( periods_it != m_list_candle_periods.end() ) {
-    // get periods vector
-    auto periods_list = periods_it->second;
-    // iterate through periods and add tick
-    for ( auto period_it = periods_list.begin(); period_it != periods_list.end(); ++period_it ) {
-      addCandleTick( snapshot, *period_it );
-    }
   }
 }
 
@@ -931,7 +914,7 @@ MarketSnapshot FIXManager::getLatestSnapshot(const string symbol) {
 void FIXManager::closeAllPositions(const string symbol){
   if( m_list_marketorders.empty() ) return;
 
-  cout << "[closeAllPositions] " << endl;
+  console()->info( "[closeAllPositions]" );
   for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
     if ( it->second.getSymbol() == symbol ){
       closePosition( it->second );
@@ -946,12 +929,18 @@ void FIXManager::closeAllPositions(const string symbol){
 void FIXManager::closePosition(const IDEFIX::MarketOrder &marketOrder){
   try {
     auto marketDetail = getMarketDetails( marketOrder.getSymbol() );
-    cout << " - " << marketOrder.getPosID() << " P&L " << std::setprecision( marketDetail.getSymPrecision() ) << std::fixed << marketOrder.getProfitLoss() << " " << getAccount().getCurrency() << endl;
+
+    std::ostringstream oss;
+    oss << " - {} P&L {:.";
+    oss << marketDetail.getSymPrecision();
+    oss << "f} {}";
+
+    console()->info( oss.str().c_str(), marketOrder.getPosID(), marketOrder.getProfitLoss(), getAccount().getCurrency() );
 
     auto request = FIXFactory::NewOrderSingle( nextOrderID(), marketOrder, FIXFactory::SingleOrderType::CLOSEORDER );
     Session::sendToTarget(request, getOrderSessionID());  
   } catch(std::exception& e){
-    cout << "[closePosition:exception] " << e.what() << endl;
+    console()->error( "[closePosition:exception] {}", e.what() );
   }
 }
 
@@ -962,7 +951,7 @@ void FIXManager::closePosition(const IDEFIX::MarketOrder &marketOrder){
 void FIXManager::closeWinners(const string symbol) {
   if ( m_list_marketorders.empty() ) return;
 
-  cout << "[closeWinners]" << endl;
+  console()->info( "[closeWinners]" );
   for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
     if ( it->second.getSymbol() == symbol && it->second.getProfitLoss() > 0 ) {
       closePosition( it->second );
@@ -977,7 +966,7 @@ void FIXManager::closeWinners(const string symbol) {
 void FIXManager::closeLoosers(const std::string symbol) {
   if ( m_list_marketorders.empty() ) return;
 
-  cout << "[closeLoosers]" << endl;
+  console()->info( "[closeLoosers]" );
   for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
     if ( it->second.getSymbol() == symbol && it->second.getProfitLoss() < 0 ) {
       closePosition( it->second );
@@ -996,7 +985,7 @@ void FIXManager::queryPositionReport(const FIX::PosReqType type){
     auto request = FIXFactory::RequestForPositions( nextRequestID(), getAccountID(), type);
     Session::sendToTarget(request, getOrderSessionID());
   } catch( std::exception& e ){
-    cout << "[queryPositionReport:exception] " << e.what() << endl;
+    console()->error( "[queryPositionReport:exception] {}", e.what() );
   }
 }
 
@@ -1008,7 +997,7 @@ void FIXManager::queryOrderMassStatus() {
     auto request = FIXFactory::OrderMassStatusRequest( nextRequestID(), getAccountID() );  
     Session::sendToTarget( request, getOrderSessionID() );
   } catch( std::exception& e ){
-    cout << "[queryOrderMassStatus:exception] " << e.what() << endl;
+    console()->error( "[queryOrderMassStatus:exception] {}", e.what() );
   }
 }
 
@@ -1281,9 +1270,9 @@ void FIXManager::showSysParamList() {
   FIX::Locker lock(m_mutex);
   if( m_system_params.empty() ) return;
 
-  cout << "[System Parameters]" << endl;
+  console()->info( "[System Parameters]" );
   for ( auto it = m_system_params.begin(); it != m_system_params.end(); ++it ) {
-    cout << "  " << it->first << " = " << it->second << endl;
+    console()->info( " {} = {}", it->first, it->second );
   }
 }
 
@@ -1294,9 +1283,9 @@ void FIXManager::showAvailableMarketList() {
   FIX::Locker lock(m_mutex);
   if ( m_market_details.empty() ) return;
 
-  cout << "[Available Markets]" << endl;
+  console()->info( "[Available Markets]" );
   for ( auto it = m_market_details.begin(); it != m_market_details.end(); ++it ) {
-    cout << "  " << it->first << endl;
+    console()->info( " {}", it->first );
   }
 }
 
@@ -1311,9 +1300,9 @@ void FIXManager::showMarketDetail(const string symbol) {
 
   auto it = m_market_details.find( symbol );
   if( it != m_market_details.end() ) {
-    cout << it->second << endl;
+    console()->info( "{}", it->second.toString() );
   } else {
-    cout << " -- not found --" << endl;
+    console()->warn( " -- not found --" );
   }
 }
 
@@ -1335,17 +1324,22 @@ void FIXManager::onInit() {
  * Call this, if you want to handle things before exiting
  */
 void FIXManager::onExit() {
+
+  // set exiting var
+  m_is_exiting = true;
+
   // call strategy exit
   if ( m_pstrategy != NULL ) {
     m_pstrategy->onExit( *this );
   }
   
   // unsubscribe from all subscriptions
-  if ( ! m_symbol_subscriptions.empty() ) {
-    for( auto it = m_symbol_subscriptions.begin(); it != m_symbol_subscriptions.end(); ++it ) {
-      unsubscribeMarketData( *it );
-    }
+  for( auto it = m_symbol_subscriptions.begin(); it != m_symbol_subscriptions.end(); ++it ) {
+    unsubscribeMarketData( *it );
   }
+
+  // End Session and logout
+  endSession();
 }
 
 /*!
@@ -1354,7 +1348,7 @@ void FIXManager::onExit() {
  */
 void FIXManager::addSubscription(const string symbol) {
   FIX::Locker lock(m_mutex);
-  if ( std::find( m_symbol_subscriptions.begin(), m_symbol_subscriptions.end(), symbol ) != m_symbol_subscriptions.end() ) {
+  if ( std::find( m_symbol_subscriptions.begin(), m_symbol_subscriptions.end(), symbol ) == m_symbol_subscriptions.end() ) {
     m_symbol_subscriptions.push_back( symbol );
   }
 }
@@ -1365,10 +1359,9 @@ void FIXManager::addSubscription(const string symbol) {
  */
 void FIXManager::removeSubscription(const string symbol) {
   FIX::Locker lock(m_mutex);
-  for( auto it = m_symbol_subscriptions.begin(); it != m_symbol_subscriptions.end(); ++it ) {
-    if ( *it == symbol ) {
-      m_symbol_subscriptions.erase( it );  
-    }
+  auto it = std::find( m_symbol_subscriptions.begin(), m_symbol_subscriptions.end(), symbol );
+  if ( it != m_symbol_subscriptions.end() ) {
+    m_symbol_subscriptions.erase( it );
   }
 }
 
@@ -1377,147 +1370,50 @@ void FIXManager::removeSubscription(const string symbol) {
  * 
  * @param Strategy* strategy The Strategy to add
  */
-void FIXManager::setStrategy(Strategy* strategy) {
+bool FIXManager::setStrategy(Strategy* strategy) {
   if ( strategy->getIdentifier().empty() ) {
-    // throw error?
-    return;
+    console()->error( "Strategy identifier is empty!" );
+    return false;
   }
 
   m_pstrategy = strategy;
+
+  return true;
 }
 
 /*!
- * Add candle period 
+ * Get console shared pointer
  * 
- * @param const std::string  symbol The symbol to add er period for
- * @param const unsigned int period The period in seconds
+ * @return std::shared_ptr<spdlog::logger>
  */
-void FIXManager::addCandlePeriod(const std::string symbol, const unsigned int period) {
-  FIX::Locker lock(m_mutex);
-  auto it = m_list_candle_periods.find( symbol );
-  if ( it != m_list_candle_periods.end() ) {
-    // add period to list
-    auto periods = it->second;
-    if ( std::find( periods.begin(), periods.end(), period ) == periods.end() ) {
-      periods.push_back( period );
-    }
-  } else {
-    // add new pair    
-    std::vector<unsigned int> v;
-    v.push_back( period );
-    
-    typedef std::pair<std::string, std::vector<unsigned int> > periodPair;
-    m_list_candle_periods.insert( periodPair( symbol, v ) );
-  }
+std::shared_ptr<spdlog::logger> FIXManager::console() {
+  return m_console;
 }
 
 /*!
- * Remove candle period abo, frees space by removing candles from stack
+ * Get tradelog shared pointer
  * 
- * @param const std::string  symbol The symbol to remove the period
- * @param const unsigned int period The period to remove
+ * @return std::shared_ptr<spdlog::logger>
  */
-void FIXManager::remCandlePeriod(const std::string symbol, const unsigned int period) {
-  FIX::Locker lock(m_mutex);
-  auto periodit = m_list_candle_periods.find( symbol );
-  if ( periodit != m_list_candle_periods.end() ) {    
-    // remove candle data for period
-    auto candle_it = m_list_candles.find( symbol );
-    if ( candle_it != m_list_candles.end() ) {
-      // we have candle data for the symbol, check if we have at least one for period
-      auto candle_period_it = candle_it->second.find( period );
-      if ( candle_period_it != candle_it->second.end() ) {
-        // we have candle[period] data, erase
-        candle_it->second.erase( candle_period_it );
-      }
-    }
-    
-    // remove candle period
-    auto period_list = periodit->second;
-    auto period_it = std::find( period_list.begin(), period_list.end(), period );
-    if ( period_it != period_list.end() ) {
-      // erase
-      period_list.erase( period_it );
-    }
-  } // if periodit != end
+std::shared_ptr<spdlog::logger> FIXManager::tradelog() {
+  return m_tradelog;
 }
 
 /*!
- * Add tick to candle from market snapshot
+ * Get exiting status
  * 
- * @param const MarketSnapshot& snapshot The market snapshot
- * @param const unsigned int    period   The candle period to add for
+ * @return bool
  */
-void FIXManager::addCandleTick(const MarketSnapshot& snapshot, const unsigned int period) {
-  FIX::Locker lock(m_mutex);
-  
-  // The tick to add
-  Tick tick( snapshot.getBid(), snapshot.getAsk(), snapshot.getSendingTime() );
+bool FIXManager::isExiting() {
+  return m_is_exiting;
+}
 
-  // check if candle list already exists
-  auto candleit = m_list_candles.find( snapshot.getSymbol() );
-  if ( candleit != m_list_candles.end() ) {
-    // get period list
-    auto period_list = candleit->second;
-    // check if period exists
-    auto periodit = period_list.find( period );
-    if ( periodit != period_list.end() ) {
-      // get candle list
-      auto candle_list = periodit->second;
-      // get last candle
-      auto candle = candle_list.back();
-
-      // if we are inside a period, add tick to candle
-      if ( ! Math::is_period_hit( tick.getSendingTime(), period ) ) {
-        cout << "Add tick to candle." << endl;
-        // add tick to candle
-        candle.addTick( tick );
-      }
-      // else close candle, and open new candle with the tick
-      else {
-        cout << "Close candle, open new and add tick to new candle." << endl;
-        // add new candle with tick
-        candle.close( tick.getSendingTime() );
-        // create new candle
-        Candle next_candle( candle.getPeriod(), candle.getPrecision() );
-        next_candle.addTick( tick );
-        // add candle to stack
-        candle_list.push_back( next_candle );
-        // call strategy with new candle
-        // if ( m_pstrategy != NULL ) {
-        //   m_pstrategy->onCandle( *this, next_candle );
-        // }
-      } // else end
-    } // if periodit != period_list end
-  }
-  // add symbol with fresh candle list
-  else {
-
-    // only add a new candle on period hit
-    if( ! Math::is_period_hit( tick.getSendingTime(), period ) ) {
-      return;
-    }
-
-    cout << "Add next or first candle" << endl;
-    // Next Candle
-    Candle next_candle( period, snapshot.getPrecision() );
-    next_candle.addTick( tick );
-
-    // Next Candle List
-    std::vector<Candle> next_candle_list;
-    next_candle_list.push_back( next_candle );
-
-    // Next Period Map -> Candle List
-    map<unsigned int, std::vector<Candle> > next_period_map;
-    next_period_map.insert( std::pair<unsigned int, std::vector<Candle> >( period, next_candle_list ) );
-
-    // Add to total list
-    m_list_candles.insert( std::pair<string, map<unsigned int, std::vector<Candle> > >( snapshot.getSymbol(), next_period_map ) );
-
-    // call strategy with new candle
-    // if ( m_pstrategy != NULL ) {
-    //   m_pstrategy->onCandle( *this, next_candle );
-    // }
-  }
+/*!
+ * Set exiting var. If set to true, the app will exit.
+ * 
+ * @param const bool status 
+ */
+void FIXManager::setExiting(const bool status) {
+  m_is_exiting = status;
 }
 }; // namespace idefix

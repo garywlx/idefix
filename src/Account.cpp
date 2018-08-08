@@ -1,4 +1,5 @@
 #include "Account.h"
+#include <sstream>
 
 namespace IDEFIX {
 	Account::Account(): m_balance(0), m_margin_used(0), m_hedging(false), m_contract_size(0) {}
@@ -146,5 +147,23 @@ namespace IDEFIX {
 
 	double Account::getMinTradeSize() const {
 		return m_min_trade_size;
+	}
+
+	std::string Account::toString() const {
+		std::ostringstream oss;
+		oss << "[Account] {" << std::setprecision(2) << std::endl
+		<< " - ID             " << getAccountID() << std::endl 
+		<< " - SecAccount ID  " << getSecuritiesAccountID() << std::endl
+		<< " - Person         " << getPerson() << std::endl
+		<< " - Balance        " << std::fixed << getBalance() << " " << getCurrency() << std::endl
+		<< " - Margin used    " << std::fixed << getMarginUsed() << " " << getCurrency() << std::endl
+		<< " - Contract Size  " << std::fixed << getContractSize() << std::endl
+		<< " - Min Trade Size " << std::fixed << getMinTradeSize() << std::endl
+		<< " - Margin Ratio   " << std::fixed << getMarginRatio() << std::endl
+		<< " - MMR            " << std::fixed << getMMR() << std::endl
+		<< " - Hedging?       " << ( isHedging() ? "Yes" : "No" ) << std::endl
+		<< "}" << std::endl;
+
+		return oss.str();
 	}
 };

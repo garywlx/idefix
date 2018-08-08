@@ -201,30 +201,37 @@ public:
 			m_trading_status = status;
 		}
 	}
+
+	inline std::string toString() const {
+		std::ostringstream oss;
+		oss << "[MarketDetail] {" << std::setprecision(getSymPrecision()) << std::endl
+	    << " - Symbol             " <<  getSymbol() << std::endl
+	    << " - Currency           " << getCurrency() << std::endl
+	    << " - Factor             " << std::fixed << getFactor() << std::endl
+	    << " - ContractMultiplier " << std::fixed << getContractMultiplier() << std::endl
+	    << " - Product            " << getProduct() << std::endl
+	    << " - RoundLot           " << std::fixed << getRoundlot() << std::endl
+	    << " - SymID              " << getSymID() << std::endl
+	    << " - SymPrecision       " << std::fixed << getSymPrecision() << std::endl
+	    << " - SymPointsize       " << std::fixed << getSymPointsize() << std::endl
+	    << " - SymInterestBuy     " << std::fixed << getSymInterestBuy() << std::endl
+	    << " - SymInterestSell    " << std::fixed << getSymInterestSell() << std::endl
+	    << " - SymSortOrder       " << getSymSortOrder() << std::endl
+	    << " - SubscriptionStatus " << getSubscriptionStatus() << std::endl
+	    << " - FieldProductID     " << getFieldProductID() << std::endl
+	    << " - CondDistStop       " << std::fixed << getCondDistStop() << std::endl
+	    << " - CondDistLimit      " << std::fixed << getCondDistLimit() << std::endl
+	    << " - CondDistEntryStop  " << std::fixed << getCondDistEntryStop() << std::endl
+	    << " - CondDistEntryLimit " << std::fixed << getCondDistEntryLimit() << std::endl
+	    << " - TradingStatus      " << getTradingStatus() << std::endl
+	    << "}" << std::endl;
+
+	    return oss.str();
+	}
 };
 
 inline std::ostream& operator<<(std::ostream& out, const IDEFIX::MarketDetail& md) {
-	out << "[MarketDetail] {" << std::setprecision(md.getSymPrecision()) << std::endl
-	    << " - Symbol             " <<  md.getSymbol() << std::endl
-	    << " - Currency           " << md.getCurrency() << std::endl
-	    << " - Factor             " << std::fixed << md.getFactor() << std::endl
-	    << " - ContractMultiplier " << std::fixed << md.getContractMultiplier() << std::endl
-	    << " - Product            " << md.getProduct() << std::endl
-	    << " - RoundLot           " << std::fixed << md.getRoundlot() << std::endl
-	    << " - SymID              " << md.getSymID() << std::endl
-	    << " - SymPrecision       " << std::fixed << md.getSymPrecision() << std::endl
-	    << " - SymPointsize       " << std::fixed << md.getSymPointsize() << std::endl
-	    << " - SymInterestBuy     " << std::fixed << md.getSymInterestBuy() << std::endl
-	    << " - SymInterestSell    " << std::fixed << md.getSymInterestSell() << std::endl
-	    << " - SymSortOrder       " << md.getSymSortOrder() << std::endl
-	    << " - SubscriptionStatus " << md.getSubscriptionStatus() << std::endl
-	    << " - FieldProductID     " << md.getFieldProductID() << std::endl
-	    << " - CondDistStop       " << std::fixed << md.getCondDistStop() << std::endl
-	    << " - CondDistLimit      " << std::fixed << md.getCondDistLimit() << std::endl
-	    << " - CondDistEntryStop  " << std::fixed << md.getCondDistEntryStop() << std::endl
-	    << " - CondDistEntryLimit " << std::fixed << md.getCondDistEntryLimit() << std::endl
-	    << " - TradingStatus      " << md.getTradingStatus() << std::endl
-	    << "}" << std::endl;
+	out << md.toString();
 	return out;
 }
 

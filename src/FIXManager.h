@@ -8,7 +8,7 @@
 // Semantic versioning. idefix version can be printed with IDEFIX_VERSION();
 #define IDEFIX_VERSION_MAJOR 0
 #define IDEFIX_VERSION_MINOR 1
-#define IDEFIX_VERSION_PATCH 0
+#define IDEFIX_VERSION_PATCH 5
 
 #define IDEFIX_VERSION() printf("%d.%d.%d", IDEFIX_VERSION_MAJOR, IDEFIX_VERSION_MINOR, IDEFIX_VERSION_PATCH)
 
@@ -52,6 +52,10 @@
 #include "Pairs.h"
 #include "Candle.h"
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/daily_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 using namespace std;
 using namespace FIX;
 
@@ -76,6 +80,11 @@ private:
   // RequestID Manager
   RequestId m_reqid_manager;
 
+  // console logger
+  std::shared_ptr<spdlog::logger> m_console;
+  // tradelog logger
+  std::shared_ptr<spdlog::logger> m_tradelog;
+
   // the session id for market data, such as tick prices
   SessionID m_market_sessionID;
   // the session id for order management, such as open/closing positions
@@ -98,10 +107,14 @@ private:
   map<string, map<unsigned int, std::vector<Candle> > > m_list_candles;
   // hold all candle period abos per symbol
   map<string, std::vector<unsigned int> > m_list_candle_periods;
+
+  // if the app is exiting, don't log tick data etc anymore
+  bool m_is_exiting;
   
 public:
   FIXManager();
   FIXManager(const string settingsFile, Strategy* strategy);
+  ~FIXManager();
 
   void onCreate(const SessionID& sessionID);
   void onLogon(const SessionID& sessionID);
@@ -125,9 +138,6 @@ public:
   void onMessage(const FIX44::AllocationReportAck& ack, const SessionID& session_ID);
   void onMessage(const FIX44::AllocationReport& ar, const SessionID& session_ID);
 
-  void startSession(const string settingsfile);
-  void endSession();
-
   // All Message Query Methods
   void queryTradingStatus();
   void queryAccounts();
@@ -149,8 +159,6 @@ public:
   MarketDetail getMarketDetails(const std::string& symbol);
   Account getAccount();
   string getAccountID() const;
-  void addCandlePeriod(const std::string symbol, const unsigned int period);
-  void remCandlePeriod(const std::string symbol, const unsigned int period);
   
   void showSysParamList();
   void showAvailableMarketList();
@@ -158,15 +166,21 @@ public:
 
   void onExit();
 
+  std::shared_ptr<spdlog::logger> console();
+  std::shared_ptr<spdlog::logger> tradelog();
+
+  bool isExiting();
+  void setExiting(const bool status);
+
 private:
   void onInit();
+  void startSession(const string settingsfile);
+  void endSession();
 
-  void addCandleTick(const MarketSnapshot& snapshot, const unsigned int period);
   void onMarketSnapshot(const MarketSnapshot& snapshot);
   
   void processMarketOrders(const MarketSnapshot& snapshot);
   void processStrategy(const MarketSnapshot& snapshot);
-  void processCandles(const MarketSnapshot& snapshot);
 
   string nextRequestID();
   string nextOrderID();
@@ -201,7 +215,7 @@ private:
   void addSubscription(const string symbol);
   void removeSubscription(const string symbol);
 
-  void setStrategy(Strategy* strategy);
+  bool setStrategy(Strategy* strategy);
 }; // class fixmanager
 }; // namespace idefix
 
