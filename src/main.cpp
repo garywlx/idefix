@@ -16,11 +16,12 @@ using namespace IDEFIX;
 int main(int argc, char** argv) {
 	try {
 		if ( argc != 2 ) {
+			cout << "IDEFIX "; IDEFIX_VERSION(); cout << endl;
 			cout << "Usage:" << endl;
 			cout << "   idefix <configfile>" << endl;
 			cout << endl;
 			
-			return EXIT_FAILURE;
+			return EXIT_SUCCESS;
 		}
 
 		// config file
