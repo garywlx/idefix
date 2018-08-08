@@ -2,17 +2,29 @@
 
 ## Symbols & Trading Times
 
-Die Symbole werden nur innerhalb der Start und End Zeit gehandelt. In dieser Zeit ist die Volatilität am höchsten.
+Die Symbole werden nur innerhalb der Start und End Zeit gehandelt. In dieser Zeit ist die Volatilität am höchsten. Die Tabelle stellt die Zeiten in GMT dar.
 
-| Symbol  | Start | End  |
-| ------- | ----- | ---- |
-| AUD/USD |       |      |
-| EUR/USD |       |      |
-| GBP/USD |       |      |
-| NZD/USD |       |      |
-| USD/CAD |       |      |
-| USD/CHF |       |      |
-| USD/JPY |       |      |
+| Symbol  | Start | End   | Session     |
+| ------- | ----- | ----- | ----------- |
+| AUD/USD | 22:00 | 07:00 | Asian       |
+| EUR/USD | 08:00 | 22:00 | European/US |
+| GBP/USD | 08:00 | 22:00 | European/US |
+| NZD/USD | 22:00 | 07:00 | Asian       |
+| USD/CAD | 08:00 | 22:00 | European/US |
+| USD/CHF | 08:00 | 22:00 | European/US |
+| USD/JPY | 0:00  | 09:00 | Asian       |
+
+Die Volatilität kann bei der **Zeitüberlagerung** am höher ausfallen.
+
+| Symbol  | Start | End   | Session     |
+| ------- | ----- | ----- | ----------- |
+| AUD/USD | 0:00  | 07:00 | Asian       |
+| EUR/USD | 13:00 | 17:00 | European/US |
+| GBP/USD | 13:00 | 17:00 | European/US |
+| NZD/USD | 0:00  | 7:00  | Asian       |
+| USD/CAD | 13:00 | 17:00 | European/US |
+| USD/CHF | 13:00 | 17:00 | European/US |
+| USD/JPY | 13:00 | 17:00 | European/US |
 
 
 

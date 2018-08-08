@@ -5,6 +5,13 @@
 #ifndef IDEFIX_FIXMANAGER_H
 #define IDEFIX_FIXMANAGER_H
 
+// Semantic versioning. idefix version can be printed with IDEFIX_VERSION();
+#define IDEFIX_VERSION_MAJOR 0
+#define IDEFIX_VERSION_MINOR 1
+#define IDEFIX_VERSION_PATCH 0
+
+#define IDEFIX_VERSION() printf("%d.%d.%d", IDEFIX_VERSION_MAJOR, IDEFIX_VERSION_MINOR, IDEFIX_VERSION_PATCH)
+
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -48,18 +55,11 @@
 using namespace std;
 using namespace FIX;
 
-// subscribe and trade this pair
-#define SUBSCRIBE_PAIR "EUR/USD"
-
 namespace IDEFIX {
 class Strategy;
 
 class FIXManager: public MessageCracker, public Application {
 private:
-  // for debugging
-  bool m_debug_toggle_snapshot_output;
-  bool m_debug_toggle_update_prices_output;
-
   // Synchronizing multithreading
   mutable FIX::Mutex m_mutex;
 
@@ -151,15 +151,11 @@ public:
   string getAccountID() const;
   void addCandlePeriod(const std::string symbol, const unsigned int period);
   void remCandlePeriod(const std::string symbol, const unsigned int period);
-
-  void toggleSnapshotOutput();
-  void togglePNLOutput();
   
   void showSysParamList();
   void showAvailableMarketList();
   void showMarketDetail(const string symbol);
 
-  string formatBaseCurrency(const double value);
   void onExit();
 
 private:

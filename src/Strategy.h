@@ -14,7 +14,7 @@ namespace IDEFIX {
 		// Is called when a new market snapshot is available.
 		virtual void onTick(FIXManager& manager, const MarketSnapshot& snapshot) = 0;
 		// Is called when a new candle is available.
-		virtual void onCandle(FIXManager& manager, const Candle& candle) = 0;
+		//virtual void onCandle(FIXManager& manager, const Candle& candle) = 0;
 		// Is called when the account changed
 		virtual void onAccountChange(FIXManager& manager, Account& account) = 0;
 		// Is called when a position changed

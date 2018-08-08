@@ -5,7 +5,7 @@
 include_directories(/usr/local/include)
 
 # quickfix flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -fexceptions -finline-functions") #-lpthread -lxml2 -lz
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I/usr/local/include/spdlog -fexceptions -finline-functions") #-lpthread -lxml2 -lz
 
 set(SRC main.cpp Tick.h Candle.h Candle.cpp RiskManagement.h Math.h Pairs.h Account.h Account.cpp MarketDetail.h FXCMFields.h FIXFactory.h 
 	FIXManager.h FIXManager.cpp times.h RequestId.h RequestId.cpp String.h MarketOrder.h MarketSnapshot.h Market.h

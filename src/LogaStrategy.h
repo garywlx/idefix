@@ -12,7 +12,6 @@ namespace IDEFIX {
 		std::string getIdentifier() const;
 		void onInit(FIXManager& manager);
 		void onTick(FIXManager& manager, const MarketSnapshot& snapshot);
-		void onCandle(FIXManager& manager, const Candle& candle);
 		void onAccountChange(FIXManager& manager, Account& account);
 		void onPositionChange(FIXManager& manager, MarketOrder& position, MarketOrder::Status status);
 		void onExit(FIXManager& manager);

@@ -12,7 +12,7 @@ namespace IDEFIX {
 /*!
  * Constructs FIXManager
  */
-FIXManager::FIXManager(): m_debug_toggle_snapshot_output(false), m_debug_toggle_update_prices_output(false) {}
+FIXManager::FIXManager() {}
 
 /*!
  * Constructs FIXManager and starts a FIX Session from settings file
@@ -20,7 +20,7 @@ FIXManager::FIXManager(): m_debug_toggle_snapshot_output(false), m_debug_toggle_
  * @param const std::string settingsFile The FIX settings file
  * @param Strategy*         strategy     The strategy to use
  */
-FIXManager::FIXManager(const string settingsFile, Strategy* strategy): m_debug_toggle_snapshot_output(false), m_debug_toggle_update_prices_output(false) {
+FIXManager::FIXManager(const string settingsFile, Strategy* strategy) {
   startSession(settingsFile);
   setStrategy( strategy );
 }
@@ -448,10 +448,6 @@ void FIXManager::onMessage(const FIX44::MarketDataSnapshotFullRefresh &mds, cons
   addMarketSnapshot( snapshot );
   // handle market snapshot
   onMarketSnapshot( snapshot );
-
-  if( m_debug_toggle_snapshot_output ){
-    cout << "[onMessage:MarketData] " << snapshot << endl;
-  }
 }
 
 /*!
@@ -759,7 +755,7 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
   processMarketOrders( snapshot );
 
   // Process candles
-  processCandles( snapshot );
+  //processCandles( snapshot );
 
   // Process strategies
   processStrategy( snapshot );
@@ -1014,14 +1010,6 @@ void FIXManager::queryOrderMassStatus() {
   } catch( std::exception& e ){
     cout << "[queryOrderMassStatus:exception] " << e.what() << endl;
   }
-}
-
-void FIXManager::toggleSnapshotOutput(){
-  m_debug_toggle_snapshot_output = ! m_debug_toggle_snapshot_output;
-}
-
-void FIXManager::togglePNLOutput() {
-  m_debug_toggle_update_prices_output = ! m_debug_toggle_update_prices_output;
 }
 
 string FIXManager::getAccountID() const {
@@ -1330,25 +1318,6 @@ void FIXManager::showMarketDetail(const string symbol) {
 }
 
 /*!
- * Returns a string with output format of base currency like 0.00 $
- * 
- * @param const double value The value to show.
- * @return std::string
- */
-string FIXManager::formatBaseCurrency(const double value) {
-  auto baseCrncyPrecision = IntConvertor::convert( getSysParam( "BASE_CRNCY_PRECISION" ) );
-  auto baseCrncySymbol = getSysParam( "BASE_CRNCY_SYMBOL" );
-
-  ostringstream os;
-  os << std::setprecision( baseCrncyPrecision ) << std::fixed << value;
-
-  string format;
-  format.append( baseCrncySymbol ).append( " " ).append( os.str() );
-
-  return format;
-}
-
-/*!
  * Call this, if you want to handle things after login, establishing sessions and receiving collateral report
  */
 void FIXManager::onInit() {
@@ -1515,9 +1484,9 @@ void FIXManager::addCandleTick(const MarketSnapshot& snapshot, const unsigned in
         // add candle to stack
         candle_list.push_back( next_candle );
         // call strategy with new candle
-        if ( m_pstrategy != NULL ) {
-          m_pstrategy->onCandle( *this, next_candle );
-        }
+        // if ( m_pstrategy != NULL ) {
+        //   m_pstrategy->onCandle( *this, next_candle );
+        // }
       } // else end
     } // if periodit != period_list end
   }
@@ -1546,9 +1515,9 @@ void FIXManager::addCandleTick(const MarketSnapshot& snapshot, const unsigned in
     m_list_candles.insert( std::pair<string, map<unsigned int, std::vector<Candle> > >( snapshot.getSymbol(), next_period_map ) );
 
     // call strategy with new candle
-    if ( m_pstrategy != NULL ) {
-      m_pstrategy->onCandle( *this, next_candle );
-    }
+    // if ( m_pstrategy != NULL ) {
+    //   m_pstrategy->onCandle( *this, next_candle );
+    // }
   }
 }
 }; // namespace idefix
