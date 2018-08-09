@@ -2,10 +2,14 @@
 #define IDEFIX_RANGESTRATEGY_H
 
 #include "Strategy.h"
+#include <map>
+#include <quickfix/Mutex.h>
 
 namespace IDEFIX {
+// Class
 class RangeStrategy: public Strategy {
 private:
+	FIX::Mutex m_mutex;
 
 public:
 	RangeStrategy();

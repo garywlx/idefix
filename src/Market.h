@@ -11,7 +11,7 @@ namespace IDEFIX {
 class Market {
 private:
 	std::string m_symbol;
-	vector<MarketSnapshot> m_snapshots;
+	std::vector<MarketSnapshot> m_snapshots;
 
 public:
 	// Constructs a new Market without identifier
@@ -41,7 +41,7 @@ public:
 
 	// Returns latest market snapshot
 	inline MarketSnapshot getLatestSnapshot() const {
-		MarketSnapshot snapshot = m_snapshots.back();
+		auto snapshot = m_snapshots.back();
 		return snapshot;
 	}
 
@@ -54,6 +54,46 @@ public:
 	inline bool isValid() const {
 		return ! m_symbol.empty();
 	}
+
+	// Returns true if the snapshot list is empty
+	inline bool isEmpty() const {
+		return m_snapshots.empty();
+	}
+
+	/*!
+	 * Returns a range of snapshots beginning from index from_start
+	 *
+	 * @param const int from_start  The from_start index
+	 *
+	 * @return std::vector<MarketSnapshot>
+	 */
+	inline std::vector<MarketSnapshot> getRange(const int from_start) {
+		if ( isEmpty() ) {
+			return m_snapshots;
+		}
+
+		auto list_size      = getSize();
+		int list_from_start = from_start;
+		std::vector<MarketSnapshot> result;
+
+		// if from_start is negative, we use last element index - from_start
+		// like size()-3 means [0,1,2,3,>>4<<,5,6] = 4
+		if ( from_start < 0 ) {
+			list_from_start = list_size - std::abs( from_start );
+			// if from_start value lower then 0, return result because we are out of bounds
+			if ( list_from_start < 0 ) {
+				return result;
+			}
+		}
+
+		// loop through array begining at from_start index
+		for ( int i = list_from_start; i < list_size; i++ ) {
+			result.push_back( m_snapshots.at( i ) );
+		}
+
+		return result;
+	}
+
 };
 };
 

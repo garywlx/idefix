@@ -5,6 +5,7 @@
 #include "FIXManager.h"
 #include <quickfix/Utility.h>
 #include "Strategy.h"
+#include "Indicator.h"
 #include <cmath>
 #include <string>
 #include <exception>
@@ -512,6 +513,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     marketOrder.setSendingTime( sendingTime );
     marketOrder.setStopPrice( 0 );
     marketOrder.setTakePrice( 0 );
+    marketOrder.setClosePrice( 0 );
 
     // MassOrderStatus
     if ( execType == FIX::ExecType_ORDER_STATUS ) {
@@ -557,6 +559,8 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_LIMIT ) {
       // console output
       console()->info( "{} removeMarketOrder (LIMIT) {}", prefix, marketOrder.getPosID() );
+      // trade log
+      tradelog( marketOrder );
       // remove market order
       removeMarketOrder( marketOrder.getPosID() );
     }
@@ -565,6 +569,8 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_STOP ) { 
       // console output
       console()->info( "{} removeMarketOrder (STOP) {}", prefix, marketOrder.getPosID() );
+      // trade log
+      tradelog( marketOrder );
       // remove market order
       removeMarketOrder( marketOrder.getPosID() );
     }
@@ -760,8 +766,8 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
   // Process market orders
   processMarketOrders( snapshot );
 
-  // Process candles
-  //processCandles( snapshot );
+  // Process Indicators
+  processIndicators( snapshot );  
 
   // Process strategies
   processStrategy( snapshot );
@@ -776,8 +782,6 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
 void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
   FIX::Locker lock(m_mutex);
   if ( m_list_marketorders.empty() ) return;
-
-  // logger()->console()->info( "MarketSnapshot {}", snapshot.toString() );
 
   // get account currency
   auto accountCurrency = getAccount().getCurrency();
@@ -877,6 +881,24 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
       console()->info( " Margin Ration {:f} %%", account.getMarginRatio() );
     } // - if snapshot symbol == position symbol
   } // - for marketorder loop
+}
+
+/*!
+ * Update all registered indicators
+ * 
+ * @param const MarketSnapshot& snapshot
+ */
+void FIXManager::processIndicators(const MarketSnapshot& snapshot) {
+  if ( ! m_list_indicators.empty() ) {
+    // check if there are indicators for symbol
+    auto it = m_list_indicators.find( snapshot.getSymbol() );
+    if ( it != m_list_indicators.end() ) {
+      // found list, update indicators
+      for ( auto indi_it = it->second.begin(); indi_it != it->second.end(); ++indi_it ) {
+        (*indi_it)->onTick( *this, snapshot );
+      }
+    }
+  }
 }
 
 /*!
@@ -1080,7 +1102,7 @@ void FIXManager::addMarket(const Market market){
  */
 void FIXManager::addMarketSnapshot(const MarketSnapshot snapshot){
   FIX::Locker lock(m_mutex);
-  map<string, Market>::iterator marketIterator = m_list_market.find(snapshot.getSymbol());
+  map<string, Market>::iterator marketIterator = m_list_market.find( snapshot.getSymbol() );
   if( marketIterator != m_list_market.end() ){
     // found market, add snapshot
     marketIterator->second.add(snapshot);
@@ -1391,12 +1413,35 @@ std::shared_ptr<spdlog::logger> FIXManager::console() {
 }
 
 /*!
- * Get tradelog shared pointer
+ * Log market order to trade log
  * 
- * @return std::shared_ptr<spdlog::logger>
+ * @param const MarketOrder& marketOrder
  */
-std::shared_ptr<spdlog::logger> FIXManager::tradelog() {
-  return m_tradelog;
+void FIXManager::tradelog(const MarketOrder& marketOrder) {
+  FIX::Locker lock( m_mutex );
+  // get open trade from list
+  auto it = m_list_marketorders.find( marketOrder.getPosID() );
+  if ( it != m_list_marketorders.end() ) {
+
+    // set close price and close sending time
+    MarketOrder extendOrder = marketOrder;
+    extendOrder.setCloseTime( marketOrder.getSendingTime() );
+    extendOrder.setSendingTime( it->second.getSendingTime() );
+    extendOrder.setClosePrice( marketOrder.getPrice() );
+    extendOrder.setPrice( it->second.getPrice() );
+
+    // %orderid,%symbol,%short|long,%datetime.ms,%entry_px,%datetime.ms,%tp_px,%pips,%pnl
+    m_tradelog->info( "{},{},{},{},{:f},{},{:f},{:d},{:f}", 
+      extendOrder.getPosID(), 
+      extendOrder.getSymbol(),
+      extendOrder.getSideStr(),
+      extendOrder.getSendingTime(),
+      extendOrder.getPrice(),
+      extendOrder.getCloseTime(),
+      extendOrder.getClosePrice(),
+      extendOrder.getPrice() - extendOrder.getClosePrice(),
+      extendOrder.getProfitLoss() );  
+  }
 }
 
 /*!
@@ -1416,4 +1461,88 @@ bool FIXManager::isExiting() {
 void FIXManager::setExiting(const bool status) {
   m_is_exiting = status;
 }
+
+/*!
+ * Add Indicators to a list
+ *
+ * @param const std::string symbol    The symbol to add the indicator for.
+ * @param Indicator*        indicator Indicator dericed class.
+ */
+void FIXManager::addIndicator(const std::string symbol, Indicator* pindicator) {
+  FIX::Locker lock( m_mutex );
+
+  auto it = m_list_indicators.find( symbol );
+  if ( it != m_list_indicators.end() ) {
+    // found symbol indicator list
+    // check for the indicator
+    auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&pindicator](const Indicator* p){
+      return pindicator->getName() == p->getName();
+    });
+
+    // not found, add to list
+    if ( indi_it == it->second.end() ) {
+      it->second.push_back( pindicator );
+    }
+  } else {
+    // symbol not found, add symbol with new indicator list
+    std::vector<Indicator*> indi_list;
+    indi_list.push_back( pindicator );
+
+    m_list_indicators.insert( std::pair<std::string, std::vector<Indicator*> >( symbol, indi_list ) );
+  }
+}
+
+/*!
+ * Remove indicator from active indicator list
+ *
+ * @param const std::string symbol The symbol for the indicator list
+ * @param const std::string name   Indicator derived class name
+ */
+void FIXManager::remIndicator(const std::string symbol, const std::string name) {
+  FIX::Locker lock( m_mutex );
+
+  if ( m_list_indicators.empty() ) return;
+
+  auto it = m_list_indicators.find( symbol );
+  if ( it != m_list_indicators.end() ) {
+    // found indicator list for symbol, try to remove indicator
+    auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&name](const Indicator* p){
+      return p->getName() == name;
+    });
+
+    if ( indi_it != it->second.end() ) {
+      // indicator found, remove it
+      it->second.erase( indi_it );
+    }
+  }
+}
+
+/*!
+ * Get indicator from active indicator list
+ *
+ * @param const std::string  symbol The symbol for the indicator
+ * @param const std::string  name   The name of the indicator
+ * @return Indicator*
+ */
+Indicator* FIXManager::getIndicator(const std::string symbol, const std::string name) {
+  FIX::Locker lock( m_mutex );
+
+  if ( m_list_indicators.empty() ) return nullptr;
+
+  auto it = m_list_indicators.find( symbol );
+  if ( it != m_list_indicators.end() ) {
+    // found indicator list for symbol
+    auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&name](const Indicator* p){
+      return p->getName() == name;
+    });
+
+    if ( indi_it != it->second.end() ) {
+      // found indicator
+      return *indi_it;
+    }
+  }
+
+  return nullptr;
+}
+
 }; // namespace idefix

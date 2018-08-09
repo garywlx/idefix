@@ -12,20 +12,22 @@ using namespace std;
 namespace IDEFIX {
 class MarketOrder {
 private:
-	string m_clOrdID;
-	string m_posID; // FXCM_POS_ID
-	string m_orderID;
-	string m_accountID;
+	string m_clOrd_ID;
+	string m_pos_ID; // FXCM_POS_ID
+	string m_order_ID;
+	string m_account_ID;
 	string m_symbol;
 	string m_sending_time;
+	string m_close_time; // the timestamp on which the order was closed
 	char m_side; // 1 = Buy, 2 = Sell (FixValues.h)
 	double m_qty;
 	double m_price;
-	double m_stopPrice;
-	double m_takePrice;
-	double m_profitLossValue; // negativ = loss
+	double m_stop_price;
+	double m_take_price;
+	double m_close_price; // the price on which the order was closed
+	double m_profit_loss_value; // negativ = loss
 	int m_precision;
-	double m_pointSize;
+	double m_point_size;
 
 public:
 	enum Status {
@@ -35,42 +37,42 @@ public:
 	// Construct empty market order
 	explicit MarketOrder() {}
 	// Construct market order with default values except symbol
-	explicit MarketOrder(const string symbol): m_clOrdID("0"), m_posID(""), m_orderID(""), m_accountID("0"), 
-	m_symbol(symbol), m_qty(0), m_side('1'), m_price(0), m_stopPrice(0), m_takePrice(0),
-	m_profitLossValue(0), m_sending_time(""), m_precision(5) {}
+	explicit MarketOrder(const string symbol): m_clOrd_ID("0"), m_pos_ID(""), m_order_ID(""), m_account_ID("0"), 
+	m_symbol(symbol), m_qty(0), m_side('1'), m_price(0), m_stop_price(0), m_take_price(0), m_close_price(0),
+	m_profit_loss_value(0), m_sending_time(""), m_close_time(""), m_precision(5), m_point_size(0) {}
 
 	inline ~MarketOrder(){}
 
 	inline string getClOrdID() const { 
-		return m_clOrdID; 
+		return m_clOrd_ID; 
 	}
 	inline void setClOrdID(const string clOrdID){ 
-		if( m_clOrdID != clOrdID ){
-			m_clOrdID = clOrdID;
+		if( m_clOrd_ID != clOrdID ){
+			m_clOrd_ID = clOrdID;
 		}
 	}
 	inline string getPosID() const {
-		return m_posID; 
+		return m_pos_ID; 
 	}
-	inline void setPosID(const string posID){
-		if( m_posID != posID ){
-			m_posID = posID;
+	inline void setPosID(const string pos_ID){
+		if( m_pos_ID != pos_ID ){
+			m_pos_ID = pos_ID;
 		}
 	}
 	inline string getOrderID() const {
-		return m_orderID;
+		return m_order_ID;
 	}
 	inline void setOrderID(const string orderID){
-		if ( m_orderID != orderID ){
-			m_orderID = orderID;
+		if ( m_order_ID != orderID ){
+			m_order_ID = orderID;
 		}
 	}
 	inline string getAccountID() const {
-		return m_accountID; 
+		return m_account_ID; 
 	}
 	inline void setAccountID(const string accountID){
-		if( m_accountID != accountID ){
-			m_accountID = accountID;
+		if( m_account_ID != accountID ){
+			m_account_ID = accountID;
 		}
 	}
 	inline string getSymbol() const {
@@ -131,31 +133,39 @@ public:
 		}
 	}
 	inline double getStopPrice() const {
-		return m_stopPrice; 
+		return m_stop_price; 
 	}
 	inline void setStopPrice(const double price){
-		if( m_stopPrice != price ){
-			m_stopPrice = price;
+		if( m_stop_price != price ){
+			m_stop_price = price;
 		}
 	}
 	inline double getTakePrice() const {
-		return m_takePrice; 
+		return m_take_price; 
 	}
 	inline void setTakePrice(const double price){
-		if( m_takePrice != price ){
-			m_takePrice = price;
+		if( m_take_price != price ){
+			m_take_price = price;
+		}
+	}
+	inline double getClosePrice() const {
+		return m_close_price;
+	}
+	inline void setClosePrice(const double price) {
+		if ( m_close_price != price ) {
+			m_close_price = price;
 		}
 	}
 	inline double getProfitLoss() const {
-		return m_profitLossValue; 
+		return m_profit_loss_value; 
 	}
 	inline void setProfitLoss(const double value){
-		if( m_profitLossValue != value ){
-			m_profitLossValue = value;
+		if( m_profit_loss_value != value ){
+			m_profit_loss_value = value;
 		}
 	}
 	inline bool isValid() const {
-		return ! m_clOrdID.empty();
+		return ! m_clOrd_ID.empty();
 	}
 	inline string getSendingTime() const {
 		return m_sending_time;
@@ -165,6 +175,14 @@ public:
 			m_sending_time = sending_time;
 		}
 	}
+	inline string getCloseTime() const {
+		return m_close_time;
+	}
+	inline void setCloseTime(const string close_time) {
+		if ( m_close_time != close_time ) {
+			m_close_time = close_time;
+		}
+	}
 	inline int getPrecision() const { return m_precision; }
 	inline void setPrecision(const int precision) {
 		if ( m_precision != precision ) {
@@ -172,20 +190,20 @@ public:
 		}
 	}
 
-	inline double getPointSize() const { return m_pointSize; }
+	inline double getPointSize() const { return m_point_size; }
 	inline void setPointSize(const double pointsize) {
-		if ( m_pointSize != pointsize ) {
-			m_pointSize = pointsize;
+		if ( m_point_size != pointsize ) {
+			m_point_size = pointsize;
 		}
 	}
 
 	inline string toString() const {
 		ostringstream out;
 		out << "MarketOrder {" << endl
-			<< "  posID       " << getPosID() << endl
+			<< "  pos_ID      " << getPosID() << endl
 			<< "  account     " << getAccountID() << endl
-			<< "  clOrdID     " << getClOrdID() << endl
-			<< "  orderID     " << getOrderID() << endl
+			<< "  clOrd_ID    " << getClOrdID() << endl
+			<< "  order_ID    " << getOrderID() << endl
 			<< "  symbol      " << getSymbol() << endl
 			<< "  side        " << getSide() << ": " << getSideStr() << endl
 			<< "  qty         " << setprecision( 2 ) << fixed << getQty() << endl

@@ -50,7 +50,6 @@
 #include "Account.h"
 #include "Math.h"
 #include "Pairs.h"
-#include "Candle.h"
 
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/daily_file_sink.h"
@@ -61,6 +60,7 @@ using namespace FIX;
 
 namespace IDEFIX {
 class Strategy;
+class Indicator;
 
 class FIXManager: public MessageCracker, public Application {
 private:
@@ -102,11 +102,8 @@ private:
   map<string, MarketDetail> m_market_details;
   // hold all subscriptions symbols
   vector<string> m_symbol_subscriptions;
-  // hold all candles per symbol
-  // list[symbol][period] = [candles]
-  map<string, map<unsigned int, std::vector<Candle> > > m_list_candles;
-  // hold all candle period abos per symbol
-  map<string, std::vector<unsigned int> > m_list_candle_periods;
+  // hold all indicators per symbol list[symbol][] = Indicator*
+  map<string, vector<Indicator*> > m_list_indicators;
 
   // if the app is exiting, don't log tick data etc anymore
   bool m_is_exiting;
@@ -159,6 +156,7 @@ public:
   MarketDetail getMarketDetails(const std::string& symbol);
   Account getAccount();
   string getAccountID() const;
+  Market getMarket(const string symbol);
   
   void showSysParamList();
   void showAvailableMarketList();
@@ -167,10 +165,14 @@ public:
   void onExit();
 
   std::shared_ptr<spdlog::logger> console();
-  std::shared_ptr<spdlog::logger> tradelog();
+  void tradelog(const MarketOrder& marketOrder);
 
   bool isExiting();
   void setExiting(const bool status);
+
+  void addIndicator(const std::string symbol, Indicator* indicator);
+  void remIndicator(const std::string symbol, const std::string name);
+  Indicator* getIndicator(const std::string symbol, const std::string name);
 
 private:
   void onInit();
@@ -181,6 +183,7 @@ private:
   
   void processMarketOrders(const MarketSnapshot& snapshot);
   void processStrategy(const MarketSnapshot& snapshot);
+  void processIndicators(const MarketSnapshot& snapshot);
 
   string nextRequestID();
   string nextOrderID();
@@ -197,7 +200,6 @@ private:
   SessionID getOrderSessionID() const;
   void setOrderSessionID(const SessionID& session_ID);
 
-  Market getMarket(const string symbol);
   void addMarket(const Market market);
   void addMarketSnapshot(const MarketSnapshot snapshot);
   void addMarketOrder(const MarketOrder marketOrder);
