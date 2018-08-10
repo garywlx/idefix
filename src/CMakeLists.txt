@@ -10,8 +10,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../inclu
 
 set(SRC main.cpp Tick.h RiskManagement.h Math.h Pairs.h Account.h Account.cpp MarketDetail.h FXCMFields.h FIXFactory.h 
 	FIXManager.h FIXManager.cpp times.h RequestId.h RequestId.cpp String.h MarketOrder.h MarketSnapshot.h Market.h
-	Strategy.h RangeStrategy.h RangeStrategy.cpp indicator/Indicator.h indicator/RenkoIndicator.h indicator/RenkoIndicator.cpp 
-	indicator/MovingAverage.h indicator/MovingAverage.cpp)
+	Strategy.h RangeStrategy.h RangeStrategy.cpp indicator/Indicator.h indicator/RenkoBrick.h indicator/RenkoIndicator.h indicator/RenkoIndicator.cpp )
 
 # add source files for your binary
 add_executable(${PROJECT_NAME} ${SRC})

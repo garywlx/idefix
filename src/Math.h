@@ -5,6 +5,8 @@
 #include "MarketOrder.h"
 #include <quickfix/Field.h>
 #include <cmath>
+#include <iterator>
+#include <vector>
 
 namespace IDEFIX {
 	namespace Math {
@@ -241,6 +243,35 @@ namespace IDEFIX {
 		 */
 		inline double get_spread(const double bid_price, const double ask_price, const double point_size) {
 			return std::abs( ( bid_price - ask_price ) * ( 1 / point_size ) );
+		}
+
+		/*!
+		 * Calculate moving average value
+		 * 
+		 * @param const std::vector<double> value_list
+		 * @param const unsigned int         period
+		 * @param const int                  offset
+		 * @return double
+		 */
+		inline double get_moving_average(const std::vector<double> value_list, const unsigned int period, const int offset = 0) {
+			if ( value_list.empty() || value_list.size() < period ) {
+				return 0;
+			}
+
+			// calculate for period
+			double sum = 0;
+			// iterator start element at the end
+			auto   it  = value_list.rbegin();
+			// iterate for period
+			for ( int i = 0; i < period; i++ ) {
+				// move iterator by incrementor
+				auto vi = std::next( it, i );
+				// add close price
+				sum += *vi;
+			}
+
+			// calculate avg
+			return ( sum / period );
 		}
 	}; // END NS MATH
 }; // END NS IDEFIX

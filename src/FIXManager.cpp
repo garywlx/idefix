@@ -889,13 +889,18 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
  * @param const MarketSnapshot& snapshot
  */
 void FIXManager::processIndicators(const MarketSnapshot& snapshot) {
+  FIX::Locker lock ( m_mutex );
   if ( ! m_list_indicators.empty() ) {
     // check if there are indicators for symbol
     auto it = m_list_indicators.find( snapshot.getSymbol() );
     if ( it != m_list_indicators.end() ) {
       // found list, update indicators
-      for ( auto indi_it = it->second.begin(); indi_it != it->second.end(); ++indi_it ) {
+      /*for ( auto indi_it = it->second.begin(); indi_it != it->second.end(); ++indi_it ) {
         (*indi_it)->onTick( *this, snapshot );
+      }*/
+
+      for ( auto indi : it->second ) {
+        indi->onTick( *this, snapshot );
       }
     }
   }

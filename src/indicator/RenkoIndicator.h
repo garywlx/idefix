@@ -2,15 +2,14 @@
 #define IDEFIX_RANGEINDICATOR_H
 
 #include "Indicator.h"
+#include "RenkoBrick.h"
 #include <vector>
+#include <functional>
 
 namespace IDEFIX {
-	struct RenkoBrick {
-		int tick_volume;
-		double open_price;
-		double close_price;
-		int status; // -1 down, 0 uninitialized, 1 up
-		std::string close_time;
+
+	namespace RENKO {
+		typedef std::function<void(const RenkoBrick&)> ONCLOSE_CB_T;
 	};
 
 	class RenkoIndicator: public Indicator {
@@ -23,15 +22,21 @@ namespace IDEFIX {
 		RenkoBrick m_current_brick;
 		// hold all bricks
 		std::vector<RenkoBrick> m_bricks;
+		// onClose callback
+		RENKO::ONCLOSE_CB_T m_on_close_cb;
 
 	public:
-		RenkoIndicator(const double brick_size, const PriceType price_type);
+		RenkoIndicator(const double brick_size, const PriceType price_type, RENKO::ONCLOSE_CB_T callback = nullptr);
 		std::string getName() const;
 		void onTick(FIXManager& manager, const MarketSnapshot& snapshot);
 
-		void resetCurrentBrick();
 		RenkoBrick getLatest();
-		
+
+	private:
+		// reset current brick with defaults
+		void resetCurrentBrick();
+		// call onClose event with last renko brick
+		void onClose(const RenkoBrick& brick);
 	};
 };
 

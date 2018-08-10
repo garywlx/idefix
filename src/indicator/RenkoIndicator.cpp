@@ -3,8 +3,8 @@
 #include "../Math.h"
 
 namespace IDEFIX {
-	RenkoIndicator::RenkoIndicator(const double brick_size, const PriceType price_type)
-		: m_brick_size( brick_size ), m_price_type( price_type ) {
+	RenkoIndicator::RenkoIndicator(const double brick_size, const PriceType price_type, RENKO::ONCLOSE_CB_T callback)
+		: m_brick_size( brick_size ), m_price_type( price_type ), m_on_close_cb( callback ) {
 		resetCurrentBrick();
 	}
 
@@ -32,6 +32,7 @@ namespace IDEFIX {
 		// first tick
 		if ( m_current_brick.status == 0 && m_current_brick.tick_volume == 0 ) {
 			m_current_brick.open_price  = price;
+			m_current_brick.symbol      = snapshot.getSymbol();
 		}
 
 		// increase tick volume
@@ -50,18 +51,8 @@ namespace IDEFIX {
 			m_current_brick.status      = ( m_current_brick.open_price < m_current_brick.close_price ? 1 : -1 );
 			// set close time
 			m_current_brick.close_time  = snapshot.getSendingTime();
-
-			// inform for debug
-			manager.console()->warn( "[{} BRICK] {} open {:f} close {:f} ticks {:d} close_time {} pips {:f}", 
-				snapshot.getSymbol(),
-				m_current_brick.status == 1 ? "UP" : "DOWN",
-				m_current_brick.open_price,
-				m_current_brick.close_price,
-				m_current_brick.tick_volume,
-				m_current_brick.close_time,
-				pips_moved
-			);
-			// debug eol
+			// call callback
+			onClose( m_current_brick );
 
 			// reset current brick
 			resetCurrentBrick();
@@ -81,9 +72,20 @@ namespace IDEFIX {
 	 * @return RenkoBrick
 	 */
 	RenkoBrick RenkoIndicator::getLatest() {
-		RenkoBrick brick{0,0,0,0,""};
+		RenkoBrick brick{0,0,0,0,"",""};
 		if ( m_bricks.empty() ) return brick;
 
 		return m_bricks.back();
+	}
+
+	/*!
+	 * Call the onClose callback if it is registered
+	 * 
+	 * @param const RenkoBrick& brick current brick
+	 */
+	void RenkoIndicator::onClose(const RenkoBrick& brick) {
+		if ( m_on_close_cb != nullptr ) {
+			m_on_close_cb( brick );
+		}
 	}
 };
