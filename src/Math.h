@@ -4,6 +4,7 @@
 #include "MarketSnapshot.h"
 #include "MarketOrder.h"
 #include <quickfix/Field.h>
+#include <cmath>
 
 namespace IDEFIX {
 	namespace Math {
@@ -228,6 +229,18 @@ namespace IDEFIX {
 			}
 
 			return false;
+		}
+
+		/*!
+		 * Calculate the spread between two prices
+		 * 
+		 * @param const double bid_price  
+		 * @param const double ask_price  
+		 * @param const double point_size 
+		 * @return double
+		 */
+		inline double get_spread(const double bid_price, const double ask_price, const double point_size) {
+			return std::abs( ( bid_price - ask_price ) * ( 1 / point_size ) );
 		}
 	}; // END NS MATH
 }; // END NS IDEFIX

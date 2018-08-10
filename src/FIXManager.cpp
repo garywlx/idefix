@@ -5,7 +5,7 @@
 #include "FIXManager.h"
 #include <quickfix/Utility.h>
 #include "Strategy.h"
-#include "Indicator.h"
+#include "indicator/Indicator.h"
 #include <cmath>
 #include <string>
 #include <exception>

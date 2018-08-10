@@ -1,5 +1,6 @@
 #include "RangeStrategy.h"
-#include "RenkoIndicator.h"
+#include "indicator/RenkoIndicator.h"
+#include "indicator/MovingAverage.h"
 #include <utility>
 #include <cmath>
 
@@ -20,7 +21,9 @@ std::string RangeStrategy::getIdentifier() const {
 void RangeStrategy::onInit(FIXManager& manager) {
 	manager.console()->info( "[Strategy:onInit] {}", getIdentifier() );
 	// add range indicator for 3 pip range on bid price
-	manager.addIndicator( "EUR/USD", new RenkoIndicator( 30, RenkoIndicator::PriceType::BID_PRICE ) );
+	manager.addIndicator( "EUR/USD", new RenkoIndicator( 1.5, RenkoIndicator::PriceType::BID_PRICE ) );
+	// add moving average for close price on renko
+	manager.addIndicator( "EUR/USD", new MovingAverage() );
 
 	// subscribe market data
 	//manager.subscribeMarketData( "AUD/USD" );
@@ -37,7 +40,7 @@ void RangeStrategy::onTick(FIXManager& manager, const MarketSnapshot& snapshot) 
 		return;
 	}
 
-	manager.console()->info( "[Strategy:onTick] {} bid@{:.5f} ask@{:.5f} spread@{:.2f}", snapshot.getSymbol(), snapshot.getBid(), snapshot.getAsk(), snapshot.getSpread() );
+	//manager.console()->info( "[Strategy:onTick] {} bid@{:.5f} ask@{:.5f} spread@{:.2f}", snapshot.getSymbol(), snapshot.getBid(), snapshot.getAsk(), snapshot.getSpread() );
 
 	// add tick to range
 	auto market = manager.getMarket( snapshot.getSymbol() );
