@@ -248,30 +248,31 @@ namespace IDEFIX {
 		/*!
 		 * Calculate moving average value
 		 * 
-		 * @param const std::vector<double> value_list
-		 * @param const unsigned int         period
-		 * @param const int                  offset
+		 * @param const std::vector<double> value_list  The values list
+		 * @param const unsigned int         period     How many entries to calculate?
+		 * @param const unsigned int         offset     Begin by offset entry
 		 * @return double
 		 */
-		inline double get_moving_average(const std::vector<double> value_list, const unsigned int period, const int offset = 0) {
-			if ( value_list.empty() || value_list.size() < period ) {
+		inline double get_moving_average(const std::vector<double> value_list, const unsigned int period, const unsigned int offset = 0) {
+			// check bounds
+			if ( value_list.empty() || ( period + offset ) > value_list.size() ) {
 				return 0;
 			}
-
-			// calculate for period
-			double sum = 0;
-			// iterator start element at the end
-			auto   it  = value_list.rbegin();
-			// iterate for period
+			// the sum
+			double sum;
+			// get start iterator from offset
+			auto it = std::next( value_list.rbegin(), offset );
+			// cycle through periods
 			for ( int i = 0; i < period; i++ ) {
-				// move iterator by incrementor
+				// forward iterator with period starting from offset
 				auto vi = std::next( it, i );
-				// add close price
+				// add value to sum
 				sum += *vi;
 			}
-
-			// calculate avg
-			return ( sum / period );
+			// calculate moving average
+			double avg = sum / period;			
+			// return value
+			return avg;
 		}
 	}; // END NS MATH
 }; // END NS IDEFIX

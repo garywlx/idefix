@@ -18,52 +18,21 @@ namespace IDEFIX {
 	void RangeStrategy::onInit(FIXManager& manager) {
 		manager.console()->info( "[{}:onInit]", getIdentifier() );
 
-		// add range indicator for 3 pip range on bid price
-		manager.addIndicator( "EUR/USD", new RenkoIndicator( 0.5, RenkoIndicator::PriceType::BID_PRICE, 
-			[&](const RenkoBrick& brick){
+		// subscribe to markets, AUD/USD, EUR/USD, GBP/USD, NZD/USD, USD/CAD, USD/CHF, USD/JPY
+		std::vector<std::string> symbols {"EUR/USD"};
 
-				// inform for debug
-				manager.console()->warn( "[{} BRICK] {} open {:f} close {:f} ticks {:d} close_time {}", 
-					brick.symbol,
-					brick.status == 1 ? "UP" : "DOWN",
-					brick.open_price,
-					brick.close_price,
-					brick.tick_volume,
-					brick.close_time
-				);
-				// debug eol
-
-				addMovingAverageValue( brick );
-
-				double last_renko_price = getLastRenkoPrice( brick.symbol );
-				double last_ma = getLastMovingAverage( brick.symbol );
-
-				manager.console()->info("[{} MovingAverage] {:f} last close {:f}", brick.symbol, last_ma, last_renko_price );
-			} )
-		);
-
-	// subscribe market data
-	//manager.subscribeMarketData( "AUD/USD" );
-		manager.subscribeMarketData( "EUR/USD" );
-	// manager.subscribeMarketData( "GBP/USD" );
-	// manager.subscribeMarketData( "NZD/USD" );
-	// manager.subscribeMarketData( "USD/CAD" );
-	// manager.subscribeMarketData( "USD/CHF" );
-	// manager.subscribeMarketData( "USD/JPY" );
+		for ( auto& symbol : symbols ) {
+			// init renko indicator and callback for moving average
+			initIndicator( manager, symbol );
+			// subscribe to market data
+			manager.subscribeMarketData( symbol );
+		}
 	}
 
 	void RangeStrategy::onTick(FIXManager& manager, const MarketSnapshot& snapshot) {
 		if ( manager.isExiting() ) {
 			return;
 		}
-
-	//manager.console()->info( "[Strategy:onTick] {} bid@{:.5f} ask@{:.5f} spread@{:.2f}", snapshot.getSymbol(), snapshot.getBid(), snapshot.getAsk(), snapshot.getSpread() );
-
-	// add tick to range
-	// auto market = manager.getMarket( snapshot.getSymbol() );
-	// if ( ! market.isValid() ) {
-	// 	return;
-	// }
 	}
 
 	void RangeStrategy::onAccountChange(FIXManager& manager, Account& account) {
@@ -71,7 +40,7 @@ namespace IDEFIX {
 			return;
 		}
 
-		manager.console()->info( "[Strategy:onAccountChange] {}", account.toString() );
+		manager.console()->info( "[{}:onAccountChange] {}", getIdentifier(), account.toString() );
 	}
 
 	void RangeStrategy::onPositionChange(FIXManager& manager, MarketOrder& position, MarketOrder::Status status) {
@@ -94,25 +63,25 @@ namespace IDEFIX {
 			oss << " UPDATE " << position.getPosID();
 			break;
 			default:
-			manager.console()->warn( "[Strategy:onPositionChange] unknown status" );
+			manager.console()->warn( "[{}:onPositionChange] unknown status", getIdentifier() );
 			break;
 		}
 
 		if ( ! oss.str().empty() ) {
-			manager.console()->info( "[Strategy:onPositionChange] {}", oss.str().c_str() );
+			manager.console()->info( "[{}:onPositionChange] {}", getIdentifier(), oss.str().c_str() );
 		}
 	}
 
 	void RangeStrategy::onExit(FIXManager& manager) {
-		manager.console()->info( "[Strategy:onExit]" );
+		manager.console()->info( "[{}:onExit]", getIdentifier() );
 	}
 
 	void RangeStrategy::onError(FIXManager& manager, std::string origin, std::string message) {
-		manager.console()->error( "[Strategy:onError] origin: {} message: {}", origin, message );
+		manager.console()->error( "[{}:onError] origin: {} message: {}", getIdentifier(), origin, message );
 	}
 
 	void RangeStrategy::onRequestAck(FIXManager& manager, std::string request_ident, std::string text) {
-		manager.console()->warn( "[Strategy:onRequestAck] ident: {} message: {}", request_ident, text );
+		manager.console()->warn( "[{}:onRequestAck] ident: {} message: {}", getIdentifier(), request_ident, text );
 	}
 
 /*!
@@ -124,28 +93,36 @@ void RangeStrategy::addMovingAverageValue(const RenkoBrick& brick) {
 	try {
 		FIX::Locker lock( m_mutex );
 
-		// the price list
-		std::vector<double> price_list;
+		// calculate moving average for close price
+		unsigned int avg_period = 3;
+		#ifdef STRATEGY_AVG_PERIOD
+			avg_period = STRATEGY_AVG_PERIOD;
+		#endif
+		int avg_offset = 0;
+		#ifdef STRATEGY_AVG_OFFSET
+			avg_offset = STRATEGY_AVG_OFFSET;
+		#endif
 
+		// the moving average value
+		double ma_value = 0;
 		// add close price to list
 		auto it1 = m_renko_close_prices.find( brick.symbol );
 		if ( it1 != m_renko_close_prices.end() ) {
   			// found list, add value
 			it1->second.push_back( brick.close_price );
 
-			price_list = it1->second;
+			// calculate moving average
+			ma_value = Math::get_moving_average( it1->second, avg_period, avg_offset );
 		} else {
   			// list not found for symbol, add list
-			std::vector<double> list{brick.close_price};
+			std::vector<double> list;
+			list.push_back( brick.close_price );
+
   			// add list
 			m_renko_close_prices.insert( std::pair<std::string, std::vector<double> >( brick.symbol, list ) );
-
-			price_list = list;
 		}
 
-		// calculate moving average for close price
-		auto ma_value = Math::get_moving_average( price_list, 3 );
-
+		// add moving average to list
 		auto it2 = m_moving_average.find( brick.symbol );
 		if ( it2 != m_moving_average.end() ) {
   			// found moving average list for symbol
@@ -153,7 +130,8 @@ void RangeStrategy::addMovingAverageValue(const RenkoBrick& brick) {
 			it2->second.push_back( ma_value );
 		} else {
   			// no list found, create one
-			std::vector<double> list{ma_value};
+			std::vector<double> list;
+			list.push_back( ma_value );
 		    // add list to stack
 			m_moving_average.insert( std::pair<std::string, std::vector<double> >( brick.symbol, list ) );
 		}
@@ -167,16 +145,16 @@ void RangeStrategy::addMovingAverageValue(const RenkoBrick& brick) {
  * @param const std::string  symbol
  * @return double
  */
-	double RangeStrategy::getLastMovingAverage(const std::string symbol) {
-		FIX::Locker lock( m_mutex );
-		auto it = m_moving_average.find( symbol );
-		if ( it != m_moving_average.end() ) {
-			// found average list
-			return it->second.back();
-		}
-
-		return 0;
+double RangeStrategy::getLastMovingAverage(const std::string symbol) {
+	FIX::Locker lock( m_mutex );
+	auto it = m_moving_average.find( symbol );
+	if ( it != m_moving_average.end() ) {
+		// found average list
+		return it->second.back();
 	}
+
+	return 0;
+}
 
 /*!
  * Get last renko close price
@@ -194,5 +172,37 @@ double RangeStrategy::getLastRenkoPrice(const std::string symbol) {
 	return 0;
 }
 
+// Init range indicators per symbol and callbacks
+void RangeStrategy::initIndicator(FIXManager& manager, const std::string symbol) {
+	// add range indicator for 3 pip range on bid price
+	double brick_size = 0.5;
+	#ifdef STRATEGY_RENKO_BRICK_SIZE
+		brick_size = STRATEGY_RENKO_BRICK_SIZE;
+	#endif
+	manager.addIndicator( symbol, new RenkoIndicator( brick_size, RenkoIndicator::PriceType::BID_PRICE, 
+		[&](const RenkoBrick& brick){
+			// stop if manager is exiting
+			if ( manager.isExiting() ) {
+				return;
+			}
+
+			// calculate moving average for brick
+			addMovingAverageValue( brick );
+
+			// inform for debug
+			// - double last_renko_price = getLastRenkoPrice( brick.symbol );
+			double last_ma = getLastMovingAverage( brick.symbol );
+			// log
+			// manager.console()->warn( "[{} BRICK] {} close {:f} moving average {:f}", 
+			// 	brick.symbol,
+			// 	brick.status == 1 ? "UP" : "DOWN",
+			// 	brick.close_price,
+			// 	last_ma
+			// );
+			std::cout << brick.close_price << "," << last_ma << std::endl;
+			// debug eol
+		} )
+	);
+}
 
 };
