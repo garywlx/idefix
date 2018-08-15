@@ -173,6 +173,7 @@ public:
   void addIndicator(const std::string symbol, Indicator* indicator);
   void remIndicator(const std::string symbol, const std::string name);
   Indicator* getIndicator(const std::string symbol, const std::string name);
+  bool hasOpenPositions(const std::string symbol);
 
 private:
   void onInit();

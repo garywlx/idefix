@@ -10,9 +10,9 @@
 // Moving Average Period, default is 3
 #define STRATEGY_AVG_PERIOD 3
 // Moving Average Offset, default is 0
-#define STRATEGY_AVG_OFFSET 1
+#define STRATEGY_AVG_OFFSET 0
 // Renko Brick Size, default is 0.5
-#define STRATEGY_RENKO_BRICK_SZE 0.5
+#define STRATEGY_RENKO_BRICK_SIZE 1.5
 
 namespace IDEFIX {
 // Class
@@ -20,10 +20,15 @@ class RangeStrategy: public Strategy {
 private:
 	FIX::Mutex m_mutex;
 	// hold all close prices per symbol
-	std::map<std::string, std::vector<double> > m_renko_close_prices;
+	std::map<std::string, std::vector<RenkoBrick> > m_renko_bricks;
 	// hold moving averages for symbols ma[symbol][] = double
 	std::map<std::string, std::vector<double> > m_moving_average;
 
+	// hold all symbols to trade
+	std::vector<std::string> m_symbols;
+
+	int m_open_sell;
+	int m_open_buy;
 public:
 	RangeStrategy();
 	~RangeStrategy();
@@ -38,10 +43,14 @@ public:
 	void onRequestAck(FIXManager& manager, std::string request_ident, std::string text);
 
 private:
-	void addMovingAverageValue(const RenkoBrick& brick);
+	void addListValues(const RenkoBrick& brick);
 	double getLastMovingAverage(const std::string symbol);
 	double getLastRenkoPrice(const std::string symbol);
+	double getMovingAverage(const std::string symbol, const int period);
+	double getRenkoPrice(const std::string symbol, const int period);
+	void getRenkoBrick(const std::string symbol, const int period, RenkoBrick& brick);
 	void initIndicator(FIXManager& manager, const std::string symbol);
+	int getRenkoBrickCount(const std::string symbol);
 };
 };
 

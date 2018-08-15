@@ -1550,4 +1550,25 @@ Indicator* FIXManager::getIndicator(const std::string symbol, const std::string 
   return nullptr;
 }
 
+/*!
+ * Get boolean if there are open positions for the symbol
+ * 
+ * @param const std::string symbol
+ * @return bool
+ */
+bool FIXManager::hasOpenPositions(const std::string symbol) {
+  FIX::Locker lock( m_mutex );
+
+  if ( m_list_marketorders.empty() ) return false;
+
+  int i = 0;
+  for ( auto p : m_list_marketorders ) {
+    if ( p.second.getSymbol() == symbol ) {
+      i++;
+    }
+  }
+
+  return i > 0;
+}
+
 }; // namespace idefix
