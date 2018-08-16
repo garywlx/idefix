@@ -31,32 +31,76 @@ Die Volatilität kann bei der **Zeitüberlagerung** am höher ausfallen.
 ```pine
 
 //@version=3
-strategy("RenkoSMA", overlay=true, pyramiding=1, initial_capital=10000)
-
-risk = input(title="risk", type=integer,defval=1,minval=1,maxval=100)
+strategy("IDEFIX", overlay=true, pyramiding=1, initial_capital=10000, currency=currency.EUR)
 
 renko_tickerid = renko(tickerid, "close", "ATR", 3)
 rclose = security(renko_tickerid, period, close)
-signalMA = sma(close, 5)
+ropen = security(renko_tickerid, period, open)
+last_ma = sma(close, 5)
+
+plot(last_ma, title="SignalMA", color=#0000ff, linewidth=3)
+
+brick_1_long = ropen[1] < rclose[1]
+brick_long = ropen < rclose
+brick_above_ma = ropen > last_ma and rclose > last_ma
+brick_below_ma = ropen < last_ma and rclose < last_ma
 
 // order conditions
-ts = timestamp(syminfo.timezone, 2018, 6, 1, 0, 0)
-enterLong = time > ts and rclose[1] < rclose and rclose > signalMA
-exitLong = strategy.position_size > 0 and rclose[1] > rclose
-enterShort = time > ts and rclose[1] > rclose and rclose < signalMA
-exitShort = strategy.position_size > 0 and rclose[1] < rclose
+ts = timestamp(syminfo.timezone, 2018, 8, 16, 0, 0)
+// entry signal long
+// brick_1 == SHORT
+// brick   == LONG
+// OR
+// brick_1 == LONG
+// brick   == LONG
+// 
+// brick > last_ma
+enterLong = not brick_1_long and brick_long
+if ( not enterLong )
+    enterLong = brick_1_long and brick_long
+if ( enterLong )
+    enterLong = brick_above_ma
+// exit signal long
+// brick_1 == LONG
+// brick   == SHORT
+// brick.close <= last_ma
+exitLong = false
+if ( strategy.position_size > 0 )
+    exitLong = brick_1_long and not brick_long
+if ( exitLong )
+    exitLong = rclose < last_ma
+// entry signal short
+// brick_1 == LONG
+// brick   == SHORT
+// OR
+// brick_1 == SHORT
+// brick   == SHORT
+// 
+// brick < last_ma
+enterShort = brick_1_long and not brick_long
+if ( not enterShort )
+    enterShort = not brick_1_long and not brick_long
+if ( enterShort )
+    enterShort = brick_below_ma
+// exit singal short
+// brick_1 == SHORT
+// brick   == LONG
+// brick > last_ma
+exitShort = false
+if ( strategy.position_size > 0 )
+    exitShort = not brick_1_long and brick_long
+if ( exitShort )
+    exitShort = rclose > last_ma
 
 // risk management
 strategy.risk.max_drawdown(25, strategy.percent_of_equity)
 
 // buy
-strategy.entry(id="buy", qty=100000, long=true, when= enterLong )
+strategy.entry(id="buy", qty=100000, long=true, when=time > ts and enterLong )
 strategy.close(id="buy", when= exitLong )
 // sell
-strategy.entry(id="sell", qty=100000, long=false, when= enterShort )
+strategy.entry(id="sell", qty=100000, long=false, when=time > ts and enterShort )
 strategy.close(id="sell", when= exitShort )
-
-plot(signalMA, title="SignalMA", color=#0000ff, linewidth=5)
 
 // exit market
 if ( hour == 22 )

@@ -30,7 +30,7 @@ namespace IDEFIX {
 		}
 
 		// first tick
-		if ( m_current_brick.status == 0 && m_current_brick.tick_volume == 0 ) {
+		if ( m_current_brick.status == RenkoBrick::STATUS::NOSTATUS && m_current_brick.tick_volume == 0 ) {
 			m_current_brick.open_price  = price;
 			m_current_brick.symbol      = snapshot.getSymbol();
 		}
@@ -39,7 +39,6 @@ namespace IDEFIX {
 		m_current_brick.tick_volume += 1;
 
 		// calculate pip movement since open price
-		//auto pips_moved = std::abs( ( price - m_current_brick.open_price ) * ( 1 / snapshot.getPointSize() ) );
 		auto pips_moved = Math::get_spread( price, m_current_brick.open_price, snapshot.getPointSize() );
 		
 		// if we moved equals or more then our brick size
@@ -48,7 +47,7 @@ namespace IDEFIX {
 			// set close price
 			m_current_brick.close_price = price;
 			// define if this is up or down brick
-			m_current_brick.status      = ( m_current_brick.open_price < m_current_brick.close_price ? 1 : -1 );
+			m_current_brick.status      = ( m_current_brick.open_price < m_current_brick.close_price ? RenkoBrick::STATUS::LONG : RenkoBrick::STATUS::SHORT );
 			// set close time
 			m_current_brick.close_time  = snapshot.getSendingTime();
 			// call callback
@@ -63,7 +62,7 @@ namespace IDEFIX {
 	 * Reset current brick with default values
 	 */
 	void RenkoIndicator::resetCurrentBrick() {
-		m_current_brick = RenkoBrick{0,0,0,0,""};
+		m_current_brick = RenkoBrick{0,0,0,RenkoBrick::STATUS::NOSTATUS,""};
 	}
 
 	/*!
@@ -72,7 +71,7 @@ namespace IDEFIX {
 	 * @return RenkoBrick
 	 */
 	RenkoBrick RenkoIndicator::getLatest() {
-		RenkoBrick brick{0,0,0,0,"",""};
+		RenkoBrick brick{0,0,0,RenkoBrick::STATUS::NOSTATUS,"",""};
 		if ( m_bricks.empty() ) return brick;
 
 		return m_bricks.back();

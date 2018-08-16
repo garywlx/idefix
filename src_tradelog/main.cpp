@@ -36,25 +36,33 @@ int main(int argc, char** argv) {
 		uniform_real_distribution<double> unif(1.0, 2.0);
 		default_random_engine re;
 
+		console->trace("I am a trace message");
+		console->debug("I am a debug message");
+		console->info("I am an info message");
+		console->error("I am an error message");
+		console->warn("I am a warning message");
+		console->critical("I am a critical message");
+
+
 		int rounds = 0;
 
-		while( true ) {
-			console->info( "Round: {:d}", rounds );
+		// while( true ) {
+		// 	console->info( "Round: {:d}", rounds );
 
-			double entry = unif(re);
-			double tp = unif(re);
+		// 	double entry = unif(re);
+		// 	double tp = unif(re);
 
-			double pips = entry - tp;
-			tradelog->info( "{:s},L,{:1.5f},0,{:1.5f},{:1.2f},{:1.2f}", "EUR/USD", entry, tp, pips, pips * 10 );
+		// 	double pips = entry - tp;
+		// 	tradelog->info( "{:s},L,{:1.5f},0,{:1.5f},{:1.2f},{:1.2f}", "EUR/USD", entry, tp, pips, pips * 10 );
 
-			rounds++;
+		// 	rounds++;
 
-			this_thread::sleep_for( chrono::seconds( 1 ) );
+		// 	this_thread::sleep_for( chrono::seconds( 1 ) );
 
-			if ( rounds == 120 ) {
-				break;
-			}
-		}
+		// 	if ( rounds == 120 ) {
+		// 		break;
+		// 	}
+		// }
 
 		console->info( "Done with {:d} rounds.", rounds );
 

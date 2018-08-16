@@ -1,5 +1,6 @@
 #include "RangeStrategy.h"
 #include "indicator/RenkoIndicator.h"
+#include "Operators.h"
 #include <utility>
 #include "Math.h"
 #include <stdexcept>
@@ -11,8 +12,8 @@ namespace IDEFIX {
 	RangeStrategy::RangeStrategy(): m_open_sell(0), m_open_buy(0) {
 		// subscribe to markets, AUD/USD, EUR/USD, GBP/USD, NZD/USD, USD/CAD, USD/CHF, USD/JPY
 		// m_symbols.push_back( "AUD/USD" );
-		// m_symbols.push_back( "EUR/USD" );
-		m_symbols.push_back( "GBP/USD" );
+		m_symbols.push_back( "EUR/USD" );
+		// m_symbols.push_back( "GBP/USD" );
 		// m_symbols.push_back( "NZD/USD" );
 		// m_symbols.push_back( "USD/CAD" );
 		// m_symbols.push_back( "USD/CHF" );
@@ -68,7 +69,7 @@ namespace IDEFIX {
 			return;
 		}
 
-		manager.console()->info( "[{}:onAccountChange] {}", getIdentifier(), account.toString() );
+		manager.console()->info( "{} [Account] Balance: {:.2f} {} Margin used: {:.2f} {}", getIdentifier(), account.getBalance(), account.getCurrency(), account.getMarginUsed(), account.getCurrency() );
 	}
 
 	/*!
@@ -172,7 +173,7 @@ namespace IDEFIX {
 
 				std::vector<double> temp_prices;
 				for ( auto b : it1->second ) {
-					temp_prices.push_back( b.close_price );
+					temp_prices.push_back( b.open_price );
 				}
 
 				// calculate moving average
@@ -333,12 +334,12 @@ namespace IDEFIX {
 				// proceed only if we have at least 3 renko bricks
 				const int brick_count = getRenkoBrickCount( brick.symbol );
 				if ( brick_count < 3 ) {
-					manager.console()->info("Not enough bricks: {} {:d}/3", brick.symbol, brick_count);
+					manager.console()->warn("Not enough bricks: {} {:d}/3", brick.symbol, brick_count);
 					return;
 				}
 
 				// - double last_renko_price = getLastRenkoPrice( brick.symbol );
-				double last_ma = getLastMovingAverage( brick.symbol );
+				const double last_ma = getLastMovingAverage( brick.symbol );
 				// if moving average is 0, return until it has some value
 				if ( last_ma == 0 ) {
 					return;
@@ -349,54 +350,97 @@ namespace IDEFIX {
 				// - spread
 				const double last_spread = last_snapshot.getSpread();
 				// - previous renko brick
-				RenkoBrick previous_brick;
-				getRenkoBrick( brick.symbol, 1, previous_brick);
+				RenkoBrick brick_1;
+				getRenkoBrick( brick.symbol, 1, brick_1);
 
 				// - has open positions for symbol
 				// bool has_open_positions = m_open_positions > 0; // manager.hasOpenPositions( brick.symbol );
-				bool has_open_buy_pos = m_open_buy > 0;
-				bool has_open_sell_pos = m_open_sell > 0;
+				const bool has_open_buy_pos = m_open_buy > 0;
+				const bool has_open_sell_pos = m_open_sell > 0;
 
-				manager.console()->info( "BRICK {} {} OP@{:.5f} CP@{:.5f} MA@{:.5f} SP@{:.2f}", brick.symbol, brick.status == 1 ? "UP" : "DOWN", brick.open_price, brick.close_price, last_ma, last_spread );
+				std::string msg = "BRICK {} brick({:.5f}, {:.5f}) {} ma: {:.5f} sp: {:.2f}";
+				if ( equals( brick.status, RenkoBrick::STATUS::LONG ) ) {
+					manager.console()->info( msg.c_str(), brick.symbol, brick.open_price, brick.close_price, ( brick.close_price > last_ma ? ">" : "<" ), last_ma, last_spread );
+				} else if ( equals( brick.status, RenkoBrick::STATUS::SHORT ) ) {
+					manager.console()->error( msg.c_str(), brick.symbol, brick.open_price, brick.close_price, ( brick.close_price > last_ma ? ">" : "<" ), last_ma, last_spread );
+				}
 
 				// entry conditions buy
+				// ----------------------------------------------------------------------
 				if ( ! has_open_buy_pos && last_spread < 1 ) {
+					std::string open_msg;
 					// entry signal long
-					if ( previous_brick.close_price < brick.close_price && brick.close_price > last_ma && brick.open_price > last_ma ) {
-						manager.console()->warn("BUY {} PREV {:.5f} < BP {:.5f} and BP {:.5f} > MA {:.5f}", 
-							brick.symbol, previous_brick.close_price, brick.close_price, brick.close_price, last_ma );
-						m_open_buy = 1;
+					// brick_1 == SHORT
+					// brick   == LONG					
+					bool open_buy = equals( brick_1.status, RenkoBrick::STATUS::SHORT ) && equals( brick.status, RenkoBrick::STATUS::LONG );
+					open_msg = "b1 == SHORT && b0 == LONG";
+					// OR
+					// brick_1 == LONG
+					// brick   == LONG
+					if ( ! open_buy ) {
+						open_buy = equals( brick_1.status, RenkoBrick::STATUS::LONG ) && equals( brick.status, RenkoBrick::STATUS::LONG );
+						open_msg = "b1 == LONG  && b0 == LONG";
 					} 
+					// brick > last_ma
+					if ( open_buy && above( brick, last_ma ) ) {
+						manager.console()->warn( "BUY  {} {} && brick({:.5f}, {:.5f}) > ma({:.5f})", 
+							brick.symbol, open_msg, brick.open_price, brick.close_price, last_ma );
+						m_open_buy = 1;
+					}
 				}
 				// exit conditions buy
+				// ----------------------------------------------------------------------
 				else if ( has_open_buy_pos ) {
 					// exit signal long
-					if ( previous_brick.close_price > brick.close_price && brick.close_price < last_ma ) {
-						manager.console()->warn("EXIT BUY {}: PREV {:.5f} > BP {:.5f} and BP {:.5f} < MA {:.5f}", 
-							brick.symbol, previous_brick.close_price, brick.close_price, brick.close_price, last_ma );
+					// brick_1 == LONG
+					// brick   == SHORT
+					bool exit_buy = equals( brick_1.status, RenkoBrick::STATUS::LONG ) && equals( brick.status, RenkoBrick::STATUS::SHORT );
+					// brick.close_price < last_ma
+					if ( exit_buy && below( brick.close_price, last_ma ) ) {
+						manager.console()->warn("EXIT BUY {} b1 == LONG && b0 == SHORT && b0.cp({:.5f}) < ma({:.5f})", 
+							brick.symbol, brick.close_price, last_ma );
 						m_open_buy = 0;
 					}
 				}
 
 				// entry conditions sell
+				// ----------------------------------------------------------------------
 				if( ! has_open_sell_pos && last_spread < 1 ) {
+					std::string open_msg;
 					// entry signal short
-					if ( previous_brick.close_price > brick.close_price && brick.close_price < last_ma && brick.open_price < last_ma ) {
-						manager.console()->warn("SELL {} PREV {:.5f} > BP {:.5f} and BP {:.5f} < MA {:.5f}", 
-							brick.symbol, previous_brick.close_price, brick.close_price, brick.close_price, last_ma );
+					// brick_1 == LONG
+					// brick   == SHORT
+					bool open_sell = equals( brick_1.status, RenkoBrick::STATUS::LONG ) && equals( brick.status, RenkoBrick::STATUS::SHORT );
+					open_msg = "b1 == LONG  && b0 == SHORT";
+					// OR
+					// brick_1 == SHORT
+					// brick   == SHORT
+					if ( ! open_sell ) {
+						open_sell = equals( brick_1.status, RenkoBrick::STATUS::SHORT ) && equals( brick.status, RenkoBrick::STATUS::SHORT );
+						open_msg = "b1 == SHORT && b0 == SHORT";
+					} 
+					// 
+					// brick <= last_ma
+					if ( open_sell && below( brick, last_ma ) ) {
+						manager.console()->warn( "SELL {} {} && brick({:.5f}, {:.5f}) < ma({:.5f})", 
+							brick.symbol, open_msg, brick.open_price, brick.close_price, last_ma );
 						m_open_sell = 1;
 					}
 				}
 				// exit conditions sell
+				// ----------------------------------------------------------------------
 				else if ( has_open_sell_pos ) {
 					// exit singal short
-					if ( previous_brick.close_price < brick.close_price && brick.close_price > last_ma ) {
-						manager.console()->warn("EXIT SHORT {}: PREV {:.5f} < BP {:.5f} and BP {:.5f} > MA {:.5f}", 
-							brick.symbol, previous_brick.close_price, brick.close_price, brick.close_price, last_ma );
+					// brick_1 == SHORT
+					// brick   == LONG
+					bool exit_sell = equals( brick_1.status, RenkoBrick::STATUS::SHORT ) && equals( brick.status, RenkoBrick::STATUS::LONG );
+					// brick.close_price > last_ma
+					if ( exit_sell && above( brick.close_price, last_ma ) ) {
+						manager.console()->warn( "EXIT SHORT {} b1 == SHORT && b0 == LONG && b0.cp({:.5f}) > ma({:.5f})",
+							brick.symbol, brick.close_price, last_ma );
 						m_open_sell = 0;
 					}
 				}
-			
 			} ) // - end callback
 		);
 	}
@@ -417,4 +461,5 @@ namespace IDEFIX {
 
 		return 0;
 	}
+
 };

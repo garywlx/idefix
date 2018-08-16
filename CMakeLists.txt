@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 11)
 project(idefix VERSION 0.1.0 LANGUAGES CXX)
 
 # import src/CMakeLists.txt
-add_subdirectory(src)
+#add_subdirectory(src)
 
 # import src_pipnl/CMakeLists.txt
 #add_subdirectory( src_pipnl )
@@ -30,3 +30,6 @@ add_subdirectory(src)
 
 # import src_playground/CMakeLists.txt
 #add_subdirectory( src_playground )
+
+# import src_renko/CMakeLists.txt
+add_subdirectory( src_renko )
