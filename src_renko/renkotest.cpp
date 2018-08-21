@@ -8,6 +8,20 @@
 #include "../src/Console.h"
 #include <quickfix/FieldConvertors.h>
 
+#include <QApplication>
+#include <QtCharts/QBarCategoryAxis>
+#include <QtCharts/QCandlestickSeries>
+#include <QtCharts/QLineSeries>
+#include <QtCharts/QCandlestickSet>
+#include <QtCharts/QChartView>
+#include <QtCharts/QValueAxis>
+#include <QtCore/QDateTime>
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QMainWindow>
+#include <QString>
+
+QT_CHARTS_USE_NAMESPACE
+
 using namespace std;
 using namespace IDEFIX;
 using namespace FIX;
@@ -260,21 +274,29 @@ public:
 // MAIN
 // ---------------------------------------------------------------------------------------------------------
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
 	if ( argc < 2 ) {
 		cerr << "Renko Strategy Test." << endl;
 		cerr << "Usage: " << argv[0] << " <option(s)> renkobricks.csv" << endl;
 		cerr << "Options:" << endl;
-		cerr << "\t-p,--pyramid int \t How many trades in one direction? Default is 0. That means only 1 Position at a time." << endl;
-		cerr << "\t-v,--verbose     \t Show entries and exits when they happen." << endl;
-		cerr << "\t-t,--trades      \t Show trade list" << endl;
+		cerr << "\t-p,--pyramid int    \t How many trades in one direction? Default is 0. That means only 1 Position at a time." << endl;
+		cerr << "\t-v,--verbose        \t Show entries and exits when they happen." << endl;
+		cerr << "\t-t,--trades         \t Show trade list" << endl;
+		cerr << "\t-a,--account double \t Account start value. Default is 10.000 USD." << endl;
+		cerr << "\t-r,--risk double    \t Risk per trade in percent of free margin. Default is 1%." << endl;
+		cerr << "\t-q,--qty double     \t Quantity for new positions. Default is 100000." << endl;
+		cerr << "\t-c,--chart          \t Show chart, desktop only." << endl;
 		return EXIT_FAILURE;
 	}
 
-	bool show_verbose = false;
+	bool show_verbose    = false;
 	bool show_trade_list = false;
-	int pyramid = 0;
+	bool show_chart      = false;
+	int pyramid          = 0;
+	double account       = 10000;
+	double risk          = 1;
+	double qty           = 100000;
 	std::string input_file;
 
 	for ( int i = 1; i < argc; i++ ) {
@@ -286,10 +308,33 @@ int main(int argc, char const *argv[])
 				cerr << "-p,--pyramid option needs one argument." << endl;
 				return EXIT_FAILURE;
 			}
-		} else if( ( arg == "-v" ) || ( arg == "--verbose" ) ) {
+		} else if ( ( arg == "-a" ) || ( arg == "--account" ) ) {
+			if ( i + 1 < argc ) {
+				account = DoubleConvertor::convert( argv[ i + 1 ] );
+			} else {
+				cerr << "-a,--account option needs one argument." << endl;
+				return EXIT_FAILURE;
+			}
+		} else if ( ( arg == "-r" ) || ( arg == "--risk" ) ) {
+			if ( i + 1 < argc ) {
+				risk = DoubleConvertor::convert( argv[ i + 1] );
+			} else {
+				cerr << "-r,--risk option needs one argument." << endl;
+				return EXIT_FAILURE;
+			}
+		} else if ( ( arg == "-q" ) || ( arg == "--qty" ) ) {
+			if ( i + 1 < argc ) {
+				qty = DoubleConvertor::convert( argv[ i + 1 ] );
+			} else {
+				cerr << "-q,--qty option needs one argument." << endl;
+				return EXIT_FAILURE;
+			}
+		} else if ( ( arg == "-v" ) || ( arg == "--verbose" ) ) {
 			show_verbose = true;
-		} else if( ( arg == "-t" ) || ( arg == "--trades" ) ) {
+		} else if ( ( arg == "-t" ) || ( arg == "--trades" ) ) {
 			show_trade_list = true;
+		} else if ( ( arg == "-c" ) || ( arg == "--chart" ) ) { 
+			show_chart = true;
 		} else {
 			input_file = argv[i];
 		}
@@ -383,19 +428,104 @@ int main(int argc, char const *argv[])
 		cout << "Trades:" << endl;
 
 		strategy.show_trade_list();	
-		cout << "==========================================" << endl;
+		cout << "==============================================" << endl;
 	}
+	cout << "File:                  " << input_file << endl;
 	cout << "Start Time:            " << bricks[0].open_time << endl;
 	cout << "Stop Time:             " << bricks.back().close_time << endl;
 	cout << "Period:                " << setprecision(0) << bricks[0].period << endl;
-	cout << "Point Size:            " << setprecision(4) << fixed << bricks[0].point_size << endl;
+	//cout << "Point Size:            " << setprecision(4) << fixed << bricks[0].point_size << endl;
 	cout << "Bricks:                " << setprecision(0) << bricks.size() << endl;
 	cout << "Ticks:                 " << setprecision(0) << ticks << endl;
 	cout << "Pyramid Trades:        " << setprecision(0) << pyramid << endl;
-	cout << "==========================================" << endl;
-	cout << "Total Profit:          " << setprecision(2) << fixed << strategy.total_profit() << " USD" << endl;
+	cout << "==============================================" << endl;
 	cout << "Total Long Positions:  " << setprecision(0) << strategy.total_long_positions() << endl;
 	cout << "Total Short Positions: " << setprecision(0) << strategy.total_short_positions() << endl;
+	cout << "Account begin:         " << setprecision(2) << fixed << account << " USD" << endl;
+	cout << "Account end:           " << setprecision(2) << fixed << ( account + strategy.total_profit() ) << " USD" << endl;
+	cout << "Total Profit:          " << setprecision(2) << fixed << strategy.total_profit() << " USD" << endl;
+	cout << "----------------------------------------------" << endl;
 
-	return 0;
+	// --------------------------------------------------------------------------------------------------------------
+	// Draw chart with qt
+	// --------------------------------------------------------------------------------------------------------------
+	if ( ! show_chart ) {
+		return EXIT_SUCCESS;
+	}
+
+	QApplication app(argc, argv);
+
+	QCandlestickSeries *series = new QCandlestickSeries();
+	series->setName( "Candles" );
+	series->setIncreasingColor( QColor( Qt::green ) );
+	series->setDecreasingColor( QColor( Qt::red ) );
+
+	// QLineSeries *lineseries = new QLineSeries();
+	// lineseries->setName("MovingAverage");
+
+	QStringList categories;
+
+	int i = 0;
+	std::vector<double> brickSteps;
+
+	for ( auto& b : bricks ) {
+
+		brickSteps.push_back( b.close_price );
+
+		UtcTimeStamp ts = UtcTimeStampConvertor::convert( b.close_time );
+
+		QCandlestickSet *set = new QCandlestickSet( ts.getTimeT() );
+		set->setOpen( b.open_price );
+		set->setClose( b.close_price );
+		
+		if ( b.status == RenkoBrick::STATUS::LONG ) {
+			set->setHigh( b.close_price );
+			set->setLow( b.open_price );
+		} else if ( b.status == RenkoBrick::STATUS::SHORT ) {
+			set->setHigh( b.open_price );
+			set->setLow( b.close_price );
+		}
+
+		if ( set ) {
+			// Candle
+			series->append( set );	
+			//categories << QDateTime::fromMSecsSinceEpoch( set->timestamp() ).toString("ss");
+			categories << QString(i);
+
+			// MovingAverage
+			double ma = Math::get_moving_average( brickSteps, 3 );
+			// lineseries->append( QPoint(i, ma) );
+
+			i++;
+		}
+	}
+
+	QChart *chart = new QChart();
+	chart->addSeries( series );
+	// chart->addSeries( lineseries );
+	chart->setTitle( QString( input_file.c_str() ) );
+	chart->setAnimationOptions( QChart::SeriesAnimations );
+	chart->createDefaultAxes();
+
+	QBarCategoryAxis *axisX = qobject_cast<QBarCategoryAxis *>( chart->axes( Qt::Horizontal ).at( 0 ) );
+	axisX->setCategories( categories );
+
+
+	QValueAxis *axisY = qobject_cast<QValueAxis *>( chart->axes( Qt::Vertical ).at( 0 ) );
+	axisY->setMax( axisY->max() * 1.01 );
+	axisY->setMin( axisY->min() * 0.99 );
+
+	chart->legend()->setVisible( false );
+	// chart->legend()->setAlignment( Qt::AlignBottom );
+
+	QChartView *chartView = new QChartView( chart );
+	chartView->setRenderHint( QPainter::Antialiasing );
+
+	QMainWindow window;
+	window.setCentralWidget( chartView );
+	window.resize( 800, 600 );
+	window.setWindowTitle( QApplication::translate( "toplevel", "Strategy Test" ) );
+	window.show();
+
+	return app.exec();
 }

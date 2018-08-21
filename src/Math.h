@@ -248,7 +248,7 @@ namespace IDEFIX {
 		/*!
 		 * Calculate moving average value
 		 * 
-		 * @param const std::vector<double> value_list  The values list
+		 * @param const std::vector<double>  value_list  The values list
 		 * @param const unsigned int         period     How many entries to calculate?
 		 * @param const unsigned int         offset     Begin by offset entry
 		 * @return double

@@ -15,6 +15,7 @@
 #include <quickfix/FieldConvertors.h>
 #include "../src/Math.h"
 #include "../src/indicator/RenkoBrick.h"
+#include "../src/String.h"
 
 using namespace std;
 using namespace FIX;
@@ -39,13 +40,16 @@ int main(int argc, char const *argv[])
 		cout << "Options:" << endl;
 		cout << "\t-o,--out file       \t Output file for renko bricks, defaults to output.txt" << endl;
 		cout << "\t-p,--period double  \t Renko period in pips, default is 10." << endl;
-		cout << "\t-s,--psize  double  \t Point size, defaults to 0.0001." << endl;
+		cout << "\t-ps,--psize double  \t Point size, defaults to 0.0001." << endl;
 		cout << "\t-v,--verbose        \t Show renko brick color output, defaults to false." << endl;
+		cout << "\t-s,--symbol name    \t The symbol name like EUR/USD." << endl;
 		return EXIT_SUCCESS;
 	}
 
 	std::string input_file;
 	std::string output_file = "output.txt";
+	std::string format      = "FXCM";
+	std::string symbol;
 	double renko_period     = 10;
 	double point_size       = 0.0001;
 	bool show_bricks        = false;
@@ -72,17 +76,30 @@ int main(int argc, char const *argv[])
 				cerr << "-p,--period option requires one argument." << endl;
 				return EXIT_FAILURE;
 			}
-		} else if ( ( arg == "-s" ) || ( arg == "--psize" ) ) {
+		} else if ( ( arg == "-ps" ) || ( arg == "--psize" ) ) {
 			if ( i + 1 < argc ) {
 				double tmp = DoubleConvertor::convert( argv[ i+1 ] );
 				if ( tmp > 0 ) {
 					point_size = tmp;
 				} else {
-					cerr << "-s,--psize value needs to be greater than 0." << endl;
+					cerr << "-ps,--psize value needs to be greater than 0." << endl;
 					return EXIT_FAILURE;
 				}
 			} else {
-				cerr << "-s,--psize option requires one argument." << endl;
+				cerr << "-ps,--psize option requires one argument." << endl;
+				return EXIT_FAILURE;
+			}
+		} else if ( ( arg == "-s" ) || ( arg == "--symbol" ) ) {
+			if ( i + 1 < argc ) {
+				symbol = argv[ i + 1 ];
+				str::trim( symbol );
+				if ( format.empty() ) {
+					cerr << "-s,--symbol value needs to be a string." << endl;
+					return EXIT_FAILURE;
+				}
+			} else {
+				cerr << "-s,--symbol option requires on argument." << endl;
+				return EXIT_SUCCESS;
 			}
 		} else if ( ( arg == "-v" ) || ( arg == "--verbose" ) ) {
 			show_bricks = true;
@@ -112,6 +129,9 @@ int main(int argc, char const *argv[])
 	std::vector<RenkoBrick> bricks;
 
 	RenkoBrick current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+	RenkoBrick last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+	// for the very first brick to build
+	RenkoBrick init_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 	// parse tick data to renko
 	// 
@@ -144,57 +164,255 @@ int main(int argc, char const *argv[])
 			cell_i++;
 		}
 
-		// add tick to pool
-		ticks.push_back( tick );
+		if ( tick.datetime != "" && tick.bid > 0 && tick.ask > 0 ) {
+			// add tick to pool
+			ticks.push_back( tick );	
+		} else {
+			cout << "no valid tick" << endl;
+			cout << tick << endl;
+			continue;
+		}
+
+		// get previous brick
+		if ( bricks.size() == 0 ) {		
+			// init first brick
+			if ( init_brick.status == RenkoBrick::STATUS::NOSTATUS && init_brick.volume == 0 ) {
+				init_brick.open_time  = tick.datetime;
+				init_brick.open_price = tick.bid;
+				init_brick.low_price  = tick.bid;
+				init_brick.volume     = 1;
+				init_brick.point_size = point_size;	
+			} else {
+				init_brick.volume++;
+			}
+
+			// make initial brick
+			// add LONG brick
+			if ( init_brick.volume > 1 && tick.bid > init_brick.open_price && Math::get_spread( tick.bid, init_brick.open_price, point_size ) >= renko_period ) {
+				init_brick.diff        = Math::get_spread( tick.bid, init_brick.open_price, point_size );
+				init_brick.status      = RenkoBrick::STATUS::LONG;
+				init_brick.close_price = tick.bid;
+				init_brick.close_time  = tick.datetime;
+
+				if ( init_brick.diff > renko_period ) {
+					init_brick.diff        = renko_period;
+					init_brick.close_price = init_brick.open_price + ( renko_period * point_size );
+				}
+
+				init_brick.high_price  = init_brick.close_price;
+
+				if ( show_bricks ) {
+					cout << "0+LONG  " << init_brick << endl;	
+				}
+
+				bricks.push_back( init_brick );
+				last_brick = init_brick;
+				init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+				line_i++;
+				continue;
+			}
+			// add short brick
+			else if ( init_brick.volume > 1 && tick.bid < init_brick.open_price && Math::get_spread( tick.bid, init_brick.open_price, point_size ) >= renko_period ) {
+				init_brick.diff        = Math::get_spread( tick.bid, init_brick.open_price, point_size );
+				init_brick.status      = RenkoBrick::STATUS::SHORT;
+				init_brick.close_price = tick.bid;
+				init_brick.close_time  = tick.datetime;
+
+				if ( init_brick.diff > renko_period ) {
+					init_brick.diff        = renko_period;
+					init_brick.close_price = init_brick.open_price - ( renko_period * point_size );
+				}
+
+				init_brick.high_price  = init_brick.open_price;
+				init_brick.low_price   = init_brick.close_price;
+
+				if ( show_bricks ) {
+					cout << "0+SHORT " << init_brick << endl;	
+				}
+				
+				bricks.push_back( init_brick );
+				last_brick = init_brick;
+				init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+				line_i++;
+				continue;
+			}
+		} else {
+			last_brick = bricks.back();
+		}
 
 		// renko calculation
 		if ( current_brick.status == RenkoBrick::STATUS::NOSTATUS && current_brick.volume == 0 ) {
-			current_brick.open_time  = tick.datetime;
-			current_brick.open_price = tick.bid;
-			current_brick.low_price  = tick.bid;			
+			current_brick.open_time  = last_brick.close_time;
+			current_brick.open_price = last_brick.close_price;
+			current_brick.low_price  = last_brick.close_price;
 			current_brick.volume     = 1;
 			current_brick.point_size = point_size;
-		} else {
-			// increase volume
-			current_brick.volume++;
-		}
-
-		// check if distance between open_price and current tick price is 3 pips
-		const double pip_distance = Math::get_spread( tick.bid, current_brick.open_price, point_size );
-
-		// calculate high and low of renko brick
-		current_brick.high_price = std::max( current_brick.high_price, tick.bid );
-		current_brick.low_price  = std::min( current_brick.low_price, tick.bid );
-
-		if ( pip_distance >= renko_period ) {
-			current_brick.diff        = pip_distance;
-			current_brick.close_price = tick.bid;
-			current_brick.close_time  = tick.datetime;
-			current_brick.status      = current_brick.open_price < current_brick.close_price ? RenkoBrick::STATUS::LONG : RenkoBrick::STATUS::SHORT;
-
-			bricks.push_back( current_brick );
-
-			if ( show_bricks ) {
-				cout << current_brick << endl;	
-			}
-			
-			// reset current brick
-			current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 		} 
+
+		// increase volume
+		current_brick.volume++;
+
+		// make brick
+		switch( last_brick.status ) {
+			// last brick is LONG 
+			case RenkoBrick::STATUS::LONG:
+				// open new long brick
+				if ( tick.bid > last_brick.close_price && Math::get_spread( tick.bid, last_brick.close_price, point_size ) >= renko_period ) {
+					current_brick.open_time   = last_brick.close_time;
+					current_brick.open_price  = last_brick.close_price;
+					current_brick.diff        = Math::get_spread( tick.bid, last_brick.close_price, point_size );
+					current_brick.close_price = tick.bid;
+					current_brick.close_time  = tick.datetime;
+					current_brick.status      = RenkoBrick::STATUS::LONG;
+
+					// correct price and diff if it is != renko_period
+					if ( current_brick.diff > renko_period ) {
+						current_brick.close_price = last_brick.close_price + ( renko_period * point_size );
+						current_brick.diff        = renko_period;
+					}
+
+					current_brick.low_price  = current_brick.open_price;
+					current_brick.high_price = current_brick.close_price;
+
+					if ( show_bricks ) {
+						cout << "L+LONG  " << current_brick << endl;	
+					}
+					
+					// add brick to stack
+					bricks.push_back( current_brick );
+					//last_brick = current_brick;
+					// reset current and last brick
+					current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+				}
+				// open new short brick
+				else if ( tick.bid < last_brick.open_price && Math::get_spread( tick.bid, last_brick.open_price, point_size ) >= renko_period ) {
+					current_brick.open_time   = last_brick.open_time;
+					current_brick.open_price  = last_brick.open_price;
+					current_brick.diff        = Math::get_spread( tick.bid, last_brick.open_price, point_size );
+					current_brick.close_price = tick.bid;
+					current_brick.close_time  = tick.datetime;
+					current_brick.status      = RenkoBrick::STATUS::SHORT;
+
+					if ( current_brick.diff > renko_period ) {
+						current_brick.close_price = last_brick.open_price - ( renko_period * point_size );
+						current_brick.diff        = renko_period;
+					}
+
+					current_brick.low_price  = current_brick.close_price;
+					current_brick.high_price = current_brick.open_price;
+
+					if ( show_bricks ) {
+						cout << "L+SHORT " << current_brick << endl;
+					}
+
+					// add brick to stack
+					bricks.push_back( current_brick );
+					//last_brick = current_brick;
+					// reset current and last brick
+					current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+				}
+				break;
+			// last brick is SHORT
+			case RenkoBrick::STATUS::SHORT:
+				// open new short brick
+				if ( tick.bid < last_brick.close_price && Math::get_spread( tick.bid, last_brick.close_price, point_size ) >= renko_period ) {
+					current_brick.open_time   = last_brick.close_time;
+					current_brick.open_price  = last_brick.close_price;
+					current_brick.diff        = Math::get_spread( tick.bid, last_brick.close_price, point_size );
+					current_brick.close_price = tick.bid;
+					current_brick.close_time  = tick.datetime;
+					current_brick.status      = RenkoBrick::STATUS::SHORT;
+
+					if ( current_brick.diff > renko_period ) {
+						current_brick.close_price = last_brick.close_price - ( renko_period * point_size );
+						current_brick.diff        = renko_period;
+					}
+
+					current_brick.low_price  = current_brick.close_price;
+					current_brick.high_price = current_brick.open_price;
+
+					if ( show_bricks ) {
+						cout << "S+SHORT " << current_brick << endl;
+					}
+
+					// add brick to stack
+					bricks.push_back( current_brick );
+					//last_brick = current_brick;
+					// reset current and last brick
+					current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+				}
+				// open new long brick
+				else if ( tick.bid > last_brick.open_price && Math::get_spread( tick.bid, last_brick.open_price, point_size ) >= renko_period ) {
+					current_brick.open_time   = last_brick.open_time;
+					current_brick.open_price  = last_brick.open_price;
+					current_brick.diff        = Math::get_spread( tick.bid, last_brick.open_price, point_size );
+					current_brick.close_price = tick.bid;
+					current_brick.close_time  = tick.datetime;
+					current_brick.status      = RenkoBrick::STATUS::LONG;
+
+					if ( current_brick.diff > renko_period ) {
+						current_brick.close_price = last_brick.open_price + ( renko_period * point_size );
+						current_brick.diff        = renko_period;
+					}
+
+					current_brick.low_price = current_brick.open_price;
+					current_brick.high_price = current_brick.close_price;
+
+					if ( show_bricks ) {
+						cout << "S+LONG  " << current_brick << endl;
+					}
+
+					// add brick to stack
+					bricks.push_back( current_brick );
+					//last_brick = current_brick;
+					// reset current and last brick
+					current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+				}
+				break;
+			case RenkoBrick::STATUS::NOSTATUS:
+				// do nothing
+				break;
+		}
 
 		line_i++;
 	}
 
-	// write output
-	ofile << "Status,OpenTime,Open,High,Low,Close,CloseTime,Period,Volume,PointSize" << endl;
+	cout << "Write to file..." << endl;
+
+	// write output	
+	// FXCM
+	ofile << "# Status,OpenTime,Open,High,Low,Close,CloseTime,Period,Volume,PointSize" << endl;		
+	
 	for( auto& b : bricks ) {
+
+		if ( b.open_time == "" || b.open_price == 0 || b.close_time == "" || b.close_price == 0 ) {
+			cout << "error brick " << b << endl;
+			continue;
+		}
+
+		// FXCM
+		// convert timestamps from 08/05/2018 21:03:56.102 to yyyymmdd-H:i:s.u
+		std::vector<std::string> ot = str::explode( b.open_time, ' ' );
+		std::vector<std::string> ott = str::explode( ot[0], '/' );
+		std::stringstream open_time;
+		open_time << ott[2] << ott[0] << ott[1] << "-" << ot[1];
+
+		std::vector<std::string> ct = str::explode( b.close_time, ' ' );
+		std::vector<std::string> ctt = str::explode( ct[0], '/' );
+		std::stringstream close_time;
+		close_time << ctt[2] << ctt[0] << ctt[1] << "-" << ct[1];
+
 		ofile << b.status << ",";
-		ofile << b.open_time << ",";
+		ofile << open_time.str() << ",";
 		ofile << b.open_price << ",";
 		ofile << b.high_price << ",";
 		ofile << b.low_price << ",";
 		ofile << b.close_price << ",";
-		ofile << b.close_time << ",";
+		ofile << close_time.str() << ",";
 		ofile << b.diff << ",";
 		ofile << b.volume << ",";
 		ofile << b.point_size << endl;
