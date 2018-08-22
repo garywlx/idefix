@@ -1,11 +1,12 @@
 /*!
  * Author: Arne Gockeln, www.arnegockeln.com
- * Version: 1.0
+ * Version: 1.5
  * Description: Requires input file from https://github.com/fxcm/FXCMTickData
+ * Followed this tutorial about renko charts https://www.tradingview.com/wiki/Renko_Charts
  */
 
 #define MAJOR 1
-#define MINOR 0
+#define MINOR 5
 
 #include <iostream>
 #include <fstream>
@@ -16,6 +17,7 @@
 #include "../src/Math.h"
 #include "../src/indicator/RenkoBrick.h"
 #include "../src/String.h"
+#include "../src/indicator/SimpleMovingAverage.h"
 
 using namespace std;
 using namespace FIX;
@@ -43,6 +45,7 @@ int main(int argc, char const *argv[])
 		cout << "\t-ps,--psize double  \t Point size, defaults to 0.0001." << endl;
 		cout << "\t-v,--verbose        \t Show renko brick color output, defaults to false." << endl;
 		cout << "\t-s,--symbol name    \t The symbol name like EUR/USD." << endl;
+		cout << "\t-f,--format name    \t A format name like FXCM|anychart. Default is FXCM." << endl;
 		return EXIT_SUCCESS;
 	}
 
@@ -93,13 +96,25 @@ int main(int argc, char const *argv[])
 			if ( i + 1 < argc ) {
 				symbol = argv[ i + 1 ];
 				str::trim( symbol );
-				if ( format.empty() ) {
+				if ( symbol.empty() ) {
 					cerr << "-s,--symbol value needs to be a string." << endl;
 					return EXIT_FAILURE;
 				}
 			} else {
-				cerr << "-s,--symbol option requires on argument." << endl;
-				return EXIT_SUCCESS;
+				cerr << "-s,--symbol option requires one argument." << endl;
+				return EXIT_FAILURE;
+			}
+		} else if ( ( arg == "-f" ) || ( arg == "--format" ) ) {
+			if ( i + 1 < argc ) {
+				format = argv[ i + 1 ];
+				str::trim( format );
+				if ( format.empty() ) {
+					cerr << "-f,--format value needs to be a string." << endl;
+					return EXIT_FAILURE;
+				}
+			} else {
+				cerr << "-f,--format option requires one argument." << endl;
+				return EXIT_FAILURE;
 			}
 		} else if ( ( arg == "-v" ) || ( arg == "--verbose" ) ) {
 			show_bricks = true;
@@ -134,7 +149,6 @@ int main(int argc, char const *argv[])
 	RenkoBrick init_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 	// parse tick data to renko
-	// 
 	int line_i = 0;
 	std::string line;
 	while ( std::getline( ifile, line ) ) {
@@ -385,8 +399,17 @@ int main(int argc, char const *argv[])
 
 	// write output	
 	// FXCM
-	ofile << "# Status,OpenTime,Open,High,Low,Close,CloseTime,Period,Volume,PointSize" << endl;		
+	if ( format == "FXCM" || format == "fxcm" ) {
+		ofile << "# Status,OpenTime,Open,High,Low,Close,CloseTime,Period,Volume,PointSize" << endl;			
+	} else if ( format == "anychart" ) {
+		ofile << "var seriesfile = [";
+	}
 	
+	int file_line = 0;
+	int brick_count = bricks.size();
+	SimpleMovingAverage sma5( 5 );
+	SimpleMovingAverage sma10( 10 );
+
 	for( auto& b : bricks ) {
 
 		if ( b.open_time == "" || b.open_price == 0 || b.close_time == "" || b.close_price == 0 ) {
@@ -394,28 +417,61 @@ int main(int argc, char const *argv[])
 			continue;
 		}
 
-		// FXCM
-		// convert timestamps from 08/05/2018 21:03:56.102 to yyyymmdd-H:i:s.u
-		std::vector<std::string> ot = str::explode( b.open_time, ' ' );
-		std::vector<std::string> ott = str::explode( ot[0], '/' );
-		std::stringstream open_time;
-		open_time << ott[2] << ott[0] << ott[1] << "-" << ot[1];
+		// Add SimpleMovingAverage value
+		sma5.add( ( b.open_price + b.high_price + b.low_price + b.close_price ) / 4 );
+		sma10.add( ( b.open_price + b.high_price + b.low_price + b.close_price ) / 4 );
 
-		std::vector<std::string> ct = str::explode( b.close_time, ' ' );
-		std::vector<std::string> ctt = str::explode( ct[0], '/' );
-		std::stringstream close_time;
-		close_time << ctt[2] << ctt[0] << ctt[1] << "-" << ct[1];
+		if ( format == "anychart" ) {
+			// ANYCHART
+			std::vector<std::string> ct = str::explode( b.close_time, ' ' );
+			std::vector<std::string> ctt = str::explode( ct[0], '/' );
+			std::stringstream close_time;
+			close_time << ctt[2] << "-" << ctt[0] << "-" << ctt[1] << " " << ct[1];
 
-		ofile << b.status << ",";
-		ofile << open_time.str() << ",";
-		ofile << b.open_price << ",";
-		ofile << b.high_price << ",";
-		ofile << b.low_price << ",";
-		ofile << b.close_price << ",";
-		ofile << close_time.str() << ",";
-		ofile << b.diff << ",";
-		ofile << b.volume << ",";
-		ofile << b.point_size << endl;
+			ofile << "['" << close_time.str() << "',";
+			ofile << b.open_price << ",";
+			ofile << b.high_price << ",";
+			ofile << b.low_price << ",";
+			ofile << b.close_price << ",";
+			ofile << b.volume << ",";
+			ofile << sma5 << ",";
+			ofile << sma10 << "]";
+
+			if ( file_line + 1 < brick_count ) {
+				ofile << ",";
+				ofile << endl;
+			}
+
+		} else if ( format == "FXCM" || format == "fxcm" ) {
+			// FXCM
+			// convert timestamps from 08/05/2018 21:03:56.102 to yyyymmdd-H:i:s.u
+			std::vector<std::string> ot = str::explode( b.open_time, ' ' );
+			std::vector<std::string> ott = str::explode( ot[0], '/' );
+			std::stringstream open_time;
+			open_time << ott[2] << "-" << ott[0] << "-" << ott[1] << " " << ot[1];
+
+			std::vector<std::string> ct = str::explode( b.close_time, ' ' );
+			std::vector<std::string> ctt = str::explode( ct[0], '/' );
+			std::stringstream close_time;
+			close_time << ctt[2] << "-" << ctt[0] << "-" << ctt[1] << " " << ct[1];
+
+			ofile << b.status << ",";
+			ofile << open_time.str() << ",";
+			ofile << b.open_price << ",";
+			ofile << b.high_price << ",";
+			ofile << b.low_price << ",";
+			ofile << b.close_price << ",";
+			ofile << close_time.str() << ",";
+			ofile << b.diff << ",";
+			ofile << b.volume << ",";
+			ofile << b.point_size << endl;
+		}
+
+		file_line++;
+	}
+
+	if ( format == "anychart" ) {
+		ofile << "]";
 	}
 	ofile.close();
 	

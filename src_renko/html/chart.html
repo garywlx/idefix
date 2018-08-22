@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>IDEFIX</title>
+	<link rel="stylesheet" type="text/css" href="./anychart-ui.min.css"/>
+	<style type="text/css">
+	html, body, #container {
+	    width: 100%;
+	    height: 100%;
+	    margin: 0;
+	    padding: 0;
+	}
+	</style>
+	<script type="text/javascript" src="./anychart-base.min.js"></script>
+	<script type="text/javascript" src="./anychart-stock.min.js"></script>
+	<script type="text/javascript" src="./anychart-ui.min.js"></script>
+	<script type="text/javascript" src="./anychart-annotations.min.js"></script>
+	<script type="text/javascript" src="./series.js"></script>
+	<script type="text/javascript" src="./tradeseries.js"></script>
+	<script type="text/javascript">
+		anychart.onDocumentReady(function () {
+			table = anychart.data.table();
+			table.addData( seriesfile );
+
+			// mapping the data
+			mapping = table.mapAs();
+			mapping.addField('open', 1, 'first');
+			mapping.addField('high', 2, 'max');
+			mapping.addField('low', 3, 'min');
+			mapping.addField('close', 4, 'last');
+			mapping.addField('value', 4, 'last');
+			
+			// moving average 5 mapping
+			var sma5_mapping = table.mapAs();
+			sma5_mapping.addField('x', 0, 'first');
+			sma5_mapping.addField('value', 6, 'last');
+
+			// moving average 10 mapping
+			var sma10_mapping = table.mapAs();
+			sma10_mapping.addField('x', 0, 'first');
+			sma10_mapping.addField('value', 7, 'last');
+
+			// volume
+			var volume_mapping = table.mapAs();
+			volume_mapping.addField('x', 0, 'first');
+			volume_mapping.addField('value', 5, 'last');
+
+			// defining the chart type
+			var chart = anychart.stock();
+			chart.title("IDEFIX > EUR/USD");
+
+			// create series 
+			var renko_chart = chart.plot(0).candlestick( mapping );
+			renko_chart.name('Renko');
+
+			// select last 100 candles
+			chart.selectRange( seriesfile[ seriesfile.length - 100 ][0], seriesfile[ seriesfile.length - 1 ][0] );
+
+			renko_chart.risingStroke("#67B78B");
+			renko_chart.risingFill("#67B78B");
+			renko_chart.fallingStroke("#DF4F62");
+			renko_chart.fallingFill("#DF4F62");
+
+			// volume
+			var volume = chart.scroller().column( volume_mapping );
+			volume.name('Ticks');
+
+			// moving average 5
+			var sma5 = chart.plot( 0 ).line( sma5_mapping );
+			sma5.stroke('#990000');
+			sma5.name('SMA(5)');
+
+			// moving average 10
+			var sma10 = chart.plot( 0 ).line( sma10_mapping );
+			sma10.stroke('#009900');
+			sma10.name('SMA(10)');
+
+			// trades
+			var tradeseries_length = tradeseries.length;
+			if ( tradeseries_length ) {
+				var annotations = chart.plot(0).annotations();
+
+				for(var i = 0; i < tradeseries_length; i++ ) {
+					// open
+					if ( tradeseries[i][5] == "open" ) {
+
+						annotations.marker({
+							xAnchor: tradeseries[i][0],
+							valueAnchor: tradeseries[i][1],
+							size: 10,
+							offsetY: 10,
+							markerType: "arrowUp",
+							stroke: "#3099F5",
+							fill: "#3099F5"
+						});
+
+					} else {
+
+						annotations.marker({
+							xAnchor: tradeseries[i][0],
+							valueAnchor: tradeseries[i][2],
+							size: 10,
+							offsetY: -20,
+							markerType: "arrowDown",
+							stroke: "#F10C2A",
+							fill: "#F10C2A"
+						});
+
+					}
+					
+				}
+			}
+			
+			// draw chart
+			chart.container('container').draw();
+		});
+	</script>
+</head>
+<body>
+	<div id="container"></div>
+</body>
+</html>

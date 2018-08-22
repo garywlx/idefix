@@ -33,12 +33,16 @@ Die Volatilität kann bei der **Zeitüberlagerung** am höher ausfallen.
 //@version=3
 strategy("IDEFIX", overlay=true, pyramiding=1, initial_capital=10000, currency=currency.EUR)
 
-renko_tickerid = renko(tickerid, "close", "ATR", 3)
+renko_tickerid = renko(tickerid, "close", "Traditional", 0.0003)
 rclose = security(renko_tickerid, period, close)
 ropen = security(renko_tickerid, period, open)
-last_ma = sma(close, 5)
+sma_fast = sma( ( open + high + low + close ) / 4, 5)
+sma_slow = sma( ( open + high + low + close ) / 4, 10)
+
+last_ma = sma_fast
 
 plot(last_ma, title="SignalMA", color=#0000ff, linewidth=3)
+plot(sma_slow, title="Slow SMA 10", color=#ff0000, linewidth=3)
 
 brick_1_long = ropen[1] < rclose[1]
 brick_long = ropen < rclose
@@ -46,7 +50,7 @@ brick_above_ma = ropen > last_ma and rclose > last_ma
 brick_below_ma = ropen < last_ma and rclose < last_ma
 
 // order conditions
-ts = timestamp(syminfo.timezone, 2018, 8, 16, 0, 0)
+ts = timestamp(syminfo.timezone, 2018, 8, 19, 0, 0)
 // entry signal long
 // brick_1 == SHORT
 // brick   == LONG
@@ -58,6 +62,7 @@ ts = timestamp(syminfo.timezone, 2018, 8, 16, 0, 0)
 enterLong = not brick_1_long and brick_long
 if ( not enterLong )
     enterLong = brick_1_long and brick_long
+    
 if ( enterLong )
     enterLong = brick_above_ma
 // exit signal long
@@ -67,6 +72,7 @@ if ( enterLong )
 exitLong = false
 if ( strategy.position_size > 0 )
     exitLong = brick_1_long and not brick_long
+    
 if ( exitLong )
     exitLong = rclose < last_ma
 // entry signal short
@@ -89,6 +95,7 @@ if ( enterShort )
 exitShort = false
 if ( strategy.position_size > 0 )
     exitShort = not brick_1_long and brick_long
+    
 if ( exitShort )
     exitShort = rclose > last_ma
 
@@ -105,6 +112,7 @@ strategy.close(id="sell", when= exitShort )
 // exit market
 if ( hour == 22 )
     strategy.close_all()
+
 
 ```
 

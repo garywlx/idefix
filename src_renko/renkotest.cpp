@@ -3,24 +3,11 @@
 #include <sstream>
 #include <vector>
 #include "../src/indicator/RenkoBrick.h"
+#include "../src/indicator/SimpleMovingAverage.h"
 #include "../src/Math.h"
 #include "../src/Operators.h"
 #include "../src/Console.h"
 #include <quickfix/FieldConvertors.h>
-
-#include <QApplication>
-#include <QtCharts/QBarCategoryAxis>
-#include <QtCharts/QCandlestickSeries>
-#include <QtCharts/QLineSeries>
-#include <QtCharts/QCandlestickSet>
-#include <QtCharts/QChartView>
-#include <QtCharts/QValueAxis>
-#include <QtCore/QDateTime>
-#include <QtWidgets/QApplication>
-#include <QtWidgets/QMainWindow>
-#include <QString>
-
-QT_CHARTS_USE_NAMESPACE
 
 using namespace std;
 using namespace IDEFIX;
@@ -52,7 +39,7 @@ inline std::ostream& operator<<(std::ostream& out, const Position& pos) {
 }
 
 class Strategy {
-private:
+protected:
 	std::vector<RenkoBrick> m_bricks;
 	std::vector<Position> m_positions;
 	int m_open_long;
@@ -64,10 +51,14 @@ private:
 	int m_max_pyramid;
 	bool m_verbose;
 
+	// trade log
+	ofstream m_ofile;
+	bool m_trade_log;
+
 public:
 	Strategy(const int pyramid, const bool verbose = false): 
 	  m_open_short(0), m_open_long(0), m_total_short_positions(0), 
-	  m_total_long_positions(0), m_max_pyramid(pyramid), m_verbose(verbose) {
+	  m_total_long_positions(0), m_max_pyramid(pyramid), m_verbose(verbose), m_trade_log(false) {
 		registerConsole();
 	}
 
@@ -112,161 +103,275 @@ public:
 
 		pnl = ( ( pips * ( pos.qty / 100000 ) ) * pip_value );
 
+		console()->info( "pnl {:f}", pnl );
+
 		return pnl;
 	}
 
-	inline void onBrick(const RenkoBrick& brick) {
-		// add brick to brick stack
-		m_bricks.push_back( brick );
+	virtual void onBrick(const RenkoBrick& brick) = 0;
 
-		// get previous brick
-		if ( m_bricks.size() < 2 ) {
-			if ( m_verbose ) {
-				cout << "Not enough bricks." << endl;	
+	/*!
+	 * Close position
+	 * 
+	 * @param status [description]
+	 * @param brick  [description]
+	 */
+	inline void close_position(const RenkoBrick::STATUS status, const RenkoBrick& brick) {
+		for ( auto& pos : m_positions ) {
+			if ( pos.direction == status && pos.status == Position::STATUS::OPEN ) {
+				// set values
+				pos.close_price = brick.close_price;
+				pos.close_time  = brick.close_time;
+
+				// calculate profit						
+				pos.profit = profit(pos, brick);
+
+				// set status
+				pos.status = Position::STATUS::CLOSED;
+
+				if ( status == RenkoBrick::STATUS::LONG ) {
+
+					console()->info( "exit long position" );
+
+					m_open_long--;
+					if ( m_open_long < 0 ) {
+						m_open_long = 0;
+					}
+				} else if ( status == RenkoBrick::STATUS::SHORT ) {
+
+					console()->info( "exit short position" );
+
+					m_open_short--;
+					if ( m_open_long < 0 ) {
+						m_open_short = 0;
+					}
+				}
+
+				add_tradelog( pos );
 			}
+		}
+	}
+
+	/*!
+	 * Open position
+	 * 
+	 * @param direction [description]
+	 * @param brick     [description]
+	 * @param qty       [description]
+	 */
+	inline void open_position(const RenkoBrick::STATUS direction, const RenkoBrick& brick, const double qty) {
+		Position pos;
+		pos.open_time  = brick.close_time;
+		pos.open_price = brick.close_price;
+		pos.profit     = 0;
+		pos.direction  = direction;
+		pos.status     = Position::STATUS::OPEN;
+		pos.qty        = qty;
+
+		m_positions.push_back( pos );
+		if ( pos.direction == RenkoBrick::STATUS::LONG ) {
+
+			console()->info( "open long position" );
+
+			m_open_long++;
+			m_total_long_positions++;
+		} else {
+
+			console()->info( "open short position" );
+
+			m_open_short++;
+			m_total_short_positions++;
+		}
+
+		add_tradelog( pos );
+	}
+
+	/*!
+	 * Begin trade log output
+	 */
+	inline void begin_tradelog() {
+		if ( ! m_trade_log ) {
 			return;
 		}
 
-		auto brick_it = m_bricks.rbegin();
-		brick_it += 1;
-		RenkoBrick brick_1 = *brick_it;
+		m_ofile << "var tradeseries = [";
+	}
 
-		// output brick
-		if ( m_verbose ) {
-			cout << "BRICK " << brick << endl;	
-		}		
+	/*!
+	 * Add trade log line
+	 * 
+	 * @param const Position& pos Position reference.
+	 */
+	inline void add_tradelog(const Position& pos) {
+		if ( ! m_trade_log ) {
+			return;
+		}
+
+		m_ofile << "[";
+		m_ofile << "'" << ( pos.status == Position::STATUS::OPEN ? pos.open_time : pos.close_time ) << "',";
+		m_ofile << std::setprecision(5) << fixed << pos.open_price << ",";
+		m_ofile << std::setprecision(5) << fixed << pos.close_price << ",";
+		m_ofile << std::setprecision(0) << pos.qty << ",";
+		m_ofile << std::setprecision(2) << fixed << pos.profit << ",";
+		m_ofile << "'" << ( pos.status == Position::STATUS::OPEN ? "open" : "close" ) << "',";
+		m_ofile << "'" << ( pos.direction == RenkoBrick::STATUS::LONG ? "buy" : "sell" ) << "'";
+		m_ofile << "]," << endl;
+	}
+
+	/*!
+	 * End trade log output
+	 */
+	inline void end_tradelog() {
+		if ( ! m_trade_log ) {
+			return;
+		}
+
+		m_ofile << "];" << endl;
+	}
+};
+
+class RenkoStrategy: public Strategy {
+private:
+	SimpleMovingAverage m_sma5;
+	// SimpleMovingAverage m_sma10;
+
+public:
+	RenkoStrategy(const double pyramid, const bool verbose, const std::string output_file): Strategy(pyramid, verbose) {
+		m_sma5.set_period( 5 );
+		// m_sma10 = new SimpleMovingAverage( 10 );
 		
-		std::string open_msg;
-		// STRATEGY LOGIC
-		if ( ! above( m_open_long, m_max_pyramid ) ) {
-			// we have no open long positions
-			// entry signal long
-			// brick_1 == SHORT
-			// brick   == LONG					
-			bool open_buy = equals( brick_1.status, RenkoBrick::STATUS::SHORT ) && equals( brick.status, RenkoBrick::STATUS::LONG );
-			open_msg = "b1 == SHORT && b0 == LONG";
-			// OR
-			// brick_1 == LONG
-			// brick   == LONG
-			if ( ! open_buy ) {
-				open_buy = equals( brick_1.status, RenkoBrick::STATUS::LONG ) && equals( brick.status, RenkoBrick::STATUS::LONG );
-				open_msg = "b1 == LONG  && b0 == LONG";
-			} 
-			// brick > last_ma
-			if ( open_buy ) {
-				Position pos;
-				pos.open_time  = brick.close_time;
-				pos.open_price = brick.close_price;
-				pos.profit     = 0;
-				pos.direction  = RenkoBrick::STATUS::LONG;
-				pos.status     = Position::STATUS::OPEN;
-				pos.qty        = 100000; // 1 lot
-
-				m_positions.push_back( pos );
-				
-				if ( m_verbose ) {
-					console()->warn( "BUY  {}", open_msg );	
-				}
-				
-				m_open_long += 1;
-				m_total_long_positions += 1;
-			}
-		} else {
-			// we have open long positions, check for closing
-			// exit signal long
-			// brick_1 == LONG
-			// brick   == SHORT
-			bool exit_buy = equals( brick_1.status, RenkoBrick::STATUS::LONG ) && equals( brick.status, RenkoBrick::STATUS::SHORT );
-			// brick.close_price < last_ma
-			if ( exit_buy ) {
-				for ( auto& pos : m_positions ) {
-					if ( pos.direction == RenkoBrick::STATUS::LONG && pos.status == Position::STATUS::OPEN ) {
-						// set values
-						pos.close_price = brick.close_price;
-						pos.close_time  = brick.close_time;
-
-						// calculate profit						
-						pos.profit = profit(pos, brick);
-
-						// set status
-						pos.status = Position::STATUS::CLOSED;
-
-						if ( m_verbose ) {
-							console()->warn("EXIT BUY POS b1 == LONG && b0 == SHORT PnL: {:.2f}", pos.profit );	
-						}
-					}
-				}
-
-				m_open_long = 0;
+		// open output file
+		if ( ! output_file.empty() ) {
+			m_ofile.open( output_file, std::ofstream::out | std::ofstream::trunc );
+			
+			if ( ! m_ofile.good() ) {
+				cerr << "ERROR: output file has an error!" << endl;
+				m_ofile.close();
+			} else {
+				m_trade_log = true;
 			}
 		}
+	}
 
-		if ( ! above( m_open_short, m_max_pyramid ) ) {
-			// we have no short positions	
-			std::string open_msg;
-			// entry signal short
-			// brick_1 == LONG
-			// brick   == SHORT
-			bool open_sell = equals( brick_1.status, RenkoBrick::STATUS::LONG ) && equals( brick.status, RenkoBrick::STATUS::SHORT );
-			open_msg = "b1 == LONG && b0 == SHORT";
-			// OR
-			// brick_1 == SHORT
-			// brick   == SHORT
-			if ( ! open_sell ) {
-				open_sell = equals( brick_1.status, RenkoBrick::STATUS::SHORT ) && equals( brick.status, RenkoBrick::STATUS::SHORT );
-				open_msg = "b1 == SHORT && b0 == SHORT";
-			} 
-			// 
-			// brick <= last_ma
-			if ( open_sell ) {
+	void onBrick(const RenkoBrick& brick) {
 
-				Position pos;
-				pos.open_time  = brick.close_time;
-				pos.open_price = brick.close_price;
-				pos.profit     = 0;
-				pos.direction  = RenkoBrick::STATUS::SHORT;
-				pos.status     = Position::STATUS::OPEN;
-				pos.qty        = 100000;
-
-				m_positions.push_back( pos );
-
-				if ( m_verbose ) {
-					console()->warn( "SELL {}", open_msg );	
-				}
-				
-				m_open_short += 1;
-				m_total_short_positions += 1;
-			}
-		} else {
-			// we have short positions, check for closing
-			// exit singal short
-			// brick_1 == SHORT
-			// brick   == LONG
-			bool exit_sell = equals( brick_1.status, RenkoBrick::STATUS::SHORT ) && equals( brick.status, RenkoBrick::STATUS::LONG );
-			// brick.close_price > last_ma
-			if ( exit_sell ) {
-
-				for ( auto& pos : m_positions ) {
-					if ( pos.direction == RenkoBrick::STATUS::SHORT && pos.status == Position::STATUS::OPEN ) {
-						// set values
-						pos.close_price = brick.close_price;
-						pos.close_time  = brick.close_time;
-
-						// calculate profit						
-						pos.profit = profit(pos, brick);
-
-						// set status
-						pos.status = Position::STATUS::CLOSED;
-
-						if ( m_verbose ) {
-							console()->warn( "EXIT SHORT POS b1 == SHORT && b0 == LONG PnL: {:.2f}", pos.profit );	
-						}
-					}
-				}
-
-				m_open_short = 0;
-			}
+		if ( m_bricks.size() == 0 ) {
+			m_bricks.push_back( brick );
+			m_sma5.add( ( brick.open_price + brick.high_price + brick.low_price + brick.close_price ) / 4 );
+			// m_sma10.add( ( brick.open_price + brick.high_price + brick.low_price + brick.close_price ) / 4 );
+			return;
 		}
+
+		// calculate smas
+		m_sma5.add( ( brick.open_price + brick.high_price + brick.low_price + brick.close_price ) / 4 );
+		// m_sma10.add( ( brick.open_price + brick.high_price + brick.low_price + brick.close_price ) / 4 );
+
+		// get last brick
+		auto last_brick = m_bricks.back();
+		// last brick is long?
+		bool brick_1_long = last_brick.status == RenkoBrick::STATUS::LONG;
+		// current brick is long?
+		bool brick_long = brick.status == RenkoBrick::STATUS::LONG;
+
+		// get values for moving average
+		std::vector<double> value_list;
+		for( auto& b : m_bricks ) {
+			value_list.push_back( ( b.open_price + b.high_price + b.low_price + b.close_price ) / 4 );
+		}
+
+		// fast moving average
+		double last_ma = m_sma5.value();
+		// double slow_ma = m_sma10.value();
+
+		// is current brick above last_ma?
+		bool brick_above_ma = brick.open_price > last_ma && brick.close_price > last_ma;
+		// is current brick below last ma?
+		bool brick_below_ma = brick.open_price < last_ma && brick.close_price < last_ma;
+
+		// enter long
+		// brick_1 == SHORT
+		// brick   == LONG
+		// OR
+		// brick_1 == LONG
+		// brick   == LONG
+		// 
+		// brick > last_ma
+		bool enter_long = ! brick_1_long && brick_long;
+		if ( ! enter_long ) {
+			enter_long = brick_1_long && brick_long;
+		}
+		if ( enter_long ) {
+			enter_long = brick_above_ma;
+		}
+
+		// exit long
+		// brick_1 == LONG
+		// brick   == SHORT
+		// brick.close < last_ma
+		bool exit_long = false;
+		if ( m_open_long > 0 ) {
+			exit_long = brick_1_long && ! brick_long;
+		}
+		if ( exit_long ) {
+			exit_long = brick.close_price < last_ma;
+		}
+		
+		// enter short
+		// brick_1 == LONG
+		// brick   == SHORT
+		// OR
+		// brick_1 == SHORT
+		// brick   == SHORT
+		// 
+		// brick < last_ma
+		bool enter_short = brick_1_long && ! brick_long;
+		if ( ! enter_short ) {
+			enter_short = ! brick_1_long && ! brick_long;
+		}
+		if ( enter_short ) {
+			enter_short = brick_below_ma;
+		}
+
+		// exit short
+		bool exit_short = false;
+		if ( m_open_short > 0 ) {
+			exit_short = ! brick_1_long && brick_long;
+		}
+		if ( exit_short ) {
+			exit_short = brick.close_price > last_ma;
+		}
+
+		// Risk Management
+		// Calculate position size
+		// 
+		// Set max drawdown 25% of equity
+		// 
+		
+		// open positions
+		// buy
+		if ( enter_long && m_open_long == 0 ) {
+			open_position( RenkoBrick::STATUS::LONG, brick, 100000 );
+		}
+		// sell
+		// 
+		if ( enter_short && m_open_short == 0 ) {
+			open_position( RenkoBrick::STATUS::SHORT, brick, 100000 );
+		}
+
+		// close positions
+		// long
+		// 
+		if ( exit_long ) {
+			close_position( RenkoBrick::STATUS::LONG, brick );
+		}
+		// short
+		// 
+		if ( exit_short ) {
+			close_position( RenkoBrick::STATUS::SHORT, brick );
+		}
+
+		// add brick to list
+		m_bricks.push_back( brick );
 	}
 };
 
@@ -287,6 +392,8 @@ int main(int argc, char *argv[])
 		cerr << "\t-r,--risk double    \t Risk per trade in percent of free margin. Default is 1%." << endl;
 		cerr << "\t-q,--qty double     \t Quantity for new positions. Default is 100000." << endl;
 		cerr << "\t-c,--chart          \t Show chart, desktop only." << endl;
+		cerr << "\t-o,--out file       \t Write trades to file." << endl;
+
 		return EXIT_FAILURE;
 	}
 
@@ -298,6 +405,7 @@ int main(int argc, char *argv[])
 	double risk          = 1;
 	double qty           = 100000;
 	std::string input_file;
+	std::string output_file;
 
 	for ( int i = 1; i < argc; i++ ) {
 		std::string arg = argv[i];
@@ -329,6 +437,18 @@ int main(int argc, char *argv[])
 				cerr << "-q,--qty option needs one argument." << endl;
 				return EXIT_FAILURE;
 			}
+		} else if ( ( arg == "-o" ) || ( arg == "--out" ) ) {
+			if ( i + 1 < argc ) {
+				output_file = argv[ i + 1 ];
+				str::trim( output_file );
+				if ( output_file.empty() ) {
+					cerr << "-o,--out option needs one argument." << endl;
+					return EXIT_FAILURE;
+				}
+			} else {
+				cerr << "-o,--out option needs one argument." << endl;
+				return EXIT_FAILURE;
+			}
 		} else if ( ( arg == "-v" ) || ( arg == "--verbose" ) ) {
 			show_verbose = true;
 		} else if ( ( arg == "-t" ) || ( arg == "--trades" ) ) {
@@ -337,6 +457,11 @@ int main(int argc, char *argv[])
 			show_chart = true;
 		} else {
 			input_file = argv[i];
+			str::trim( input_file );
+			if ( input_file.empty() ) {
+				cerr << "no input file found" << endl;
+				return EXIT_FAILURE;
+			}
 		}
 	}
 
@@ -416,13 +541,16 @@ int main(int argc, char *argv[])
 		line_i++;
 	}
 
-	Strategy strategy( pyramid, show_verbose );
+	RenkoStrategy strategy( pyramid, show_verbose, output_file );
+	strategy.begin_tradelog();
 
 	int ticks = 0;
 	for ( auto& b : bricks ) {
 		strategy.onBrick( b );
 		ticks += b.volume;
 	}
+
+	strategy.end_tradelog();
 
 	if ( show_trade_list ) {
 		cout << "Trades:" << endl;
@@ -434,7 +562,6 @@ int main(int argc, char *argv[])
 	cout << "Start Time:            " << bricks[0].open_time << endl;
 	cout << "Stop Time:             " << bricks.back().close_time << endl;
 	cout << "Period:                " << setprecision(0) << bricks[0].period << endl;
-	//cout << "Point Size:            " << setprecision(4) << fixed << bricks[0].point_size << endl;
 	cout << "Bricks:                " << setprecision(0) << bricks.size() << endl;
 	cout << "Ticks:                 " << setprecision(0) << ticks << endl;
 	cout << "Pyramid Trades:        " << setprecision(0) << pyramid << endl;
@@ -453,79 +580,8 @@ int main(int argc, char *argv[])
 		return EXIT_SUCCESS;
 	}
 
-	QApplication app(argc, argv);
+	// open chart with chart data
+	system("if [ -f './html/chart.html' ]; then open html/chart.html; fi");
 
-	QCandlestickSeries *series = new QCandlestickSeries();
-	series->setName( "Candles" );
-	series->setIncreasingColor( QColor( Qt::green ) );
-	series->setDecreasingColor( QColor( Qt::red ) );
-
-	// QLineSeries *lineseries = new QLineSeries();
-	// lineseries->setName("MovingAverage");
-
-	QStringList categories;
-
-	int i = 0;
-	std::vector<double> brickSteps;
-
-	for ( auto& b : bricks ) {
-
-		brickSteps.push_back( b.close_price );
-
-		UtcTimeStamp ts = UtcTimeStampConvertor::convert( b.close_time );
-
-		QCandlestickSet *set = new QCandlestickSet( ts.getTimeT() );
-		set->setOpen( b.open_price );
-		set->setClose( b.close_price );
-		
-		if ( b.status == RenkoBrick::STATUS::LONG ) {
-			set->setHigh( b.close_price );
-			set->setLow( b.open_price );
-		} else if ( b.status == RenkoBrick::STATUS::SHORT ) {
-			set->setHigh( b.open_price );
-			set->setLow( b.close_price );
-		}
-
-		if ( set ) {
-			// Candle
-			series->append( set );	
-			//categories << QDateTime::fromMSecsSinceEpoch( set->timestamp() ).toString("ss");
-			categories << QString(i);
-
-			// MovingAverage
-			double ma = Math::get_moving_average( brickSteps, 3 );
-			// lineseries->append( QPoint(i, ma) );
-
-			i++;
-		}
-	}
-
-	QChart *chart = new QChart();
-	chart->addSeries( series );
-	// chart->addSeries( lineseries );
-	chart->setTitle( QString( input_file.c_str() ) );
-	chart->setAnimationOptions( QChart::SeriesAnimations );
-	chart->createDefaultAxes();
-
-	QBarCategoryAxis *axisX = qobject_cast<QBarCategoryAxis *>( chart->axes( Qt::Horizontal ).at( 0 ) );
-	axisX->setCategories( categories );
-
-
-	QValueAxis *axisY = qobject_cast<QValueAxis *>( chart->axes( Qt::Vertical ).at( 0 ) );
-	axisY->setMax( axisY->max() * 1.01 );
-	axisY->setMin( axisY->min() * 0.99 );
-
-	chart->legend()->setVisible( false );
-	// chart->legend()->setAlignment( Qt::AlignBottom );
-
-	QChartView *chartView = new QChartView( chart );
-	chartView->setRenderHint( QPainter::Antialiasing );
-
-	QMainWindow window;
-	window.setCentralWidget( chartView );
-	window.resize( 800, 600 );
-	window.setWindowTitle( QApplication::translate( "toplevel", "Strategy Test" ) );
-	window.show();
-
-	return app.exec();
+	return EXIT_SUCCESS;
 }
