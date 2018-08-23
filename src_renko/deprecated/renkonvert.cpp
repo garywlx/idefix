@@ -188,7 +188,7 @@ int main(int argc, char const *argv[])
 		}
 
 		// get previous brick
-		if ( bricks.size() == 0 ) {		
+		if ( bricks.size() == 0 ) {
 			// init first brick
 			if ( init_brick.status == RenkoBrick::STATUS::NOSTATUS && init_brick.volume == 0 ) {
 				init_brick.open_time  = tick.datetime;

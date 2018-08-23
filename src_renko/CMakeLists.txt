@@ -8,28 +8,15 @@ include_directories(../include)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix ")
 
-# Qt
-# Set this to your Qt installation
-#set(CMAKE_PREFIX_PATH ~/sourcecode/sdk/QtLatest/5.9.2/clang_64)
-#set(RESOURCE_FOLDER res)
-#set(RESOURCE_FILES ${RESOURCE_FOLDER}/resources.qrc)
-#set(CMAKE_AUTOMOC ON)
-#set(CMAKE_AUTOUIC ON)
-#set(CMAKE_AUTORCC ON)
-
-#find_package(Qt5Core REQUIRED)
-#find_package(Qt5Widgets REQUIRED)
-#find_package(Qt5Charts REQUIRED)
-#find_package(Qt5Core REQUIRED)
-
 # add source files for your binary
-add_executable(renkonvert ../src/indicator/IMovingAverage.h ../src/indicator/SimpleMovingAverage.h ../src/indicator/SimpleMovingAverage.cpp renkonvert.cpp)
-add_executable(renkotest ../src/indicator/IMovingAverage.h ../src/indicator/SimpleMovingAverage.h ../src/indicator/SimpleMovingAverage.cpp renkotest.cpp)
+add_executable(renko Strategy.h RenkoStrategy.h ../src/indicator/Tick.h ../src/indicator/Renko.h ../src/indicator/Renko.cpp ../src/indicator/IMovingAverage.h ../src/indicator/SimpleMovingAverage.h ../src/indicator/SimpleMovingAverage.cpp renko.cpp)
 
 # quickfix linker
-target_link_libraries(renkonvert /usr/local/lib/libquickfix.dylib)
-target_link_libraries(renkotest /usr/local/lib/libquickfix.dylib) # Qt5::Core Qt5::Widgets Qt5::Charts
+target_link_libraries(renko /usr/local/lib/libquickfix.dylib)
 
 # copy binary to parent directory build/
-add_custom_command(TARGET renkonvert POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:renkonvert> ../)
-add_custom_command(TARGET renkotest POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:renkotest> ../)
+add_custom_command(TARGET renko POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:renko> ../)
+# copy html to html output directory
+add_custom_command(TARGET renko POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../html)
+add_custom_command(TARGET renko POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/html/chart.html ../html/)
+add_custom_command(TARGET renko POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/html/anychart.min.js ../html/)
