@@ -1,5 +1,4 @@
 #include "RangeStrategy.h"
-#include "indicator/RenkoIndicator.h"
 #include "Operators.h"
 #include <utility>
 #include "Math.h"

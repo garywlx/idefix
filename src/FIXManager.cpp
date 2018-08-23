@@ -9,6 +9,7 @@
 #include <cmath>
 #include <string>
 #include <exception>
+#include "RenkoChart.h"
 
 namespace IDEFIX {
 /*!
@@ -767,7 +768,7 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
   processMarketOrders( snapshot );
 
   // Process Indicators
-  processIndicators( snapshot );  
+  // processIndicators( snapshot );  
 
   // Process strategies
   processStrategy( snapshot );
@@ -781,6 +782,8 @@ void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
  */
 void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
   FIX::Locker lock(m_mutex);
+  if ( isExiting() ) return;
+  
   if ( m_list_marketorders.empty() ) return;
 
   // get account currency
@@ -888,23 +891,26 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
  * 
  * @param const MarketSnapshot& snapshot
  */
-void FIXManager::processIndicators(const MarketSnapshot& snapshot) {
-  FIX::Locker lock ( m_mutex );
-  if ( ! m_list_indicators.empty() ) {
-    // check if there are indicators for symbol
-    auto it = m_list_indicators.find( snapshot.getSymbol() );
-    if ( it != m_list_indicators.end() ) {
-      // found list, update indicators
-      /*for ( auto indi_it = it->second.begin(); indi_it != it->second.end(); ++indi_it ) {
-        (*indi_it)->onTick( *this, snapshot );
-      }*/
+// void FIXManager::processIndicators(const MarketSnapshot& snapshot) {
+//   FIX::Locker lock ( m_mutex );
 
-      for ( auto indi : it->second ) {
-        indi->onTick( *this, snapshot );
-      }
-    }
-  }
-}
+//   if ( isExiting() ) return;
+
+//   if ( ! m_list_indicators.empty() ) {
+//     // check if there are indicators for symbol
+//     auto it = m_list_indicators.find( snapshot.getSymbol() );
+//     if ( it != m_list_indicators.end() ) {
+//       // found list, update indicators
+//       for ( auto indi : it->second ) {
+//         if ( indi ) {
+//           indi->onTick( *this, snapshot );  
+//         } else {
+//           console()->warn( "[ProcessIndicators] indicator pointer is null." );
+//         }
+//       }
+//     }
+//   }
+// }
 
 /*!
  * Update strategies
@@ -912,6 +918,15 @@ void FIXManager::processIndicators(const MarketSnapshot& snapshot) {
  * @param const MarketSnapshot& snapshot The current market snapshot
  */
 void FIXManager::processStrategy(const MarketSnapshot& snapshot) {
+  if ( isExiting() ) return;
+
+  if ( ! m_charts.empty() ) {
+    for ( auto chart : m_charts ) {
+      Tick tick = { snapshot.getSendingTime(), snapshot.getBid(), snapshot.getAsk(), snapshot.getPointSize() };
+      chart->add_tick( tick );
+    }
+  }
+
   if ( m_pstrategy != NULL ) {
     m_pstrategy->onTick(*this, snapshot);
   }
@@ -1398,7 +1413,7 @@ void FIXManager::removeSubscription(const string symbol) {
  * @param Strategy* strategy The Strategy to add
  */
 bool FIXManager::setStrategy(Strategy* strategy) {
-  if ( strategy->getIdentifier().empty() ) {
+  if ( strategy->getName().empty() ) {
     console()->error( "Strategy identifier is empty!" );
     return false;
   }
@@ -1473,29 +1488,29 @@ void FIXManager::setExiting(const bool status) {
  * @param const std::string symbol    The symbol to add the indicator for.
  * @param Indicator*        indicator Indicator dericed class.
  */
-void FIXManager::addIndicator(const std::string symbol, Indicator* pindicator) {
-  FIX::Locker lock( m_mutex );
+// void FIXManager::addIndicator(const std::string symbol, Indicator* pindicator) {
+//   FIX::Locker lock( m_mutex );
 
-  auto it = m_list_indicators.find( symbol );
-  if ( it != m_list_indicators.end() ) {
-    // found symbol indicator list
-    // check for the indicator
-    auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&pindicator](const Indicator* p){
-      return pindicator->getName() == p->getName();
-    });
+//   auto it = m_list_indicators.find( symbol );
+//   if ( it != m_list_indicators.end() ) {
+//     // found symbol indicator list
+//     // check for the indicator
+//     auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&pindicator](const Indicator* p){
+//       return pindicator->getName() == p->getName();
+//     });
 
-    // not found, add to list
-    if ( indi_it == it->second.end() ) {
-      it->second.push_back( pindicator );
-    }
-  } else {
-    // symbol not found, add symbol with new indicator list
-    std::vector<Indicator*> indi_list;
-    indi_list.push_back( pindicator );
+//     // not found, add to list
+//     if ( indi_it == it->second.end() ) {
+//       it->second.push_back( pindicator );
+//     }
+//   } else {
+//     // symbol not found, add symbol with new indicator list
+//     std::vector<Indicator*> indi_list;
+//     indi_list.push_back( pindicator );
 
-    m_list_indicators.insert( std::pair<std::string, std::vector<Indicator*> >( symbol, indi_list ) );
-  }
-}
+//     m_list_indicators.insert( std::pair<std::string, std::vector<Indicator*> >( symbol, indi_list ) );
+//   }
+// }
 
 /*!
  * Remove indicator from active indicator list
@@ -1503,24 +1518,24 @@ void FIXManager::addIndicator(const std::string symbol, Indicator* pindicator) {
  * @param const std::string symbol The symbol for the indicator list
  * @param const std::string name   Indicator derived class name
  */
-void FIXManager::remIndicator(const std::string symbol, const std::string name) {
-  FIX::Locker lock( m_mutex );
+// void FIXManager::remIndicator(const std::string symbol, const std::string name) {
+//   FIX::Locker lock( m_mutex );
 
-  if ( m_list_indicators.empty() ) return;
+//   if ( m_list_indicators.empty() ) return;
 
-  auto it = m_list_indicators.find( symbol );
-  if ( it != m_list_indicators.end() ) {
-    // found indicator list for symbol, try to remove indicator
-    auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&name](const Indicator* p){
-      return p->getName() == name;
-    });
+//   auto it = m_list_indicators.find( symbol );
+//   if ( it != m_list_indicators.end() ) {
+//     // found indicator list for symbol, try to remove indicator
+//     auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&name](const Indicator* p){
+//       return p->getName() == name;
+//     });
 
-    if ( indi_it != it->second.end() ) {
-      // indicator found, remove it
-      it->second.erase( indi_it );
-    }
-  }
-}
+//     if ( indi_it != it->second.end() ) {
+//       // indicator found, remove it
+//       it->second.erase( indi_it );
+//     }
+//   }
+// }
 
 /*!
  * Get indicator from active indicator list
@@ -1529,26 +1544,26 @@ void FIXManager::remIndicator(const std::string symbol, const std::string name) 
  * @param const std::string  name   The name of the indicator
  * @return Indicator*
  */
-Indicator* FIXManager::getIndicator(const std::string symbol, const std::string name) {
-  FIX::Locker lock( m_mutex );
+// Indicator* FIXManager::getIndicator(const std::string symbol, const std::string name) {
+//   FIX::Locker lock( m_mutex );
 
-  if ( m_list_indicators.empty() ) return nullptr;
+//   if ( m_list_indicators.empty() ) return nullptr;
 
-  auto it = m_list_indicators.find( symbol );
-  if ( it != m_list_indicators.end() ) {
-    // found indicator list for symbol
-    auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&name](const Indicator* p){
-      return p->getName() == name;
-    });
+//   auto it = m_list_indicators.find( symbol );
+//   if ( it != m_list_indicators.end() ) {
+//     // found indicator list for symbol
+//     auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&name](const Indicator* p){
+//       return p->getName() == name;
+//     });
 
-    if ( indi_it != it->second.end() ) {
-      // found indicator
-      return *indi_it;
-    }
-  }
+//     if ( indi_it != it->second.end() ) {
+//       // found indicator
+//       return *indi_it;
+//     }
+//   }
 
-  return nullptr;
-}
+//   return nullptr;
+// }
 
 /*!
  * Get boolean if there are open positions for the symbol

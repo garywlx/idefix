@@ -8,7 +8,7 @@
 #include <chrono>
 #include <string>
 #include "FIXManager.h"
-#include "RangeStrategy.h"
+#include "RenkoStrategy.h"
 
 using namespace std;
 using namespace IDEFIX;
@@ -27,9 +27,9 @@ int main(int argc, char** argv) {
 		// config file
 		const std::string config_file = argv[1];
 		// init strategy
-		RangeStrategy rangeStrategy;
+		RenkoStrategy renkostrategy;
 		// init fix manager
-		FIXManager fixmanager( config_file, &rangeStrategy );
+		FIXManager fixmanager( config_file, &renkostrategy );
 
 		if ( ! fixmanager.isExiting() ) {
 			// output 

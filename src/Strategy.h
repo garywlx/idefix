@@ -7,8 +7,8 @@
 namespace IDEFIX {
 	class Strategy {
 	public:
-		// return the strategy identifier, this musst be unique
-		virtual std::string getIdentifier() const = 0;
+		// return the strategy name, this musst be unique
+		virtual std::string getName() const = 0;
 		// Is called when FIX Manager is ready to initialize the strategy.
 		virtual void onInit(FIXManager& manager) = 0;
 		// Is called when a new market snapshot is available.
