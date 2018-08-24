@@ -2,13 +2,18 @@
 #define IDEFIX_STRATEGY_H
 
 #include <string>
-#include "FIXManager.h"
+
+class Chart;
 
 namespace IDEFIX {
 	class Strategy {
 	public:
+		// ----
+		// DEPRECATED
+		// ----
+		// 
 		// return the strategy name, this musst be unique
-		virtual std::string getName() const = 0;
+		/*virtual std::string getName() const = 0;
 		// Is called when FIX Manager is ready to initialize the strategy.
 		virtual void onInit(FIXManager& manager) = 0;
 		// Is called when a new market snapshot is available.
@@ -22,7 +27,7 @@ namespace IDEFIX {
 		// Is called if an error happens.
 		virtual void onError(FIXManager& manager, std::string origin, std::string message) = 0;
 		// Is called if an api requests has no data.
-		virtual void onRequestAck(FIXManager& manager, std::string request_ident, std::string text) = 0;
+		virtual void onRequestAck(FIXManager& manager, std::string request_ident, std::string text) = 0;*/
 	};
 };
 

@@ -60,8 +60,6 @@ using namespace std;
 using namespace FIX;
 
 namespace IDEFIX {
-class Strategy;
-// class Indicator;
 
 class FIXManager: public MessageCracker, public Application {
 private:
@@ -76,8 +74,6 @@ private:
   FileLogFactory *m_plog_factory;
   // Pointer to Socket
   SocketInitiator *m_pinitiator;
-  // The strategy to use
-  Strategy *m_pstrategy;
   // RequestID Manager
   RequestId m_reqid_manager;
 
@@ -103,8 +99,6 @@ private:
   map<string, MarketDetail> m_market_details;
   // hold all subscriptions symbols
   vector<string> m_symbol_subscriptions;
-  // hold all indicators per symbol list[symbol][] = Indicator*
-  //map<string, vector<Indicator*> > m_list_indicators;
   // hold all chart pointers with indicators
   vector<Chart*> m_charts;
 
@@ -113,7 +107,7 @@ private:
   
 public:
   FIXManager();
-  FIXManager(const string settingsFile, Strategy* strategy);
+  // FIXManager(const string settingsFile);
   ~FIXManager();
 
   void onCreate(const SessionID& sessionID);
@@ -173,10 +167,10 @@ public:
   bool isExiting();
   void setExiting(const bool status);
 
-  // void addIndicator(const std::string symbol, Indicator* indicator);
-  // void remIndicator(const std::string symbol, const std::string name);
-  // Indicator* getIndicator(const std::string symbol, const std::string name);
   bool hasOpenPositions(const std::string symbol);
+  void add_chart(Chart* chart);
+
+  void connect(const std::string settingsFile);
 
 private:
   void onInit();
@@ -186,8 +180,7 @@ private:
   void onMarketSnapshot(const MarketSnapshot& snapshot);
   
   void processMarketOrders(const MarketSnapshot& snapshot);
-  void processStrategy(const MarketSnapshot& snapshot);
-  // void processIndicators(const MarketSnapshot& snapshot);
+  void processChart(const MarketSnapshot& snapshot);
 
   string nextRequestID();
   string nextOrderID();
@@ -221,7 +214,7 @@ private:
   void addSubscription(const string symbol);
   void removeSubscription(const string symbol);
 
-  bool setStrategy(Strategy* strategy);
+  // bool setStrategy(Strategy* strategy);
 }; // class fixmanager
 }; // namespace idefix
 

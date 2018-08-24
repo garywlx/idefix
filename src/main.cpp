@@ -8,7 +8,9 @@
 #include <chrono>
 #include <string>
 #include "FIXManager.h"
-#include "RenkoStrategy.h"
+#include "RenkoChart.h"
+#include "strategies/RenkoStrategy.h"
+#include "indicator/SimpleMovingAverage.h"
 
 using namespace std;
 using namespace IDEFIX;
@@ -26,10 +28,23 @@ int main(int argc, char** argv) {
 
 		// config file
 		const std::string config_file = argv[1];
-		// init strategy
-		RenkoStrategy renkostrategy;
+		
 		// init fix manager
-		FIXManager fixmanager( config_file, &renkostrategy );
+		FIXManager fixmanager;
+		
+		// Add chart with strategy
+		RenkoStrategy strategy;
+		RenkoChart chart( 3 );
+		chart.set_symbol( "EUR/USD" );
+		chart.set_strategy( &strategy );
+
+		// SimpleMovingAverage sma5( 5 );
+		// chart.add_indicator( &sma5 );
+
+		fixmanager.add_chart( &chart );
+
+		// connect 
+		fixmanager.connect( config_file );
 
 		if ( ! fixmanager.isExiting() ) {
 			// output 

@@ -9,15 +9,20 @@ include_directories(../include)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../include/spdlog -fexceptions -finline-functions") #-lpthread -lxml2 -lz
 
 set(SRC main.cpp RiskManagement.h Math.h Pairs.h MarketDetail.h FXCMFields.h FIXFactory.h times.h String.h MarketOrder.h MarketSnapshot.h Market.h
-	Strategy.h Operators.h Exceptions.h AbstractStrategy.h
+	Operators.h Exceptions.h 
 	Account.h Account.cpp 
 	FIXManager.h FIXManager.cpp 
 	RequestId.h RequestId.cpp 
 	Chart.h Chart.cpp
 	RenkoChart.h RenkoChart.cpp 
+	strategies/AbstractStrategy.h
+	strategies/RenkoStrategy.h
+	strategies/RenkoStrategy.cpp
 	indicator/Tick.h
+	indicator/Bar.h
 	indicator/AbstractIndicator.h
-	indicator/Indicator.h indicator/RenkoBrick.h indicator/IMovingAverage.h 
+	indicator/RenkoBrick.h 
+	indicator/IMovingAverage.h 
 	indicator/SimpleMovingAverage.h indicator/SimpleMovingAverage.cpp )
 
 # add source files for your binary

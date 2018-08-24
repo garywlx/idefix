@@ -3,10 +3,14 @@
 #include <stdexcept>
 
 namespace IDEFIX {
-	RenkoChart::RenkoChart(const double period): m_period( period ), Chart() {
-		m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-		m_last_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-		m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+	RenkoChart::RenkoChart(const double period): m_period( period ) {
+		m_init_brick.clear();
+		m_last_brick.clear();
+		m_current_brick.clear();
+
+		// m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+		// m_last_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+		// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 	}
 
 	RenkoChart::~RenkoChart() {}
@@ -21,6 +25,14 @@ namespace IDEFIX {
 
 		// add tick to list
 		m_ticks.push_back( tick );
+
+		for ( auto indicator : m_indicators ) {
+			indicator->on_tick( tick );
+		}
+
+		if ( m_strategy != nullptr ) {
+			m_strategy->on_tick( *this, tick );
+		}
 
 		// is this the first brick?
 		if ( m_bricks.size() == 0 ) {
@@ -73,10 +85,16 @@ namespace IDEFIX {
 					// if ( m_verbose_mode ) {
 					// 	cout << "L+LONG  " << m_current_brick << endl;
 					// }
+					
+					if ( m_strategy != nullptr ) {
+						m_strategy->on_bar( *this, m_current_brick );
+					}
 
 					// reset current and last brick
-					m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-					m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					m_current_brick.clear();
+					m_last_brick.clear();
+					// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					// m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 					return;
 				}
@@ -104,9 +122,15 @@ namespace IDEFIX {
 					// 	cout << "L+SHORT " << m_current_brick << endl;
 					// }
 					
+					if ( m_strategy != nullptr ) {
+						m_strategy->on_bar( *this, m_current_brick );
+					}
+
 					// reset current and last brick
-					m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-					m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					m_current_brick.clear();
+					m_last_brick.clear();
+					// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					// m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 					return;
 				}
@@ -137,9 +161,16 @@ namespace IDEFIX {
 					// 	cout << "S+SHORT " << m_current_brick << endl;
 					// }
 
+					if ( m_strategy != nullptr ) {
+						m_strategy->on_bar( *this, m_current_brick );
+					}
+
 					// reset current and last brick
-					m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-					m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					m_current_brick.clear();
+					m_last_brick.clear();
+
+					// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					// m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 					return;
 				}
@@ -167,9 +198,15 @@ namespace IDEFIX {
 					// 	cout << "S+LONG  " << m_current_brick << endl;
 					// }
 
+					if ( m_strategy != nullptr ) {
+						m_strategy->on_bar( *this, m_current_brick );
+					}
+
 					// reset current and last brick
-					m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-					m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					m_current_brick.clear();
+					m_last_brick.clear();
+					// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+					// m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 					return;
 				}
@@ -221,8 +258,13 @@ namespace IDEFIX {
 			// 	cout << "0+LONG  " << m_init_brick << endl;
 			// }
 
+			if ( m_strategy != nullptr ) {
+				m_strategy->on_bar( *this, m_init_brick );
+			}
+
 			m_last_brick = m_init_brick;
-			m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+			m_init_brick.clear();
+			// m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 			return true;
 		}
@@ -247,8 +289,13 @@ namespace IDEFIX {
 			// 	cout << "0+SHORT " << m_init_brick << endl;
 			// }
 
+			if ( m_strategy != nullptr ) {
+				m_strategy->on_bar( *this, m_init_brick );
+			}
+			
 			m_last_brick = m_init_brick;
-			m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
+			m_init_brick.clear();
+			//m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 			return true;
 		}

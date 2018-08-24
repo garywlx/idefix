@@ -3,9 +3,10 @@
 
 #include <string>
 #include <iomanip>
+#include "Bar.h"
 
 namespace IDEFIX {
-	struct RenkoBrick {
+	struct RenkoBrick: public Bar {
 		enum STATUS {
 			NOSTATUS = -1,
 			LONG = 0,
@@ -24,6 +25,21 @@ namespace IDEFIX {
 		double diff;
 		double period;
 		double point_size;
+
+		inline void clear(){
+			symbol      = "";
+			open_time   = "";
+			close_time  = "";
+			open_price  = 0;
+			close_price = 0;
+			high_price  = 0;
+			low_price   = 0;
+			status      = STATUS::NOSTATUS;
+			volume      = 0;
+			diff        = 0;
+			period      = 0;
+			point_size  = 0;
+		}
 	};
 
 	inline std::ostream& operator<<(std::ostream& out, const IDEFIX::RenkoBrick& brick) {

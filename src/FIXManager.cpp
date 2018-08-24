@@ -4,26 +4,22 @@
  */
 #include "FIXManager.h"
 #include <quickfix/Utility.h>
-#include "Strategy.h"
-#include "indicator/Indicator.h"
 #include <cmath>
 #include <string>
 #include <exception>
-#include "RenkoChart.h"
 
 namespace IDEFIX {
 /*!
  * Constructs FIXManager
  */
-FIXManager::FIXManager(): m_is_exiting( false ) {}
+// FIXManager::FIXManager(): m_is_exiting( false ) {}
 
 /*!
  * Constructs FIXManager and starts a FIX Session from settings file
  *
  * @param const std::string settingsFile The FIX settings file
- * @param Strategy*         strategy     The strategy to use
  */
-FIXManager::FIXManager(const string settingsFile, Strategy* strategy): m_is_exiting( false ) {
+FIXManager::FIXManager(): m_is_exiting( false ) {
 
   // set up console
   m_console = spdlog::stdout_color_mt( "console" );
@@ -40,15 +36,26 @@ FIXManager::FIXManager(const string settingsFile, Strategy* strategy): m_is_exit
   // flush logger every
   spdlog::flush_every( chrono::seconds( 3 ) );
 
+
+
   // setup strategy
-  if ( setStrategy( strategy ) ) {
-    // start FIX session
-    startSession(settingsFile);  
+  /*if ( setStrategy( strategy ) ) {
+    
   } else {
     console()->warn( "Exiting..." );
     // close app
     m_is_exiting = true;
-  }
+  }*/
+}
+
+/*!
+ * Start session and connect
+ * 
+ * @param const std::string settingsFile
+ */
+void FIXManager::connect(const std::string settingsFile) {
+   // start FIX session
+   startSession(settingsFile);  
 }
 
 /*!
@@ -233,18 +240,18 @@ void FIXManager::onMessage(const FIX44::TradingSessionStatus& tss, const Session
 void FIXManager::onMessage(const FIX44::CollateralInquiryAck& ack, const SessionID& session_ID){
   if( ack.isSetField( FIELD::Text ) ){
     // Call strategy onRequestAck
-    if ( m_pstrategy != NULL ) {
-      auto text = ack.getField( FIELD::Text );
-      m_pstrategy->onRequestAck( *this, "CollateralInquiryAck", text );
-    }
+    // if ( m_pstrategy != NULL ) {
+    //   auto text = ack.getField( FIELD::Text );
+    //   m_pstrategy->onRequestAck( *this, "CollateralInquiryAck", text );
+    // }
   }
 
   if( ack.isSetField( FXCM_FIX_FIELDS::FXCM_REQUEST_REJECT_REASON ) ) {
     // Call strategy onRequestAck
-    if ( m_pstrategy != NULL ) {
-      auto text = ack.getField( FXCM_FIX_FIELDS::FXCM_REQUEST_REJECT_REASON );
-      m_pstrategy->onRequestAck( *this, "CollateralInquiryAck", text );
-    }
+    // if ( m_pstrategy != NULL ) {
+    //   auto text = ack.getField( FXCM_FIX_FIELDS::FXCM_REQUEST_REJECT_REASON );
+    //   m_pstrategy->onRequestAck( *this, "CollateralInquiryAck", text );
+    // }
   }
 }
 
@@ -299,9 +306,9 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
   onInit();
 
   // call strategy on account change
-  if ( m_pstrategy != NULL ) {
-    m_pstrategy->onAccountChange( *this, account );
-  }
+  // if ( m_pstrategy != NULL ) {
+  //   m_pstrategy->onAccountChange( *this, account );
+  // }
 }
 
 /*!
@@ -324,10 +331,10 @@ void FIXManager::onMessage(const FIX44::RequestForPositionsAck &ack, const Sessi
   // indicate that no positions matched the requested criteria
   else if( ack.isSetField(FIELD::Text) ){
     // Call strategy onRequestAck
-    if ( m_pstrategy != NULL ) {
-      auto text = ack.getField( FIELD::Text );
-      m_pstrategy->onRequestAck( *this, "RequestForPositionsAck", text );
-    }
+    // if ( m_pstrategy != NULL ) {
+    //   auto text = ack.getField( FIELD::Text );
+    //   m_pstrategy->onRequestAck( *this, "RequestForPositionsAck", text );
+    // }
   }
 }
 
@@ -386,9 +393,9 @@ void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& ses
     addMarketOrder( marketOrder );
 
     // Update strategy
-    if ( m_pstrategy != NULL ) {
-      m_pstrategy->onPositionChange( *this, marketOrder, MarketOrder::Status::NEW );
-    }
+    // if ( m_pstrategy != NULL ) {
+    //   m_pstrategy->onPositionChange( *this, marketOrder, MarketOrder::Status::NEW );
+    // }
 
     // queryOrderMassStatusRequest to update order with SL and TP values
     queryOrderMassStatus();
@@ -406,10 +413,10 @@ void FIXManager::onMessage(const FIX44::MarketDataRequestReject &mdr, const Sess
   // print out the contents of the Text field but first check that it is set
   if ( mdr.isSetField( FIELD::Text ) ) {
     // Call strategy onRequestAck
-    if ( m_pstrategy != NULL ) {
-      auto text = mdr.getField( FIELD::Text );
-      m_pstrategy->onRequestAck( *this, "MarketDataRequestReject", text );
-    }
+    // if ( m_pstrategy != NULL ) {
+    //   auto text = mdr.getField( FIELD::Text );
+    //   m_pstrategy->onRequestAck( *this, "MarketDataRequestReject", text );
+    // }
   }
 }
 
@@ -595,10 +602,10 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
 
 // If no allocation report is available
 void FIXManager::onMessage(const FIX44::AllocationReportAck& ack, const SessionID& session_ID){
-  if ( m_pstrategy != NULL && ack.isSetField( FIELD::Text ) ) {
-    auto text = ack.getField( FIELD::Text );
-    m_pstrategy->onRequestAck( *this, "AllocationReportAck", text );
-  }
+  // if ( m_pstrategy != NULL && ack.isSetField( FIELD::Text ) ) {
+  //   auto text = ack.getField( FIELD::Text );
+  //   m_pstrategy->onRequestAck( *this, "AllocationReportAck", text );
+  // }
 }
 
 // If allocation report is available
@@ -622,7 +629,7 @@ void FIXManager::startSession(const string settingsfile) {
 
 // Logout and end session
 void FIXManager::endSession() {
-  if ( m_pstrategy != nullptr ) m_pinitiator->stop();
+  // if ( m_pstrategy != nullptr ) m_pinitiator->stop();
   if ( m_pinitiator != nullptr ) delete m_pinitiator;
   if ( m_psettings ) delete m_psettings;
   if ( m_pstore_factory != nullptr ) delete m_pstore_factory;
@@ -764,14 +771,8 @@ bool FIXManager::isOrderSession(const SessionID& session_ID){
  */
 void FIXManager::onMarketSnapshot(const MarketSnapshot& snapshot) {
   
-  // Process market orders
   processMarketOrders( snapshot );
-
-  // Process Indicators
-  // processIndicators( snapshot );  
-
-  // Process strategies
-  processStrategy( snapshot );
+  processChart( snapshot );
 
 } // - onMarketSnapshot
 
@@ -887,37 +888,11 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
 }
 
 /*!
- * Update all registered indicators
- * 
- * @param const MarketSnapshot& snapshot
- */
-// void FIXManager::processIndicators(const MarketSnapshot& snapshot) {
-//   FIX::Locker lock ( m_mutex );
-
-//   if ( isExiting() ) return;
-
-//   if ( ! m_list_indicators.empty() ) {
-//     // check if there are indicators for symbol
-//     auto it = m_list_indicators.find( snapshot.getSymbol() );
-//     if ( it != m_list_indicators.end() ) {
-//       // found list, update indicators
-//       for ( auto indi : it->second ) {
-//         if ( indi ) {
-//           indi->onTick( *this, snapshot );  
-//         } else {
-//           console()->warn( "[ProcessIndicators] indicator pointer is null." );
-//         }
-//       }
-//     }
-//   }
-// }
-
-/*!
- * Update strategies
+ * Update charts
  * 
  * @param const MarketSnapshot& snapshot The current market snapshot
  */
-void FIXManager::processStrategy(const MarketSnapshot& snapshot) {
+void FIXManager::processChart(const MarketSnapshot& snapshot) {
   if ( isExiting() ) return;
 
   if ( ! m_charts.empty() ) {
@@ -925,10 +900,6 @@ void FIXManager::processStrategy(const MarketSnapshot& snapshot) {
       Tick tick = { snapshot.getSendingTime(), snapshot.getBid(), snapshot.getAsk(), snapshot.getPointSize() };
       chart->add_tick( tick );
     }
-  }
-
-  if ( m_pstrategy != NULL ) {
-    m_pstrategy->onTick(*this, snapshot);
   }
 }
 
@@ -1156,9 +1127,9 @@ void FIXManager::removeMarketOrder(const string posID){
   map<string, MarketOrder>::iterator moIterator = m_list_marketorders.find(posID);
   if( moIterator != m_list_marketorders.end() ){
     // Update strategy
-    if ( m_pstrategy != NULL ) {
-      m_pstrategy->onPositionChange( *this, moIterator->second, MarketOrder::Status::REMOVED );
-    }
+    // if ( m_pstrategy != NULL ) {
+    //   m_pstrategy->onPositionChange( *this, moIterator->second, MarketOrder::Status::REMOVED );
+    // }
     // posID found, remove
     m_list_marketorders.erase( moIterator );
   }
@@ -1207,9 +1178,9 @@ void FIXManager::updateMarketOrder(const MarketOrder& rH, const bool isUnsolicit
     }
 
     // Update strategy
-    if ( m_pstrategy != NULL ) {
-      m_pstrategy->onPositionChange( *this, lH, MarketOrder::Status::UPDATE );
-    }
+    // if ( m_pstrategy != NULL ) {
+    //   m_pstrategy->onPositionChange( *this, lH, MarketOrder::Status::UPDATE );
+    // }
   }
 }
 
@@ -1355,10 +1326,15 @@ void FIXManager::onInit() {
   // check if we already initialized
   if( m_list_market.size() > 0 ) return;
 
-  // call strategy init
-  if ( m_pstrategy != NULL ) {
-    m_pstrategy->onInit( *this );
+  // call chart on init functions
+  for ( auto c : m_charts ) {
+    c->on_init();
   }
+
+  // call strategy init
+  // if ( m_pstrategy != NULL ) {
+  //   m_pstrategy->onInit( *this );
+  // }
     
   queryPositionReport();
 }
@@ -1371,9 +1347,9 @@ void FIXManager::onExit() {
   m_is_exiting = true;
 
   // call strategy exit
-  if ( m_pstrategy != NULL ) {
-    m_pstrategy->onExit( *this );
-  }
+  // if ( m_pstrategy != NULL ) {
+  //   m_pstrategy->onExit( *this );
+  // }
   
   // unsubscribe all symbols
   while( ! m_symbol_subscriptions.empty() ) {
@@ -1412,16 +1388,16 @@ void FIXManager::removeSubscription(const string symbol) {
  * 
  * @param Strategy* strategy The Strategy to add
  */
-bool FIXManager::setStrategy(Strategy* strategy) {
-  if ( strategy->getName().empty() ) {
-    console()->error( "Strategy identifier is empty!" );
-    return false;
-  }
+// bool FIXManager::setStrategy(Strategy* strategy) {
+//   if ( strategy->getName().empty() ) {
+//     console()->error( "Strategy identifier is empty!" );
+//     return false;
+//   }
 
-  m_pstrategy = strategy;
+//   m_pstrategy = strategy;
 
-  return true;
-}
+//   return true;
+// }
 
 /*!
  * Get console shared pointer
@@ -1483,89 +1459,6 @@ void FIXManager::setExiting(const bool status) {
 }
 
 /*!
- * Add Indicators to a list
- *
- * @param const std::string symbol    The symbol to add the indicator for.
- * @param Indicator*        indicator Indicator dericed class.
- */
-// void FIXManager::addIndicator(const std::string symbol, Indicator* pindicator) {
-//   FIX::Locker lock( m_mutex );
-
-//   auto it = m_list_indicators.find( symbol );
-//   if ( it != m_list_indicators.end() ) {
-//     // found symbol indicator list
-//     // check for the indicator
-//     auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&pindicator](const Indicator* p){
-//       return pindicator->getName() == p->getName();
-//     });
-
-//     // not found, add to list
-//     if ( indi_it == it->second.end() ) {
-//       it->second.push_back( pindicator );
-//     }
-//   } else {
-//     // symbol not found, add symbol with new indicator list
-//     std::vector<Indicator*> indi_list;
-//     indi_list.push_back( pindicator );
-
-//     m_list_indicators.insert( std::pair<std::string, std::vector<Indicator*> >( symbol, indi_list ) );
-//   }
-// }
-
-/*!
- * Remove indicator from active indicator list
- *
- * @param const std::string symbol The symbol for the indicator list
- * @param const std::string name   Indicator derived class name
- */
-// void FIXManager::remIndicator(const std::string symbol, const std::string name) {
-//   FIX::Locker lock( m_mutex );
-
-//   if ( m_list_indicators.empty() ) return;
-
-//   auto it = m_list_indicators.find( symbol );
-//   if ( it != m_list_indicators.end() ) {
-//     // found indicator list for symbol, try to remove indicator
-//     auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&name](const Indicator* p){
-//       return p->getName() == name;
-//     });
-
-//     if ( indi_it != it->second.end() ) {
-//       // indicator found, remove it
-//       it->second.erase( indi_it );
-//     }
-//   }
-// }
-
-/*!
- * Get indicator from active indicator list
- *
- * @param const std::string  symbol The symbol for the indicator
- * @param const std::string  name   The name of the indicator
- * @return Indicator*
- */
-// Indicator* FIXManager::getIndicator(const std::string symbol, const std::string name) {
-//   FIX::Locker lock( m_mutex );
-
-//   if ( m_list_indicators.empty() ) return nullptr;
-
-//   auto it = m_list_indicators.find( symbol );
-//   if ( it != m_list_indicators.end() ) {
-//     // found indicator list for symbol
-//     auto indi_it = std::find_if( it->second.begin(), it->second.end(), [&name](const Indicator* p){
-//       return p->getName() == name;
-//     });
-
-//     if ( indi_it != it->second.end() ) {
-//       // found indicator
-//       return *indi_it;
-//     }
-//   }
-
-//   return nullptr;
-// }
-
-/*!
  * Get boolean if there are open positions for the symbol
  * 
  * @param const std::string symbol
@@ -1585,5 +1478,17 @@ bool FIXManager::hasOpenPositions(const std::string symbol) {
 
   return i > 0;
 }
+
+/*!
+ * Add chart to the list of charts
+ * 
+ * @param Chart* chart
+ */
+void FIXManager::add_chart(Chart* chart) {
+  FIX::Locker lock( m_mutex );
+  m_charts.push_back( chart );
+}
+
+
 
 }; // namespace idefix

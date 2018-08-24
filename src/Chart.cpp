@@ -2,9 +2,24 @@
 
 namespace IDEFIX {
 
-Chart::Chart(): m_type( Chart::Type::TICK_ONLY ) {}
+Chart::Chart() {}
 
 Chart::~Chart() {}
+
+/*!
+ * Is called in fixmanager.onInit
+ */
+void Chart::on_init() {
+	// init indicators
+	for ( auto indicator : m_indicators ) {
+		indicator->on_init( *this );
+	}
+
+	// init strategy
+	if ( m_strategy != nullptr ) {
+		m_strategy->on_init( *this );
+	}
+}
 
 /*!
  * Add new tick to the chart and update all indicators
@@ -15,6 +30,10 @@ void Chart::add_tick(const Tick& tick) {
 	// update indicator
 	for ( auto indicator : m_indicators ) {
 		indicator->on_tick( tick );
+	}
+
+	if ( m_strategy != nullptr ) {
+		m_strategy->on_tick( *this, tick );
 	}
 }
 
@@ -44,26 +63,6 @@ void Chart::add_indicator(AbstractIndicator* indicator) {
 void Chart::plot() {}
 
 /*!
- * Setter chart type
- * 
- * @param const Chart::Type type
- */
-void Chart::set_type(const Chart::Type type) {
-	if ( m_type != type ) {
-		m_type = type;
-	}
-}
-
-/*!
- * Getter chart type
- * 
- * @return const Chart::Type
- */
-Chart::Type Chart::type() const {
-	return m_type;
-}
-
-/*!
  * Setter symbol
  * 
  * @param const std::string& symbol
@@ -91,5 +90,28 @@ std::string Chart::symbol() const {
 std::vector<Tick> Chart::ticks() {
 	return m_ticks;
 }
+
+/*!
+ * Setter Strategy
+ * 
+ * @param AbstractStrategy* strategy
+ */
+void Chart::set_strategy(AbstractStrategy* strategy) {
+	if ( m_strategy != strategy ) {
+		m_strategy = strategy;
+
+		m_strategy->on_init( *this );
+	}
+}
+
+/*!
+ * Getter strategy
+ * 
+ * @return AbstractStrategy*
+ */
+AbstractStrategy* Chart::strategy() {
+	return m_strategy;
+}
+
 
 };
