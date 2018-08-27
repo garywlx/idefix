@@ -138,8 +138,6 @@ void Chart::set_strategy(AbstractStrategy* strategy) {
 
 	if ( m_strategy != strategy && strategy != NULL ) {
 		m_strategy = strategy;
-
-		m_strategy->on_init( *this );
 	}
 }
 
@@ -150,7 +148,7 @@ void Chart::set_strategy(AbstractStrategy* strategy) {
  */
 AbstractStrategy* Chart::strategy() {
 	FIX::Locker lock( m_mutex );
-	
+
 	return m_strategy;
 }
 

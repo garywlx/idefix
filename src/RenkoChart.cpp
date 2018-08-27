@@ -3,7 +3,8 @@
 #include <stdexcept>
 
 namespace IDEFIX {
-	RenkoChart::RenkoChart(const double period): m_period( period ) {
+	RenkoChart::RenkoChart(const std::string& symbol, const double period): m_period( period ) {
+		set_symbol( symbol );
 		m_init_brick.clear();
 		m_last_brick.clear();
 		m_current_brick.clear();
@@ -30,7 +31,7 @@ namespace IDEFIX {
 			indicator->on_tick( tick );
 		}
 
-		if ( m_strategy != nullptr ) {
+		if ( m_strategy != NULL ) {
 			m_strategy->on_tick( *this, tick );
 		}
 
@@ -82,11 +83,9 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-					// if ( m_verbose_mode ) {
-					// 	cout << "L+LONG  " << m_current_brick << endl;
-					// }
+					cout << "L+LONG  " << m_current_brick << endl;
 					
-					if ( m_strategy != nullptr ) {
+					if ( m_strategy != NULL ) {
 						m_strategy->on_bar( *this, m_current_brick );
 					}
 
@@ -118,11 +117,9 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-					// if ( m_verbose_mode ) {
-					// 	cout << "L+SHORT " << m_current_brick << endl;
-					// }
+					cout << "L+SHORT " << m_current_brick << endl;					
 					
-					if ( m_strategy != nullptr ) {
+					if ( m_strategy != NULL ) {
 						m_strategy->on_bar( *this, m_current_brick );
 					}
 
@@ -157,11 +154,9 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 					
-					// if ( m_verbose_mode ) {
-					// 	cout << "S+SHORT " << m_current_brick << endl;
-					// }
+					cout << "S+SHORT " << m_current_brick << endl;
 
-					if ( m_strategy != nullptr ) {
+					if ( m_strategy != NULL ) {
 						m_strategy->on_bar( *this, m_current_brick );
 					}
 
@@ -194,11 +189,9 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-					// if ( m_verbose_mode ) {
-					// 	cout << "S+LONG  " << m_current_brick << endl;
-					// }
+					cout << "S+LONG  " << m_current_brick << endl;
 
-					if ( m_strategy != nullptr ) {
+					if ( m_strategy != NULL ) {
 						m_strategy->on_bar( *this, m_current_brick );
 					}
 
@@ -254,11 +247,9 @@ namespace IDEFIX {
 
 			m_bricks.push_back( m_init_brick );
 
-			// if ( m_verbose_mode ) {
-			// 	cout << "0+LONG  " << m_init_brick << endl;
-			// }
+			cout << "0+LONG  " << m_init_brick << endl;
 
-			if ( m_strategy != nullptr ) {
+			if ( m_strategy != NULL ) {
 				m_strategy->on_bar( *this, m_init_brick );
 			}
 
@@ -285,11 +276,9 @@ namespace IDEFIX {
 			
 			m_bricks.push_back( m_init_brick );
 
-			// if ( m_verbose_mode ) {
-			// 	cout << "0+SHORT " << m_init_brick << endl;
-			// }
+			cout << "0+SHORT " << m_init_brick << endl;			
 
-			if ( m_strategy != nullptr ) {
+			if ( m_strategy != NULL ) {
 				m_strategy->on_bar( *this, m_init_brick );
 			}
 			

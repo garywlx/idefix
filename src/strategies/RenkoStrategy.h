@@ -2,6 +2,7 @@
 #define IDEFIX_RENKO_STRATEGY_H
 
 #include "AbstractStrategy.h"
+#include <quickfix/Mutex.h>
 
 namespace IDEFIX {
 	class Chart;
@@ -9,6 +10,9 @@ namespace IDEFIX {
 	class Bar;
 	
 	class RenkoStrategy: public AbstractStrategy {
+	private:
+		FIX::Mutex m_mutex;
+		
 	public:
 		RenkoStrategy();
 

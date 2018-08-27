@@ -20,7 +20,7 @@ namespace IDEFIX {
 		RenkoBrick m_init_brick;
 
 	public:
-		RenkoChart(const double period);
+		RenkoChart(const std::string& symbol, const double period);
 		~RenkoChart();
 
 		void add_tick(const Tick& tick);

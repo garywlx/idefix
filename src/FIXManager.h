@@ -53,8 +53,8 @@
 #include "Chart.h"
 
 #include "spdlog/spdlog.h"
-#include "spdlog/sinks/daily_file_sink.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
+#include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 using namespace std;
 using namespace FIX;
@@ -171,11 +171,12 @@ public:
   void add_chart(Chart* chart);
 
   void connect(const std::string settingsFile);
+  void disconnect();
 
 private:
   void onInit();
   void startSession(const string settingsfile);
-  void endSession();
+  //void endSession();
 
   void onMarketSnapshot(const MarketSnapshot& snapshot);
   

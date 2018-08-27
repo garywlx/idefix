@@ -1,9 +1,9 @@
 #ifndef IDEFIX_CONSOLE_H
 #define IDEFIX_CONSOLE_H
 
-#include "spdlog/spdlog.h"
-#include "spdlog/sinks/daily_file_sink.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/daily_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace IDEFIX {
 	inline void registerConsole() {

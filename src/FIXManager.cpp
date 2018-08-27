@@ -3,6 +3,8 @@
  *  http://www.arnegockeln.com
  */
 #include "FIXManager.h"
+#include "spdlog/sinks/daily_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include <quickfix/Utility.h>
 #include <cmath>
 #include <string>
@@ -35,7 +37,7 @@ FIXManager::FIXManager(): m_is_exiting( false ) {
   m_tradelog->set_pattern( "%Y-%m-%d %T.%e,%v" );
   // flush logger every
   spdlog::flush_every( chrono::seconds( 3 ) );
-
+  
 }
 
 /*!
@@ -631,7 +633,7 @@ void FIXManager::startSession(const string settingsfile) {
 }
 
 // Logout and end session
-void FIXManager::endSession() {
+void FIXManager::disconnect() {
   // call stop method of socket initiator
   m_pinitiator->stop();
 }
@@ -898,8 +900,10 @@ void FIXManager::processChart(const MarketSnapshot& snapshot) {
   if ( ! m_charts.empty() ) {
     for ( auto chart : m_charts ) {
       if ( chart != NULL ) {
-        Tick tick = { snapshot.getSendingTime(), snapshot.getBid(), snapshot.getAsk(), snapshot.getPointSize() };
-        chart->add_tick( tick );  
+        if ( chart->symbol() == snapshot.getSymbol() ) {
+          Tick tick = { snapshot.getSendingTime(), snapshot.getBid(), snapshot.getAsk(), snapshot.getPointSize() };
+          chart->add_tick( tick );    
+        }
       }
     }
   }
@@ -1368,7 +1372,7 @@ void FIXManager::onExit() {
   }
 
   // End Session and logout
-  endSession();
+  //endSession();
 }
 
 /*!
@@ -1400,6 +1404,7 @@ void FIXManager::removeSubscription(const string symbol) {
  * @return std::shared_ptr<spdlog::logger>
  */
 std::shared_ptr<spdlog::logger> FIXManager::console() {
+  FIX::Locker lock( m_mutex );
   return m_console;
 }
 
@@ -1457,8 +1462,6 @@ void FIXManager::setExiting(const bool status) {
   if ( m_is_exiting ) {
     // Call onExit handler
     onExit();
-    // Call endSession handler
-    endSession();
   }
 }
 

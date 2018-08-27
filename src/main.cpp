@@ -33,15 +33,20 @@ int main(int argc, char** argv) {
 		FIXManager fixmanager;
 		
 		// Add chart with strategy
-		RenkoStrategy strategy;
-		RenkoChart chart( 3 );
-		chart.set_symbol( "EUR/USD" );
-		chart.set_strategy( &strategy );
+		RenkoStrategy eurusd_strategy;
+		RenkoChart eurusd_chart( "EUR/USD", 1 );
+		eurusd_chart.set_strategy( &eurusd_strategy );
+
+		fixmanager.add_chart( &eurusd_chart );
 
 		// SimpleMovingAverage sma5( 5 );
-		// chart.add_indicator( &sma5 );
+		// eurusd_chart.add_indicator( &sma5 );
+		
+		RenkoStrategy audusd_strategy;
+		RenkoChart audusd_chart( "AUD/USD", 3 );
+		audusd_chart.set_strategy( &audusd_strategy );
 
-		fixmanager.add_chart( &chart );
+		//fixmanager.add_chart( &audusd_chart );
 
 		// connect 
 		fixmanager.connect( config_file );
@@ -56,6 +61,8 @@ int main(int argc, char** argv) {
 				break;
 			}
 		}
+
+		fixmanager.disconnect();
 
 		// give another 1 second to clean up
 		//this_thread::sleep_for( chrono::seconds(1) );
