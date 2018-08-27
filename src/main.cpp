@@ -46,11 +46,6 @@ int main(int argc, char** argv) {
 		// connect 
 		fixmanager.connect( config_file );
 
-		if ( ! fixmanager.isExiting() ) {
-			// output 
-			fixmanager.console()->info( "[INFO] - Press 0 to exit! -" );
-		}
-
 		// start loop
 		while ( ! fixmanager.isExiting() ) {
 			int command = 0;
@@ -62,14 +57,11 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		// Call onExit handler
-		fixmanager.onExit();
-
 		// give another 1 second to clean up
-		this_thread::sleep_for( chrono::seconds(1) );
+		//this_thread::sleep_for( chrono::seconds(1) );
 
 	} catch(std::exception& e) {
-		cout << e.what() << endl;
+		cout << "something horrible went wrong: " << e.what() << endl;
 		return EXIT_FAILURE;
 	} catch(...) {
 		cout << "Unknonwn exception" << endl;

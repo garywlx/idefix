@@ -36,16 +36,6 @@ FIXManager::FIXManager(): m_is_exiting( false ) {
   // flush logger every
   spdlog::flush_every( chrono::seconds( 3 ) );
 
-
-
-  // setup strategy
-  /*if ( setStrategy( strategy ) ) {
-    
-  } else {
-    console()->warn( "Exiting..." );
-    // close app
-    m_is_exiting = true;
-  }*/
 }
 
 /*!
@@ -55,13 +45,26 @@ FIXManager::FIXManager(): m_is_exiting( false ) {
  */
 void FIXManager::connect(const std::string settingsFile) {
    // start FIX session
-   startSession(settingsFile);  
+   startSession( settingsFile );
 }
 
 /*!
  * Deconstructor FIXManager
  */
-FIXManager::~FIXManager() {}
+FIXManager::~FIXManager() {
+  if ( m_pinitiator != NULL ) {
+    delete m_pinitiator;
+  }
+  if ( m_psettings != NULL ) {
+    delete m_psettings;
+  }
+  if ( m_pstore_factory != NULL ) {
+    delete m_pstore_factory;
+  }
+  if ( m_plog_factory != NULL ) {
+    delete m_plog_factory;
+  }
+}
 
 // Gets called when quickfix creates a new session. A session comes into and remains in existence
 // for the life of the application
@@ -93,12 +96,13 @@ void FIXManager::onLogon(const SessionID &sessionID) {
 void FIXManager::onLogout(const SessionID &session_ID) {
   // Session logout
   if( isMarketDataSession(session_ID) ){
-    console()->info( "[onLogout] MarketSession" );
+    console()->info( "[onLogout] {} (MarketSession)", session_ID.toString() );
   }
 
   if( isOrderSession(session_ID) ){
-    console()->info( "[onLogout] OrderSession" );
+    console()->info( "[onLogout] {} (OrderSession)", session_ID.toString() );
   }
+
 }
 
 // Provides you with a peak at the administrative messages that are being sent from your FIX engine
@@ -300,15 +304,14 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
   // get base currency from system parameters
   account.setCurrency( getSysParam("BASE_CRNCY") );
 
+  // set account
   setAccount( account );
+
+  // output account
+  console()->info( "[Account] {} Balance: {:.2f} {}", account.getAccountID(), account.getBalance(), account.getCurrency() );
 
   // call init
   onInit();
-
-  // call strategy on account change
-  // if ( m_pstrategy != NULL ) {
-  //   m_pstrategy->onAccountChange( *this, account );
-  // }
 }
 
 /*!
@@ -629,11 +632,8 @@ void FIXManager::startSession(const string settingsfile) {
 
 // Logout and end session
 void FIXManager::endSession() {
-  // if ( m_pstrategy != nullptr ) m_pinitiator->stop();
-  if ( m_pinitiator != nullptr ) delete m_pinitiator;
-  if ( m_psettings ) delete m_psettings;
-  if ( m_pstore_factory != nullptr ) delete m_pstore_factory;
-  if ( m_plog_factory != nullptr ) delete m_plog_factory;
+  // call stop method of socket initiator
+  m_pinitiator->stop();
 }
 
 // Sends TradingSessionStatusRequest message in order to receive as a response the
@@ -897,8 +897,10 @@ void FIXManager::processChart(const MarketSnapshot& snapshot) {
 
   if ( ! m_charts.empty() ) {
     for ( auto chart : m_charts ) {
-      Tick tick = { snapshot.getSendingTime(), snapshot.getBid(), snapshot.getAsk(), snapshot.getPointSize() };
-      chart->add_tick( tick );
+      if ( chart != NULL ) {
+        Tick tick = { snapshot.getSendingTime(), snapshot.getBid(), snapshot.getAsk(), snapshot.getPointSize() };
+        chart->add_tick( tick );  
+      }
     }
   }
 }
@@ -1323,37 +1325,46 @@ void FIXManager::showMarketDetail(const string symbol) {
  * Call this, if you want to handle things after login, establishing sessions and receiving collateral report
  */
 void FIXManager::onInit() {
-  // check if we already initialized
-  if( m_list_market.size() > 0 ) return;
+  FIX::Locker lock( m_mutex );
+  if ( ! isExiting() ) {
+    // output 
+    console()->info( "[INFO] - Press 0 to exit! -" );
+  } 
 
   // call chart on init functions
   for ( auto c : m_charts ) {
-    c->on_init();
-  }
+    if ( c != NULL ) {
+      // check if symbol is already subscribed
+      auto it = m_list_market.find( c->symbol() );
+      if ( it != m_list_market.end() ) continue;
 
-  // call strategy init
-  // if ( m_pstrategy != NULL ) {
-  //   m_pstrategy->onInit( *this );
-  // }
-    
+      // subscribe market data for registered chart
+      subscribeMarketData( c->symbol() );
+      // init chart
+      c->on_init();
+    }
+  }
+  
+  // Query position reports
   queryPositionReport();
 }
 /*!
  * Call this, if you want to handle things before exiting
  */
 void FIXManager::onExit() {
+  FIX::Locker lock( m_mutex );
 
-  // set exiting var
-  m_is_exiting = true;
+  if ( ! isExiting() ) return;
 
-  // call strategy exit
-  // if ( m_pstrategy != NULL ) {
-  //   m_pstrategy->onExit( *this );
-  // }
-  
-  // unsubscribe all symbols
-  while( ! m_symbol_subscriptions.empty() ) {
-    unsubscribeMarketData( m_symbol_subscriptions.back() );
+  if ( ! m_charts.empty() ) {
+    for ( auto c : m_charts ) {
+      if ( c != NULL ) {
+        // exit chart
+        c->on_exit();
+        // unsubscribe market data for registered charts
+        unsubscribeMarketData( c->symbol() );      
+      }
+    }  
   }
 
   // End Session and logout
@@ -1382,22 +1393,6 @@ void FIXManager::removeSubscription(const string symbol) {
     m_symbol_subscriptions.erase( it );
   }
 }
-
-/*!
- * Set a strategy
- * 
- * @param Strategy* strategy The Strategy to add
- */
-// bool FIXManager::setStrategy(Strategy* strategy) {
-//   if ( strategy->getName().empty() ) {
-//     console()->error( "Strategy identifier is empty!" );
-//     return false;
-//   }
-
-//   m_pstrategy = strategy;
-
-//   return true;
-// }
 
 /*!
  * Get console shared pointer
@@ -1455,7 +1450,16 @@ bool FIXManager::isExiting() {
  * @param const bool status 
  */
 void FIXManager::setExiting(const bool status) {
-  m_is_exiting = status;
+  if ( m_is_exiting != status ) {
+    m_is_exiting = status;
+  }
+
+  if ( m_is_exiting ) {
+    // Call onExit handler
+    onExit();
+    // Call endSession handler
+    endSession();
+  }
 }
 
 /*!

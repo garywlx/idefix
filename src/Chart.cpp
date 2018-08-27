@@ -10,15 +10,42 @@ Chart::~Chart() {}
  * Is called in fixmanager.onInit
  */
 void Chart::on_init() {
+	FIX::Locker lock( m_mutex );
+
 	// init indicators
-	for ( auto indicator : m_indicators ) {
-		indicator->on_init( *this );
+	if ( ! m_indicators.empty() ) {
+		for ( auto indicator : m_indicators ) {
+			if ( indicator != NULL ) {
+				indicator->on_init( *this );	
+			}
+		}	
+	}
+	
+	// init strategy
+	if ( m_strategy != NULL ) {
+		m_strategy->on_init( *this );
+	}
+}
+
+/*!
+ * Is called in fixmanager.onExit
+ */
+void Chart::on_exit() {
+	FIX::Locker lock( m_mutex );
+
+	// init indicators
+	if ( ! m_indicators.empty() ) {
+		for ( auto indicator : m_indicators ) {
+			if ( indicator != NULL ) {
+				indicator->on_exit( *this );	
+			}
+		}
 	}
 
 	// init strategy
-	if ( m_strategy != nullptr ) {
-		m_strategy->on_init( *this );
-	}
+	if ( m_strategy != NULL ) {
+		m_strategy->on_exit( *this );
+	}	
 }
 
 /*!
@@ -27,11 +54,17 @@ void Chart::on_init() {
  * @param const Tick& tick
  */
 void Chart::add_tick(const Tick& tick) {
-	// update indicator
-	for ( auto indicator : m_indicators ) {
-		indicator->on_tick( tick );
-	}
+	FIX::Locker lock( m_mutex );
 
+	// update indicator
+	if ( ! m_indicators.empty() ) {
+		for ( auto indicator : m_indicators ) {
+			if ( indicator != NULL ) {
+				indicator->on_tick( tick );	
+			}
+		}	
+	}
+	
 	if ( m_strategy != nullptr ) {
 		m_strategy->on_tick( *this, tick );
 	}
@@ -44,6 +77,8 @@ void Chart::add_tick(const Tick& tick) {
  * @param AbstractIndicator* indicator
  */
 void Chart::add_indicator(AbstractIndicator* indicator) {
+	FIX::Locker lock( m_mutex );
+
 	auto it = std::find_if( m_indicators.begin(), m_indicators.end(), [=](AbstractIndicator* indi) {
 		return indicator->name() == indi->name();
 	});
@@ -88,6 +123,8 @@ std::string Chart::symbol() const {
  * @return std::vector<Tick>
  */
 std::vector<Tick> Chart::ticks() {
+	FIX::Locker lock( m_mutex );
+
 	return m_ticks;
 }
 
@@ -97,7 +134,9 @@ std::vector<Tick> Chart::ticks() {
  * @param AbstractStrategy* strategy
  */
 void Chart::set_strategy(AbstractStrategy* strategy) {
-	if ( m_strategy != strategy ) {
+	FIX::Locker lock( m_mutex );
+
+	if ( m_strategy != strategy && strategy != NULL ) {
 		m_strategy = strategy;
 
 		m_strategy->on_init( *this );
@@ -110,6 +149,8 @@ void Chart::set_strategy(AbstractStrategy* strategy) {
  * @return AbstractStrategy*
  */
 AbstractStrategy* Chart::strategy() {
+	FIX::Locker lock( m_mutex );
+	
 	return m_strategy;
 }
 

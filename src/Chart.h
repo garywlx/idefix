@@ -6,6 +6,7 @@
 #include "strategies/AbstractStrategy.h"
 #include <vector>
 #include <string>
+#include <quickfix/Mutex.h>
 
 namespace IDEFIX {
 	class Chart {
@@ -18,6 +19,7 @@ namespace IDEFIX {
 		Chart();
 		~Chart();
 		void on_init();
+		void on_exit();
 		void add_tick(const Tick& tick);
 		void add_indicator(AbstractIndicator* indicator);
 
@@ -33,6 +35,7 @@ namespace IDEFIX {
 		std::vector<AbstractIndicator*> m_indicators;
 		std::vector<Tick> m_ticks;
 		AbstractStrategy* m_strategy;
+		FIX::Mutex m_mutex;
 	};
 };
 
