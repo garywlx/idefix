@@ -10,7 +10,6 @@
 #include "FIXManager.h"
 #include "RenkoChart.h"
 #include "strategies/RenkoStrategy.h"
-#include "indicator/SimpleMovingAverage.h"
 
 using namespace std;
 using namespace IDEFIX;
@@ -33,20 +32,35 @@ int main(int argc, char** argv) {
 		FIXManager fixmanager;
 		
 		// Add chart with strategy
-		RenkoStrategy eurusd_strategy;
+		// AUD/USD
+		RenkoChart audusd_chart( "AUD/USD", 1 );
+		audusd_chart.set_strategy( new RenkoStrategy() );
+		fixmanager.add_chart( &audusd_chart );
+
+		// EUR/USD
 		RenkoChart eurusd_chart( "EUR/USD", 1 );
-		eurusd_chart.set_strategy( &eurusd_strategy );
-
+		eurusd_chart.set_strategy( new RenkoStrategy() );
 		fixmanager.add_chart( &eurusd_chart );
-
-		// SimpleMovingAverage sma5( 5 );
-		// eurusd_chart.add_indicator( &sma5 );
 		
-		RenkoStrategy audusd_strategy;
-		RenkoChart audusd_chart( "AUD/USD", 3 );
-		audusd_chart.set_strategy( &audusd_strategy );
+		// GBP/USD
+		RenkoChart gbpusd_chart( "GBP/USD", 1 );
+		gbpusd_chart.set_strategy( new RenkoStrategy() );
+		fixmanager.add_chart( &gbpusd_chart );
 
-		//fixmanager.add_chart( &audusd_chart );
+		// NZD/USD
+		RenkoChart nzdusd_chart( "NZD/USD", 1 );
+		nzdusd_chart.set_strategy( new RenkoStrategy() );
+		fixmanager.add_chart( &nzdusd_chart );
+
+		// USD/CAD
+		RenkoChart usdcad_chart( "USD/CAD", 1 );
+		usdcad_chart.set_strategy( new RenkoStrategy() );
+		fixmanager.add_chart( &usdcad_chart );
+
+		// USD/CHF
+		RenkoChart usdchf_chart( "USD/CHF", 1 );
+		usdchf_chart.set_strategy( new RenkoStrategy() );
+		fixmanager.add_chart( &usdchf_chart );
 
 		// connect 
 		fixmanager.connect( config_file );

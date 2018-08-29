@@ -2,6 +2,7 @@
 #define IDEFIX_OPERATORS_H
 
 #include "indicator/RenkoBrick.h"
+#include "Exceptions.h"
 
 namespace IDEFIX {
 	/*!

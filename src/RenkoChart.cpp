@@ -1,6 +1,13 @@
+#define RC_SHOW_DEBUG false
+
 #include "RenkoChart.h"
 #include "Math.h"
 #include <stdexcept>
+
+#if RC_SHOW_DEBUG
+#include "Console.h"
+#include <sstream>
+#endif
 
 namespace IDEFIX {
 	RenkoChart::RenkoChart(const std::string& symbol, const double period): m_period( period ) {
@@ -8,10 +15,6 @@ namespace IDEFIX {
 		m_init_brick.clear();
 		m_last_brick.clear();
 		m_current_brick.clear();
-
-		// m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-		// m_last_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-		// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 	}
 
 	RenkoChart::~RenkoChart() {}
@@ -32,7 +35,7 @@ namespace IDEFIX {
 		}
 
 		if ( m_strategy != NULL ) {
-			m_strategy->on_tick( *this, tick );
+			m_strategy->on_tick( this, tick );
 		}
 
 		// is this the first brick?
@@ -57,6 +60,11 @@ namespace IDEFIX {
 
 		// increase volume
 		m_current_brick.volume++;
+
+#if RC_SHOW_DEBUG
+		// for console output
+		std::stringstream ss_console;
+#endif
 
 		// make brick
 		switch( m_last_brick.status ) {
@@ -83,18 +91,20 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-					cout << "L+LONG  " << m_current_brick << endl;
+#if RC_SHOW_DEBUG
+					ss_console.clear();
+					ss_console.str("");
+					ss_console << "L+LONG  " << m_current_brick;
+					console()->info("[RenkoChart] {}", ss_console.str() );
+#endif
 					
 					if ( m_strategy != NULL ) {
-						m_strategy->on_bar( *this, m_current_brick );
+						m_strategy->on_bar( this, m_current_brick );
 					}
 
 					// reset current and last brick
 					m_current_brick.clear();
 					m_last_brick.clear();
-					// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-					// m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-
 					return;
 				}
 				// open new short brick
@@ -117,18 +127,20 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-					cout << "L+SHORT " << m_current_brick << endl;					
+#if RC_SHOW_DEBUG
+					ss_console.clear();
+					ss_console.str("");
+					ss_console << "L+SHORT " << m_current_brick;
+					console()->info("[RenkoChart] {}", ss_console.str() );
+#endif
 					
 					if ( m_strategy != NULL ) {
-						m_strategy->on_bar( *this, m_current_brick );
+						m_strategy->on_bar( this, m_current_brick );
 					}
 
 					// reset current and last brick
 					m_current_brick.clear();
 					m_last_brick.clear();
-					// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-					// m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-
 					return;
 				}
 				break;
@@ -154,19 +166,20 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 					
-					cout << "S+SHORT " << m_current_brick << endl;
+#if RC_SHOW_DEBUG
+					ss_console.clear();
+					ss_console.str("");
+					ss_console << "S+SHORT " << m_current_brick;
+					console()->info("[RenkoChart] {}", ss_console.str() );
+#endif
 
 					if ( m_strategy != NULL ) {
-						m_strategy->on_bar( *this, m_current_brick );
+						m_strategy->on_bar( this, m_current_brick );
 					}
 
 					// reset current and last brick
 					m_current_brick.clear();
 					m_last_brick.clear();
-
-					// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-					// m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-
 					return;
 				}
 				// open new long brick
@@ -189,18 +202,20 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-					cout << "S+LONG  " << m_current_brick << endl;
+#if RC_SHOW_DEBUG
+					ss_console.clear();
+					ss_console.str("");
+					ss_console << "S+LONG  " << m_current_brick;
+					console()->info("[RenkoChart] {}", ss_console.str() );
+#endif
 
 					if ( m_strategy != NULL ) {
-						m_strategy->on_bar( *this, m_current_brick );
+						m_strategy->on_bar( this, m_current_brick );
 					}
 
 					// reset current and last brick
 					m_current_brick.clear();
 					m_last_brick.clear();
-					// m_current_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-					// m_last_brick    = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
-
 					return;
 				}
 				break;
@@ -230,6 +245,11 @@ namespace IDEFIX {
 			m_init_brick.volume++;
 		}
 
+#if RC_SHOW_DEBUG
+		// console output
+		std::stringstream ss_console;
+#endif
+
 		// make initial brick
 		// add LONG brick
 		if ( m_init_brick.volume > 1 && tick.bid > m_init_brick.open_price && Math::get_spread( tick.bid, m_init_brick.open_price, tick.point_size ) >= m_period ) {
@@ -247,15 +267,19 @@ namespace IDEFIX {
 
 			m_bricks.push_back( m_init_brick );
 
-			cout << "0+LONG  " << m_init_brick << endl;
+#if RC_SHOW_DEBUG
+			ss_console.clear();
+			ss_console.str("");
+			ss_console << "0+LONG  " << m_init_brick;
+			console()->info("[RenkoChart] {}", ss_console.str() );
+#endif
 
 			if ( m_strategy != NULL ) {
-				m_strategy->on_bar( *this, m_init_brick );
+				m_strategy->on_bar( this, m_init_brick );
 			}
 
 			m_last_brick = m_init_brick;
 			m_init_brick.clear();
-			// m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 			return true;
 		}
@@ -276,15 +300,19 @@ namespace IDEFIX {
 			
 			m_bricks.push_back( m_init_brick );
 
-			cout << "0+SHORT " << m_init_brick << endl;			
+#if RC_SHOW_DEBUG
+			ss_console.clear();
+			ss_console.str("");
+			ss_console << "0+SHORT " << m_init_brick;
+			console()->info("[RenkoChart] {}", ss_console.str() );
+#endif
 
 			if ( m_strategy != NULL ) {
-				m_strategy->on_bar( *this, m_init_brick );
+				m_strategy->on_bar( this, m_init_brick );
 			}
 			
 			m_last_brick = m_init_brick;
 			m_init_brick.clear();
-			//m_init_brick = {"","","",0,0,0,0,RenkoBrick::STATUS::NOSTATUS,0,0};
 
 			return true;
 		}

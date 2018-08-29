@@ -23,7 +23,9 @@ namespace IDEFIX {
 		RenkoChart(const std::string& symbol, const double period);
 		~RenkoChart();
 
+		// overwritten from base class
 		void add_tick(const Tick& tick);
+
 		std::vector<RenkoBrick> brick_list();
 		RenkoBrick at(const int index) throw( IDEFIX::out_of_range, IDEFIX::element_not_found );
 

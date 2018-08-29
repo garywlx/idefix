@@ -934,6 +934,7 @@ void FIXManager::closeAllPositions(const string symbol){
   if( m_list_marketorders.empty() ) return;
 
   console()->info( "[closeAllPositions]" );
+  
   for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
     if ( it->second.getSymbol() == symbol ){
       closePosition( it->second );
@@ -1365,10 +1366,12 @@ void FIXManager::onExit() {
       if ( c != NULL ) {
         // exit chart
         c->on_exit();
+        // Exit all positions
+        closeAllPositions( c->symbol() );
         // unsubscribe market data for registered charts
-        unsubscribeMarketData( c->symbol() );      
+        unsubscribeMarketData( c->symbol() );
       }
-    }  
+    }
   }
 
   // End Session and logout

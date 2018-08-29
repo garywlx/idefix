@@ -1,4 +1,5 @@
 #include "Chart.h"
+#include "Console.h"
 
 namespace IDEFIX {
 
@@ -16,14 +17,14 @@ void Chart::on_init() {
 	if ( ! m_indicators.empty() ) {
 		for ( auto indicator : m_indicators ) {
 			if ( indicator != NULL ) {
-				indicator->on_init( *this );	
+				indicator->on_init( this );	
 			}
 		}	
 	}
 	
 	// init strategy
 	if ( m_strategy != NULL ) {
-		m_strategy->on_init( *this );
+		m_strategy->on_init( this );
 	}
 }
 
@@ -37,37 +38,15 @@ void Chart::on_exit() {
 	if ( ! m_indicators.empty() ) {
 		for ( auto indicator : m_indicators ) {
 			if ( indicator != NULL ) {
-				indicator->on_exit( *this );	
+				indicator->on_exit( this );	
 			}
 		}
 	}
 
 	// init strategy
 	if ( m_strategy != NULL ) {
-		m_strategy->on_exit( *this );
+		m_strategy->on_exit( this );
 	}	
-}
-
-/*!
- * Add new tick to the chart and update all indicators
- * 
- * @param const Tick& tick
- */
-void Chart::add_tick(const Tick& tick) {
-	FIX::Locker lock( m_mutex );
-
-	// update indicator
-	if ( ! m_indicators.empty() ) {
-		for ( auto indicator : m_indicators ) {
-			if ( indicator != NULL ) {
-				indicator->on_tick( tick );	
-			}
-		}	
-	}
-	
-	if ( m_strategy != nullptr ) {
-		m_strategy->on_tick( *this, tick );
-	}
 }
 
 /*!
@@ -90,12 +69,6 @@ void Chart::add_indicator(AbstractIndicator* indicator) {
 
 	m_indicators.push_back( indicator );
 }
-
-/*!
- * Draw the chart, just for reference at the moment.
- * Used if the dashboard is build
- */
-void Chart::plot() {}
 
 /*!
  * Setter symbol
@@ -151,6 +124,5 @@ AbstractStrategy* Chart::strategy() {
 
 	return m_strategy;
 }
-
 
 };
