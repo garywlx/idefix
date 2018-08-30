@@ -5,7 +5,7 @@
 #include <sstream>
 
 namespace IDEFIX {
-class IMovingAverage {
+class AbstractMovingAverage {
 public:
 	std::vector<double> m_values;
 	int m_period;
@@ -22,7 +22,7 @@ public:
 };
 };
 
-inline std::ostream& operator<<(std::ostream& out, IDEFIX::IMovingAverage& ma) {
+inline std::ostream& operator<<(std::ostream& out, IDEFIX::AbstractMovingAverage& ma) {
 	out << ma.value();
 	return out;
 }

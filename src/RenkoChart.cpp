@@ -10,8 +10,11 @@
 #endif
 
 namespace IDEFIX {
-	RenkoChart::RenkoChart(const std::string& symbol, const double period): m_period( period ) {
-		set_symbol( symbol );
+	RenkoChart::RenkoChart(): m_period(5) {
+
+	}
+
+	RenkoChart::RenkoChart(const double period): m_period( period ) {
 		m_init_brick.clear();
 		m_last_brick.clear();
 		m_current_brick.clear();
@@ -20,23 +23,12 @@ namespace IDEFIX {
 	RenkoChart::~RenkoChart() {}
 
 	/*!
-	 * Add tick to list and calculate renko brick
+	 * React to on_tick call
 	 * 
-	 * @param const Tick&  tick
+	 * @param const MarktSnapshot&  tick
 	 */
-	void RenkoChart::add_tick(const Tick& tick) {
+	void RenkoChart::on_tick(const MarketSnapshot& tick) {
 		FIX::Locker lock( m_mutex );
-
-		// add tick to list
-		m_ticks.push_back( tick );
-
-		for ( auto indicator : m_indicators ) {
-			indicator->on_tick( tick );
-		}
-
-		if ( m_strategy != NULL ) {
-			m_strategy->on_tick( this, tick );
-		}
 
 		// is this the first brick?
 		if ( m_bricks.size() == 0 ) {
@@ -49,13 +41,18 @@ namespace IDEFIX {
 			m_last_brick = m_bricks.back();
 		}
 
+		// shortcuts
+		auto tick_bid          = tick.getBid();
+		auto tick_sending_time = tick.getSendingTime();
+		auto tick_point_size   = tick.getPointSize();
+
 		// renko calculation
 		if ( m_current_brick.status == RenkoBrick::STATUS::NOSTATUS && m_current_brick.volume == 0 ) {
 			m_current_brick.open_time  = m_last_brick.close_time;
 			m_current_brick.open_price = m_last_brick.close_price;
 			m_current_brick.low_price  = m_last_brick.close_price;
 			m_current_brick.volume     = 1;
-			m_current_brick.point_size = tick.point_size;
+			m_current_brick.point_size = tick_point_size;
 		} 
 
 		// increase volume
@@ -71,17 +68,17 @@ namespace IDEFIX {
 			// last brick is LONG 
 			case RenkoBrick::STATUS::LONG:
 				// open new long brick
-				if ( tick.bid > m_last_brick.close_price && Math::get_spread( tick.bid, m_last_brick.close_price, tick.point_size ) >= m_period ) {
+				if ( tick_bid > m_last_brick.close_price && Math::get_spread( tick_bid, m_last_brick.close_price, tick_point_size ) >= m_period ) {
 					m_current_brick.open_time   = m_last_brick.close_time;
 					m_current_brick.open_price  = m_last_brick.close_price;
-					m_current_brick.diff        = Math::get_spread( tick.bid, m_last_brick.close_price, tick.point_size );
-					m_current_brick.close_price = tick.bid;
-					m_current_brick.close_time  = tick.datetime;
+					m_current_brick.diff        = Math::get_spread( tick_bid, m_last_brick.close_price, tick_point_size );
+					m_current_brick.close_price = tick_bid;
+					m_current_brick.close_time  = tick_sending_time;
 					m_current_brick.status      = RenkoBrick::STATUS::LONG;
 
 					// correct price and diff if it is != m_period
 					if ( m_current_brick.diff > m_period ) {
-						m_current_brick.close_price = m_last_brick.close_price + ( m_period * tick.point_size );
+						m_current_brick.close_price = m_last_brick.close_price + ( m_period * tick_point_size );
 						m_current_brick.diff        = m_period;
 					}
 
@@ -98,9 +95,8 @@ namespace IDEFIX {
 					console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 					
-					if ( m_strategy != NULL ) {
-						m_strategy->on_bar( this, m_current_brick );
-					}
+					// signal
+					on_brick( m_current_brick );
 
 					// reset current and last brick
 					m_current_brick.clear();
@@ -108,16 +104,16 @@ namespace IDEFIX {
 					return;
 				}
 				// open new short brick
-				else if ( tick.bid < m_last_brick.open_price && Math::get_spread( tick.bid, m_last_brick.open_price, tick.point_size ) >= m_period ) {
+				else if ( tick_bid < m_last_brick.open_price && Math::get_spread( tick_bid, m_last_brick.open_price, tick_point_size ) >= m_period ) {
 					m_current_brick.open_time   = m_last_brick.open_time;
 					m_current_brick.open_price  = m_last_brick.open_price;
-					m_current_brick.diff        = Math::get_spread( tick.bid, m_last_brick.open_price, tick.point_size );
-					m_current_brick.close_price = tick.bid;
-					m_current_brick.close_time  = tick.datetime;
+					m_current_brick.diff        = Math::get_spread( tick_bid, m_last_brick.open_price, tick_point_size );
+					m_current_brick.close_price = tick_bid;
+					m_current_brick.close_time  = tick_sending_time;
 					m_current_brick.status      = RenkoBrick::STATUS::SHORT;
 
 					if ( m_current_brick.diff > m_period ) {
-						m_current_brick.close_price = m_last_brick.open_price - ( m_period * tick.point_size );
+						m_current_brick.close_price = m_last_brick.open_price - ( m_period * tick_point_size );
 						m_current_brick.diff        = m_period;
 					}
 
@@ -134,9 +130,8 @@ namespace IDEFIX {
 					console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 					
-					if ( m_strategy != NULL ) {
-						m_strategy->on_bar( this, m_current_brick );
-					}
+					// signal
+					on_brick( m_current_brick );
 
 					// reset current and last brick
 					m_current_brick.clear();
@@ -147,16 +142,16 @@ namespace IDEFIX {
 			// last brick is SHORT
 			case RenkoBrick::STATUS::SHORT:
 				// open new short brick
-				if ( tick.bid < m_last_brick.close_price && Math::get_spread( tick.bid, m_last_brick.close_price, tick.point_size ) >= m_period ) {
+				if ( tick_bid < m_last_brick.close_price && Math::get_spread( tick_bid, m_last_brick.close_price, tick_point_size ) >= m_period ) {
 					m_current_brick.open_time   = m_last_brick.close_time;
 					m_current_brick.open_price  = m_last_brick.close_price;
-					m_current_brick.diff        = Math::get_spread( tick.bid, m_last_brick.close_price, tick.point_size );
-					m_current_brick.close_price = tick.bid;
-					m_current_brick.close_time  = tick.datetime;
+					m_current_brick.diff        = Math::get_spread( tick_bid, m_last_brick.close_price, tick_point_size );
+					m_current_brick.close_price = tick_bid;
+					m_current_brick.close_time  = tick_sending_time;
 					m_current_brick.status      = RenkoBrick::STATUS::SHORT;
 
 					if ( m_current_brick.diff > m_period ) {
-						m_current_brick.close_price = m_last_brick.close_price - ( m_period * tick.point_size );
+						m_current_brick.close_price = m_last_brick.close_price - ( m_period * tick_point_size );
 						m_current_brick.diff        = m_period;
 					}
 
@@ -173,9 +168,8 @@ namespace IDEFIX {
 					console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 
-					if ( m_strategy != NULL ) {
-						m_strategy->on_bar( this, m_current_brick );
-					}
+					// signal
+					on_brick( m_current_brick );
 
 					// reset current and last brick
 					m_current_brick.clear();
@@ -183,16 +177,16 @@ namespace IDEFIX {
 					return;
 				}
 				// open new long brick
-				else if ( tick.bid > m_last_brick.open_price && Math::get_spread( tick.bid, m_last_brick.open_price, tick.point_size ) >= m_period ) {
+				else if ( tick_bid > m_last_brick.open_price && Math::get_spread( tick_bid, m_last_brick.open_price, tick_point_size ) >= m_period ) {
 					m_current_brick.open_time   = m_last_brick.open_time;
 					m_current_brick.open_price  = m_last_brick.open_price;
-					m_current_brick.diff        = Math::get_spread( tick.bid, m_last_brick.open_price, tick.point_size );
-					m_current_brick.close_price = tick.bid;
-					m_current_brick.close_time  = tick.datetime;
+					m_current_brick.diff        = Math::get_spread( tick_bid, m_last_brick.open_price, tick_point_size );
+					m_current_brick.close_price = tick_bid;
+					m_current_brick.close_time  = tick_sending_time;
 					m_current_brick.status      = RenkoBrick::STATUS::LONG;
 
 					if ( m_current_brick.diff > m_period ) {
-						m_current_brick.close_price = m_last_brick.open_price + ( m_period * tick.point_size );
+						m_current_brick.close_price = m_last_brick.open_price + ( m_period * tick_point_size );
 						m_current_brick.diff        = m_period;
 					}
 
@@ -209,9 +203,8 @@ namespace IDEFIX {
 					console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 
-					if ( m_strategy != NULL ) {
-						m_strategy->on_bar( this, m_current_brick );
-					}
+					// signal
+					on_brick( m_current_brick );
 
 					// reset current and last brick
 					m_current_brick.clear();
@@ -228,19 +221,24 @@ namespace IDEFIX {
 	/*!
 	 * Add initial brick, the very first
 	 * 
-	 * @param const Tick& tick
+	 * @param const MarktSnapshot& tick
 	 * @return bool True if a brick was added
 	 */
-	bool RenkoChart::init_brick(const Tick& tick) {
+	bool RenkoChart::init_brick(const MarketSnapshot& tick) {
 		FIX::Locker lock( m_mutex );
 	
+		// shortcuts
+		auto tick_bid          = tick.getBid();
+		auto tick_point_size   = tick.getPointSize();
+		auto tick_sending_time = tick.getSendingTime();
+
 		// init first brick
 		if ( m_init_brick.status == RenkoBrick::STATUS::NOSTATUS && m_init_brick.volume == 0 ) {
-			m_init_brick.open_time  = tick.datetime;
-			m_init_brick.open_price = tick.bid;
-			m_init_brick.low_price  = tick.bid;
+			m_init_brick.open_time  = tick_sending_time;
+			m_init_brick.open_price = tick_bid;
+			m_init_brick.low_price  = tick_bid;
 			m_init_brick.volume     = 1;
-			m_init_brick.point_size = tick.point_size;
+			m_init_brick.point_size = tick_point_size;
 		} else {
 			m_init_brick.volume++;
 		}
@@ -252,15 +250,15 @@ namespace IDEFIX {
 
 		// make initial brick
 		// add LONG brick
-		if ( m_init_brick.volume > 1 && tick.bid > m_init_brick.open_price && Math::get_spread( tick.bid, m_init_brick.open_price, tick.point_size ) >= m_period ) {
-			m_init_brick.diff        = Math::get_spread( tick.bid, m_init_brick.open_price, tick.point_size );
+		if ( m_init_brick.volume > 1 && tick_bid > m_init_brick.open_price && Math::get_spread( tick_bid, m_init_brick.open_price, tick_point_size ) >= m_period ) {
+			m_init_brick.diff        = Math::get_spread( tick_bid, m_init_brick.open_price, tick_point_size );
 			m_init_brick.status      = RenkoBrick::STATUS::LONG;
-			m_init_brick.close_price = tick.bid;
-			m_init_brick.close_time  = tick.datetime;
+			m_init_brick.close_price = tick_bid;
+			m_init_brick.close_time  = tick_sending_time;
 
 			if ( m_init_brick.diff > m_period ) {
 				m_init_brick.diff        = m_period;
-				m_init_brick.close_price = m_init_brick.open_price + ( m_period * tick.point_size );
+				m_init_brick.close_price = m_init_brick.open_price + ( m_period * tick_point_size );
 			}
 
 			m_init_brick.high_price  = m_init_brick.close_price;
@@ -274,9 +272,8 @@ namespace IDEFIX {
 			console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 
-			if ( m_strategy != NULL ) {
-				m_strategy->on_bar( this, m_init_brick );
-			}
+			// signal
+			on_brick( m_init_brick );
 
 			m_last_brick = m_init_brick;
 			m_init_brick.clear();
@@ -284,15 +281,15 @@ namespace IDEFIX {
 			return true;
 		}
 		// add short brick
-		else if ( m_init_brick.volume > 1 && tick.bid < m_init_brick.open_price && Math::get_spread( tick.bid, m_init_brick.open_price, tick.point_size ) >= m_period ) {
-			m_init_brick.diff        = Math::get_spread( tick.bid, m_init_brick.open_price, tick.point_size );
+		else if ( m_init_brick.volume > 1 && tick_bid < m_init_brick.open_price && Math::get_spread( tick_bid, m_init_brick.open_price, tick_point_size ) >= m_period ) {
+			m_init_brick.diff        = Math::get_spread( tick_bid, m_init_brick.open_price, tick_point_size );
 			m_init_brick.status      = RenkoBrick::STATUS::SHORT;
-			m_init_brick.close_price = tick.bid;
-			m_init_brick.close_time  = tick.datetime;
+			m_init_brick.close_price = tick_bid;
+			m_init_brick.close_time  = tick_sending_time;
 
 			if ( m_init_brick.diff > m_period ) {
 				m_init_brick.diff        = m_period;
-				m_init_brick.close_price = m_init_brick.open_price - ( m_period * tick.point_size );
+				m_init_brick.close_price = m_init_brick.open_price - ( m_period * tick_point_size );
 			}
 
 			m_init_brick.high_price  = m_init_brick.open_price;
@@ -307,9 +304,8 @@ namespace IDEFIX {
 			console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 
-			if ( m_strategy != NULL ) {
-				m_strategy->on_bar( this, m_init_brick );
-			}
+			// signal
+			on_brick( m_init_brick );
 			
 			m_last_brick = m_init_brick;
 			m_init_brick.clear();
@@ -360,5 +356,16 @@ namespace IDEFIX {
 
 		// not found
 		throw element_not_found(__FILE__, __LINE__);
+	}
+
+	/*!
+	 * Return brick count
+	 * 
+	 * @return int
+	 */
+	int RenkoChart::brick_count() {
+		FIX::Locker lock( m_mutex );
+
+		return m_bricks.size();
 	}
 };

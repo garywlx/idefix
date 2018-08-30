@@ -1,10 +1,10 @@
 #ifndef IDEFIX_SIMPLEMOVINGAVERAGE_H
 #define IDEFIX_SIMPLEMOVINGAVERAGE_H
 
-#include "IMovingAverage.h"
+#include "AbstractMovingAverage.h"
 
 namespace IDEFIX {
-class SimpleMovingAverage: public IMovingAverage {
+class SimpleMovingAverage: public AbstractMovingAverage {
 public:
 	SimpleMovingAverage();
 	SimpleMovingAverage(const int period);
@@ -13,6 +13,7 @@ public:
 	double value();
 	void add(const double value);
 	void clear();
+	bool is_valid();
 };
 };
 

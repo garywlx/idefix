@@ -13,6 +13,9 @@ project(idefix VERSION 0.1.0 LANGUAGES CXX)
 # import src/CMakeLists.txt
 add_subdirectory(src)
 
+# import src_signals/CMakeLists.txt 
+#add_subdirectory( src_signals )
+
 # import src_pipnl/CMakeLists.txt
 #add_subdirectory( src_pipnl )
 

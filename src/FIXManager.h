@@ -5,13 +5,6 @@
 #ifndef IDEFIX_FIXMANAGER_H
 #define IDEFIX_FIXMANAGER_H
 
-// Semantic versioning. idefix version can be printed with IDEFIX_VERSION();
-#define IDEFIX_VERSION_MAJOR 0
-#define IDEFIX_VERSION_MINOR 1
-#define IDEFIX_VERSION_PATCH 5
-
-#define IDEFIX_VERSION() printf("%d.%d.%d", IDEFIX_VERSION_MAJOR, IDEFIX_VERSION_MINOR, IDEFIX_VERSION_PATCH)
-
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -50,7 +43,9 @@
 #include "Account.h"
 #include "Math.h"
 #include "Pairs.h"
-#include "Chart.h"
+#include "SignalType.h"
+
+#include <nod/nod.hpp>
 
 #include "spdlog/spdlog.h"
 #include <spdlog/sinks/daily_file_sink.h>
@@ -62,10 +57,10 @@ using namespace FIX;
 namespace IDEFIX {
 
 class FIXManager: public MessageCracker, public Application {
-private:
+public:
   // Synchronizing multithreading
   mutable FIX::Mutex m_mutex;
-
+private:
   // Pointer to SessionSettings from SessionSettingsFile
   SessionSettings *m_psettings;
   // Pointer to File Store Factory
@@ -90,24 +85,42 @@ private:
   IDEFIX::Account m_account;
 
   // hold all market snapshots per symbol list[symbol] = Market
-  map<string, Market> m_list_market;
+  map<std::string, Market> m_list_market;
   // hold all open market positions list[posid] = marketOrder
-  map<string, MarketOrder> m_list_marketorders;
+  map<std::string, MarketOrder> m_list_marketorders;
   // hold system parameters list[key] = value
-  map<string, string> m_system_params;
+  map<std::string, std::string> m_system_params;
   // hold all market details list[symbol] = MarketDetail
-  map<string, MarketDetail> m_market_details;
+  map<std::string, MarketDetail> m_market_details;
   // hold all subscriptions symbols
-  vector<string> m_symbol_subscriptions;
-  // hold all chart pointers with indicators
-  vector<Chart*> m_charts;
+  vector<std::string> m_symbol_subscriptions;
 
   // if the app is exiting, don't log tick data etc anymore
   bool m_is_exiting;
   
 public:
+  // signals
+  // on_tick
+  nod::signal<void(const MarketSnapshot&)> on_tick;
+  // on_init
+  nod::signal<void()> on_init;
+  // on_exit
+  nod::signal<void()> on_exit;
+  // on_update_marketorder
+  nod::signal<void(const MarketOrder&, const MarketOrder::Status)> on_update_marketorder;
+  // on_error
+  nod::signal<void(const std::string&)> on_error;
+  // on_before_session_start
+  nod::signal<void()> on_before_session_start;
+  // on_before_session_end
+  nod::signal<void()> on_before_session_end;
+  // on_account_change
+  nod::signal<void(Account&)> on_account_change;
+  // on_market_order
+  nod::signal<void(const SignalType type, const MarketOrder&)> on_market_order;
+
   FIXManager();
-  // FIXManager(const string settingsFile);
+  // FIXManager(const std::string settingsFile);
   ~FIXManager();
 
   void onCreate(const SessionID& sessionID);
@@ -143,23 +156,22 @@ public:
   
   void marketOrder(const MarketOrder& marketOrder, const FIXFactory::SingleOrderType orderType = FIXFactory::SingleOrderType::MARKET_ORDER);
 
-  void closeAllPositions(const string symbol);
+  void closeAllPositions(const std::string symbol);
+  void closeAllPositions(const std::string symbol, const char side);
   void closePosition(const MarketOrder& marketOrder);
-  void closeWinners(const string symbol);
-  void closeLoosers(const string symbol);
+  void closeWinners(const std::string symbol);
+  void closeLoosers(const std::string symbol);
 
   // Public Getter & Setter
-  MarketSnapshot getLatestSnapshot(const string symbol);
+  MarketSnapshot getLatestSnapshot(const std::string symbol);
   MarketDetail getMarketDetails(const std::string& symbol);
   Account getAccount();
-  string getAccountID() const;
-  Market getMarket(const string symbol);
+  std::string getAccountID() const;
+  Market getMarket(const std::string symbol);
   
   void showSysParamList();
   void showAvailableMarketList();
-  void showMarketDetail(const string symbol);
-
-  void onExit();
+  void showMarketDetail(const std::string symbol);
 
   std::shared_ptr<spdlog::logger> console();
   void tradelog(const MarketOrder& marketOrder);
@@ -168,23 +180,20 @@ public:
   void setExiting(const bool status);
 
   bool hasOpenPositions(const std::string symbol);
-  void add_chart(Chart* chart);
 
   void connect(const std::string settingsFile);
   void disconnect();
 
 private:
   void onInit();
-  void startSession(const string settingsfile);
-  //void endSession();
+  void onExit();
 
   void onMarketSnapshot(const MarketSnapshot& snapshot);
   
   void processMarketOrders(const MarketSnapshot& snapshot);
-  void processChart(const MarketSnapshot& snapshot);
 
-  string nextRequestID();
-  string nextOrderID();
+  std::string nextRequestID();
+  std::string nextOrderID();
 
   const FIX::Dictionary* getSessionSettingsPtr(const SessionID& session_ID);
   bool isMarketDataSession(const SessionID& session_ID);
@@ -201,19 +210,19 @@ private:
   void addMarket(const Market market);
   void addMarketSnapshot(const MarketSnapshot snapshot);
   void addMarketOrder(const MarketOrder marketOrder);
-  void removeMarketOrder(const string posID);
+  void removeMarketOrder(const std::string posID);
   void updateMarketOrder(const MarketOrder& marketOrder, const bool isUnsolicited = false);
 
-  MarketOrder getMarketOrder(const string fxcm_pos_id) const;
+  MarketOrder getMarketOrder(const std::string fxcm_pos_id) const;
   MarketOrder getMarketOrder(const ClOrdID clOrdID) const;
 
   void addMarketDetail(const MarketDetail& marketDetail);
 
-  void addSysParam(const string key, const string value);
-  string getSysParam(const string key);
+  void addSysParam(const std::string key, const std::string value);
+  std::string getSysParam(const std::string key);
 
-  void addSubscription(const string symbol);
-  void removeSubscription(const string symbol);
+  void addSubscription(const std::string symbol);
+  void removeSubscription(const std::string symbol);
 
   // bool setStrategy(Strategy* strategy);
 }; // class fixmanager

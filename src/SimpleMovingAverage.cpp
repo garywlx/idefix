@@ -45,4 +45,14 @@ namespace IDEFIX {
 		m_total = 0;
 	}
 
+	bool SimpleMovingAverage::is_valid(){
+
+		for( int i = 0; i < m_period; i++ ) {
+			if ( m_values.at( i ) == 0 ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 };

@@ -76,6 +76,8 @@ public:
 		return m_account_id != other.getAccountID();
 	}
 
+	double getConversionPrice(const std::string& symbol);
+
 	std::string toString() const;
 };
 

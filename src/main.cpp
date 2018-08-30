@@ -3,13 +3,23 @@
  * https://arnegockeln.com
  */
 
+// Semantic versioning. idefix version can be printed with IDEFIX_VERSION();
+#define IDEFIX_VERSION_MAJOR 0
+#define IDEFIX_VERSION_MINOR 1
+#define IDEFIX_VERSION_PATCH 9
+
+#define IDEFIX_VERSION() printf("%d.%d.%d", IDEFIX_VERSION_MAJOR, IDEFIX_VERSION_MINOR, IDEFIX_VERSION_PATCH)
+
 #include <iostream>
-#include <thread>
-#include <chrono>
 #include <string>
 #include "FIXManager.h"
-#include "RenkoChart.h"
-#include "strategies/RenkoStrategy.h"
+#include "AwesomeStrategy.h"
+#include <functional>
+#include "Console.h"
+
+namespace IDEFIX {
+	void connect(FIXManager& fixmanager, AwesomeStrategy& strategy);	
+};
 
 using namespace std;
 using namespace IDEFIX;
@@ -31,36 +41,33 @@ int main(int argc, char** argv) {
 		// init fix manager
 		FIXManager fixmanager;
 		
+		AwesomeStrategy test( "EUR/USD" );
+		connect( fixmanager, test );
+
 		// Add chart with strategy
 		// AUD/USD
-		RenkoChart audusd_chart( "AUD/USD", 1 );
-		audusd_chart.set_strategy( new RenkoStrategy() );
-		fixmanager.add_chart( &audusd_chart );
+		// AwesomeStrategy audusd( "AUD/USD" );
+		// connect( fixmanager, audusd );
 
-		// EUR/USD
-		RenkoChart eurusd_chart( "EUR/USD", 1 );
-		eurusd_chart.set_strategy( new RenkoStrategy() );
-		fixmanager.add_chart( &eurusd_chart );
+		// EUR/USD		
+		// AwesomeStrategy eurusd( "EUR/USD" );
+		// connect( fixmanager, eurusd );
 		
 		// GBP/USD
-		RenkoChart gbpusd_chart( "GBP/USD", 1 );
-		gbpusd_chart.set_strategy( new RenkoStrategy() );
-		fixmanager.add_chart( &gbpusd_chart );
+		// AwesomeStrategy gbpusd( "GBP/USD" );
+		// connect( fixmanager, gbpusd );
 
-		// NZD/USD
-		RenkoChart nzdusd_chart( "NZD/USD", 1 );
-		nzdusd_chart.set_strategy( new RenkoStrategy() );
-		fixmanager.add_chart( &nzdusd_chart );
+		// // NZD/USD
+		// AwesomeStrategy nzdusd( "NZD/USD" );
+		// connect( fixmanager, nzdusd );
 
-		// USD/CAD
-		RenkoChart usdcad_chart( "USD/CAD", 1 );
-		usdcad_chart.set_strategy( new RenkoStrategy() );
-		fixmanager.add_chart( &usdcad_chart );
+		// // USD/CAD
+		// AwesomeStrategy usdcad( "USD/CAD" );
+		// connect( fixmanager, usdcad );
 
-		// USD/CHF
-		RenkoChart usdchf_chart( "USD/CHF", 1 );
-		usdchf_chart.set_strategy( new RenkoStrategy() );
-		fixmanager.add_chart( &usdchf_chart );
+		// // USD/CHF
+		// AwesomeStrategy usdchf( "USD/CHF" );
+		// connect( fixmanager, usdchf );
 
 		// connect 
 		fixmanager.connect( config_file );
@@ -70,16 +77,14 @@ int main(int argc, char** argv) {
 			int command = 0;
 			cin >> command;
 
-			if ( command == 0 ) {
+			if ( command == 0 && ! fixmanager.isExiting() ) {
 				fixmanager.setExiting( true );
+				fixmanager.disconnect();
 				break;
+			} else if ( command == 1 && ! fixmanager.isExiting() ) {
+				fixmanager.closeAllPositions( "GBP/USD" );
 			}
 		}
-
-		fixmanager.disconnect();
-
-		// give another 1 second to clean up
-		//this_thread::sleep_for( chrono::seconds(1) );
 
 	} catch(std::exception& e) {
 		cout << "something horrible went wrong: " << e.what() << endl;
@@ -90,4 +95,95 @@ int main(int argc, char** argv) {
 	}
 
 	return EXIT_SUCCESS;
+}
+
+/*!
+ * Connect fixmanager signals to strategy slots
+ * 
+ * @param FIXManager& fixmanager
+ * @param const AwesomeStrategy& strategy
+ */
+void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
+	// FIXManager signals
+	// On Init
+	fixmanager.on_init.connect( [&]() { 
+		FIX::Locker lock( fixmanager.m_mutex );
+
+		fixmanager.subscribeMarketData( strategy.get_symbol() );
+		fixmanager.closeAllPositions( strategy.get_symbol() );
+		fixmanager.queryAccounts();
+
+		strategy.on_init();		
+	});
+
+	// On Exit
+	fixmanager.on_exit.connect( [&]() { 
+		FIX::Locker lock( fixmanager.m_mutex );
+
+		fixmanager.closeAllPositions( strategy.get_symbol() );
+		fixmanager.unsubscribeMarketData( strategy.get_symbol() ); 
+		strategy.on_exit();
+	});
+
+	// On tick
+	fixmanager.on_tick.connect( [&](const MarketSnapshot& tick){
+		FIX::Locker lock( fixmanager.m_mutex );
+
+		if ( tick.getSymbol() == strategy.get_symbol() ) {
+			strategy.on_tick( tick );
+		}
+	});
+	
+	// On Market Order Change
+	// fixmanager.on_market_order.connect( [&](const SignalType type, const MarketOrder& mo) {
+	// 	FIX::Locker lock( fixmanager.m_mutex );
+
+	// 	if ( mo.getSymbol() == strategy.get_symbol() ) {
+	// 		strategy.on_market_order( type, mo );
+	// 	}
+	// });
+
+	// Strategy signals
+	// on entry signal open new market order
+	strategy.on_entry_signal.connect( [&](const MarketSide side) {
+		FIX::Locker lock( fixmanager.m_mutex );
+
+		// close all opposite trades in this symbol
+		FIX::Side opposide( ( side == MarketSide::Side_SELL ? FIX::Side_BUY : FIX::Side_SELL ) );
+		fixmanager.closeAllPositions( strategy.get_symbol(), opposide.getValue() );
+		
+		// open new trade
+		double conversion_price = 0;
+		double free_margin = fixmanager.getAccount().getFreeMargin();
+
+		MarketOrder mo;
+		mo.setAccountID( fixmanager.getAccountID() );
+		mo.setSymbol( strategy.get_symbol() );
+		FIX::Side fix_side( ( side == MarketSide::Side_SELL ? FIX::Side_SELL : FIX::Side_BUY ) );
+		mo.setSide( fix_side.getValue() );
+		mo.setQty( Math::get_unit_size( free_margin, 1, 1, conversion_price ) );
+		if ( mo.getQty() > strategy.get_max_qty() ) {
+			mo.setQty( strategy.get_max_qty() );
+		}
+		mo.setPrice( 0 ); // MarketOrder
+
+		// set market detail precision and pointsize
+	    auto marketDetail = fixmanager.getMarketDetails( mo.getSymbol() );
+
+	    mo.setPrecision( marketDetail.getSymPrecision() );
+	    mo.setPointSize( marketDetail.getSymPointsize() );
+		
+		console()->info("[on_entry_signal] Side: {}", mo.getSideStr() );
+
+		fixmanager.marketOrder( mo );
+		fixmanager.queryPositionReport();
+	});
+
+	// on close all signal close all positions for symbol
+	strategy.on_close_all_signal.connect( [&](const std::string& symbol) {
+		FIX::Locker lock( fixmanager.m_mutex );
+		fixmanager.closeAllPositions( symbol );
+		fixmanager.queryAccounts();
+	});
+	
 }

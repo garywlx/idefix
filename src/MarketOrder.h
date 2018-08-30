@@ -197,8 +197,8 @@ public:
 		}
 	}
 
-	inline string toString() const {
-		ostringstream out;
+	inline std::string toString() const {
+		std::ostringstream out;
 		out << "MarketOrder {" << endl
 			<< "  pos_ID      " << getPosID() << endl
 			<< "  account     " << getAccountID() << endl
@@ -220,7 +220,8 @@ public:
 
 // Operator Magic
 inline std::ostream& operator<<(std::ostream& out, const IDEFIX::MarketOrder& mo){
-	return out << mo.toString();
+	out << mo.toString();
+	return out;
 }
 
 };

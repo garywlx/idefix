@@ -253,27 +253,27 @@ namespace IDEFIX {
 		 * @param const unsigned int         offset     Begin by offset entry
 		 * @return double
 		 */
-		inline double get_moving_average(const std::vector<double> value_list, const unsigned int period, const unsigned int offset = 0) {
-			// check bounds
-			if ( value_list.empty() || ( period + offset ) > value_list.size() ) {
-				return 0;
-			}
-			// the sum
-			double sum;
-			// get start iterator from offset
-			auto it = std::next( value_list.rbegin(), offset );
-			// cycle through periods
-			for ( int i = 0; i < period; i++ ) {
-				// forward iterator with period starting from offset
-				auto vi = std::next( it, i );
-				// add value to sum
-				sum += *vi;
-			}
-			// calculate moving average
-			double avg = sum / period;			
-			// return value
-			return avg;
-		}
+		// inline double get_moving_average(const std::vector<double> value_list, const unsigned int period, const unsigned int offset = 0) {
+		// 	// check bounds
+		// 	if ( value_list.empty() || ( period + offset ) > value_list.size() ) {
+		// 		return 0;
+		// 	}
+		// 	// the sum
+		// 	double sum;
+		// 	// get start iterator from offset
+		// 	auto it = std::next( value_list.rbegin(), offset );
+		// 	// cycle through periods
+		// 	for ( int i = 0; i < period; i++ ) {
+		// 		// forward iterator with period starting from offset
+		// 		auto vi = std::next( it, i );
+		// 		// add value to sum
+		// 		sum += *vi;
+		// 	}
+		// 	// calculate moving average
+		// 	double avg = sum / period;			
+		// 	// return value
+		// 	return avg;
+		// }
 	}; // END NS MATH
 }; // END NS IDEFIX
 

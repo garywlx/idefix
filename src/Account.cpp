@@ -149,6 +149,20 @@ namespace IDEFIX {
 		return m_min_trade_size;
 	}
 
+	/*!
+	 * Get conversion price, if account is not USD
+	 * 
+	 * @param const std::string&  symbol
+	 * @return double
+	 */
+	double Account::getConversionPrice(const std::string& symbol) {
+		if ( m_currency == "USD" ) {
+			return 0;
+		}
+
+		return 0;
+	}
+
 	std::string Account::toString() const {
 		std::ostringstream oss;
 		oss << "[Account] {" << std::setprecision(2) << std::endl
