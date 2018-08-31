@@ -1,77 +1,56 @@
 #include <iostream>
-#include <vector>
-#include <iterator>
-#include "../src/Math.h"
+#include <cstring>
+#include <cmath>
+#include <iomanip>
 
 using namespace std;
-using namespace IDEFIX;
 
 int main(int argc, char const *argv[])
 {
 
-	if ( argc < 3 ) {
-		cout << "Usage: " << argv[0] << " <period> <offset>" << endl;
+	if ( argc < 4 ) {
+		cout << "Usage: " << argv[0] << " <open> <close> <side(1long,0short)>" << endl;
 		return EXIT_SUCCESS;
 	}
 
-	/**
-	 * Test Moving Average Calculations
-	 */
-	std::vector<double> v;
+	double open = atof( argv[ 1 ] );
+	double close = atof( argv[ 2 ] );
+	int side = atoi( argv[ 3 ] );
+	double point_size = 0.0001;
+	double qty = 100000;
+
+	cout << "open   : " << setprecision(5) << fixed << open << endl;
+	cout << "close  : " << setprecision(5) << fixed << close << endl;
+	cout << "side   : " << side << " " << ( side == 0 ? "SHORT" : "LONG" ) << endl;
+	cout << "point  : " << point_size << endl;
+	cout << "qty    : " << qty << endl;
+
+
+	// calculate profit/loss in points
+	double pips_moved   = ( close - open ) / point_size;
+	// calculate point profit
+	double point_profit = qty * point_size;
+	// calculate profit/loss
+	double pnl = pips_moved * point_profit;
+
+	cout << "pips   : " << pips_moved << endl;
+	cout << "points : " << point_profit << endl;
+	cout << "pnl    : " << pnl << endl;
+
+	// wenn long
+	// wenn close < open
+	// looser
 	
-	// dump new list
-	for( auto& entry : v ) {
-		cout << entry << ",";
-	}
-	cout << endl;
+	// wenn short
+	// wenn close > open
+	// looser
 
-	int period = atoi( argv[1] );
-	int offset = atoi( argv[2] );
 
-	cout << "Period " << period << endl;
-	cout << "Offset " << offset << endl;
-	cout << "Size   " << v.size() << endl;
-
-	double in;
-	while( true ) {
-		cout << "Add positive value to list (0=exit): ";
-		cin >> in;
-
-		if ( in > 0 ) {
-			v.push_back( in );
-
-			// dump new list
-			for( auto& entry : v ) {
-				cout << entry << ",";
-			}
-			cout << endl;
-
-			cout << "MA " << Math::get_moving_average( v, period, offset ) << endl;
-		} else {
-			break;
-		}
+	if ( ( side == 1 && close < open ) || ( side == 0 && close > open ) ) {
+		pnl *= -1;
 	}
 
-	// cout << "Elements ";
-	// for ( auto& val : v ) {
-	// 	cout << val << ",";
-	// }
-	// cout << endl;
-
-	// double sum = 0;
-	// auto it = std::next( v.rbegin(), offset );
-
-	// for ( int i = 0; i < period; i++ ) {
-	// 	auto vi = std::next( it, i );
-	// 	sum += *vi;
-
-	// 	cout << *vi << ( i + 1 < period ? " + ": "" );
-	// }
-
-	// double ma = sum / period;
-
-	// cout << " = " << sum;
-	// cout << " / " << period << " = " << ma << endl;
-		
+	cout << "Profit : " << setprecision(5) << fixed << pnl << endl;
+	
 	return EXIT_SUCCESS;
 }

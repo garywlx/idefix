@@ -151,7 +151,7 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		// close all opposite trades in this symbol
 		FIX::Side opposide( ( side == MarketSide::Side_SELL ? FIX::Side_BUY : FIX::Side_SELL ) );
 		fixmanager.closeAllPositions( strategy.get_symbol(), opposide.getValue() );
-		
+
 		// open new trade
 		double conversion_price = 0;
 		double free_margin = fixmanager.getAccount().getFreeMargin();

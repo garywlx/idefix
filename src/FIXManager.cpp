@@ -904,15 +904,19 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
       // -----------------------------------------------------------------------------------------------------------------------
       // DEBUG output
       // -----------------------------------------------------------------------------------------------------------------------
-      // console()->info( "---" );
-      // console()->info( " PosID         {}", position.getPosID() );
-      // console()->info( " Side          {}", position.getSideStr() );
-      // console()->info( " Qty           {:.0f}", position.getQty() );
-      // console()->info( " PnL           {:.2f} {}", position.getProfitLoss(), accountCurrency );
-      // console()->info( " Balance       {:.2f} {}", account.getBalance(), accountCurrency );
-      // console()->info( " Equity        {:.2f} {}", account.getEquity(), accountCurrency );
-      // console()->info( " Free Margin   {:.2f} {}", account.getFreeMargin(), accountCurrency );
-      // console()->info( " Margin Ratio  {:.2f} %%", account.getMarginRatio() );
+      console()->info( "---" );
+      console()->info( " PosID         {}", position.getPosID() );
+      console()->info( " Side          {}", position.getSideStr() );
+      console()->info( " Qty           {:.0f}", position.getQty() );
+      console()->info( " Open Price    {:.5f}", position.getPrice() );
+      console()->info( " Ask  Price    {:.5f}", snapshot.getAsk() );
+      console()->info( " Bid  Price    {:.5f}", snapshot.getBid() );      
+      console()->info( " PipValue      {:.5f}", pip_value );
+      console()->info( " PnL           {:.2f} {}", position.getProfitLoss(), accountCurrency );
+      console()->info( " Balance       {:.2f} {}", account.getBalance(), accountCurrency );
+      console()->info( " Equity        {:.2f} {}", account.getEquity(), accountCurrency );
+      console()->info( " Free Margin   {:.2f} {}", account.getFreeMargin(), accountCurrency );
+      console()->info( " Margin Ratio  {:.2f} %%", account.getMarginRatio() );
     } // - if snapshot symbol == position symbol
   } // - for marketorder loop
 }
@@ -1359,9 +1363,32 @@ void FIXManager::onInit() {
 
   // signal
   on_init();
-  
+
   // Query position reports
   queryPositionReport();
+
+  // create test market order for eurusd
+  // MarketOrder longtest;
+  // longtest.setPosID( "dem_arne_seine_pos_long" );
+  // longtest.setSymbol( "EUR/USD" );
+  // longtest.setQty( 100000 );
+  // longtest.setPrice( 1.1632 );
+  // longtest.setPointSize( 0.0001 );
+  // longtest.setPrecision( 5 );
+  // FIX::Side lside( FIX::Side_BUY );
+  // longtest.setSide( lside.getValue() );
+  // addMarketOrder( longtest );
+
+  // MarketOrder shorttest;
+  // shorttest.setPosID( "dem_arne_seine_pos_short" );
+  // shorttest.setSymbol( "EUR/USD" );
+  // shorttest.setQty( 100000 );
+  // shorttest.setPrice( 1.1632 );
+  // shorttest.setPointSize( 0.0001 );
+  // shorttest.setPrecision( 5 );
+  // FIX::Side sside( FIX::Side_SELL );
+  // shorttest.setSide( sside.getValue() );
+  // addMarketOrder( shorttest );
 }
 /*!
  * Call this, if you want to handle things before exiting

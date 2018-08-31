@@ -32,6 +32,7 @@
 
 AskPrice > BidPrice
 
+When you trade forex you’ll see two prices associated with each currency pair. A bid price (the smaller number) and an ask price (the bigger number). When you buy (or go long) on a pair you open an order at the ask price and then close at the bid price. Similarly when you sell (or go short) on a pair you open at the bid price and then close at the ask price.
 
 
 ## Pip Value Calculation
@@ -113,5 +114,4 @@ Unrealized profit, sometimes called "paper profit" (or "paper loss" if negative)
 
 Unrealized profit will change with each price change, so it can be reduced to zero or become an unrealized loss at any time. Unrealized profit becomes realized profit at the moment that a trade is exited.
 
-
-
+https://fxnews.exness.com/how-to-calculate-profits-and-losses-in-forex/
