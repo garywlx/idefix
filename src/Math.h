@@ -65,25 +65,33 @@ namespace IDEFIX {
 		/*!
 		 * Calculate Profit / Loss based on pip_value
 		 * 
-		 * @param const double           pip_value The pip value for this symbol
-		 * @param const MarketSnapshot   snapshot  The current price data for the position
-		 * @param const MarketOrder      position  The position to calculate
+		 * @param const double            pip_value (DEPRECATED) The pip value for this symbol
+		 * @param const& MarketSnapshot   snapshot  The current price data for the position
+		 * @param const& MarketOrder      position  The position to calculate
 		 * @return double
 		 */
-		inline double get_profit_loss(const double pip_value, const MarketSnapshot snapshot, const MarketOrder position) {
-			double pip_diff_decimal = 0;
-			double pnl = 0;
-
-			if ( position.getSide() == FIX::Side_BUY ) {
-				pip_diff_decimal = snapshot.getBid() - position.getPrice();
+		inline double get_profit_loss(const double pip_value, const MarketSnapshot& snapshot, const MarketOrder& position) {
+			double open  = position.getPrice();
+			double close = 0;
+			int side     = ( position.getSide() == FIX::Side_BUY ? 1 : 0 );
+			if ( side == 1 ) {
+				close = snapshot.getBid(); // because we want to sell for closing
 			} else {
-				pip_diff_decimal = position.getPrice() - snapshot.getAsk();
+				close = snapshot.getAsk(); // because we want to buy for closing
 			}
 
-			double pips = pip_diff_decimal / snapshot.getPointSize();
+			// calculate profit/loss in points
+			double pips_moved   = std::abs( close - open ) / snapshot.getPointSize();
+			// calculate point profit
+			double point_profit = position.getQty() * snapshot.getPointSize();
+			// calculate profit/loss
+			double pnl          = pips_moved * point_profit;
 
-			pnl = ( ( pips * ( position.getQty() / snapshot.getContractSize() ) ) * pip_value );
-
+			// check if this is a loss
+			if ( ( side == 1 && close < open ) || ( side == 0 && close > open ) ) {
+				pnl *= -1;
+			}
+			
 			return pnl;
 		} // END get_profit_loss
 
@@ -239,10 +247,11 @@ namespace IDEFIX {
 		 * @param const double bid_price  
 		 * @param const double ask_price  
 		 * @param const double point_size 
-		 * @return double
+		 * @return double returns -1 on error
 		 */
 		inline double get_spread(const double bid_price, const double ask_price, const double point_size) {
-			return std::abs( ( bid_price - ask_price ) * ( 1 / point_size ) );
+			if ( point_size == 0 ) return -1;
+			return std::abs( ( ask_price - bid_price ) * ( 1 / point_size ) );
 		}
 
 		/*!
