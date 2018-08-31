@@ -64,6 +64,7 @@ namespace IDEFIX {
 
 		/*!
 		 * Calculate Profit / Loss based on pip_value
+		 * https://fxnews.exness.com/how-to-calculate-profits-and-losses-in-forex/
 		 * 
 		 * @param const double            pip_value (DEPRECATED) The pip value for this symbol
 		 * @param const& MarketSnapshot   snapshot  The current price data for the position
