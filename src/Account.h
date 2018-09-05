@@ -2,6 +2,7 @@
 #define IDEFIX_ACCOUNT_H
 
 #include <string>
+#include <iostream>
 #include <iomanip>
 #include <ostream>
 

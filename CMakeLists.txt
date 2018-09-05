@@ -1,38 +1,28 @@
 # Require cmake version
 cmake_minimum_required(VERSION 3.9)
 
+# include directories
+#include_directories(/usr/local/include)
+include_directories(./include)
+
 # set c++ standard
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+# built my own version of llvm for c++11 on macos https://libcxx.llvm.org/docs/index.html
+add_compile_options(-std=c++11)
+add_compile_options(-stdlib=libc++)
+add_compile_options(-nostdinc++)
+add_compile_options(-I/usr/local/llvm/include/c++/v1)
+#add_compile_options(-L/usr/local/llvm/lib) # clang: warning: argument unused during compilation
+#add_compile_options(-Wl,-rpath,/usr/local/llvm/lib) # clang: warning: argument unused during compilation
+add_compile_options(-Wno-c++98-compat)
 
 # set build type
-#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Debug)
 
 # Change this to your project name
-project(idefix VERSION 0.1.0 LANGUAGES CXX)
+project(idefix) #  VERSION 0.1.0 LANGUAGES CXX
 
 # import src/CMakeLists.txt
 add_subdirectory(src)
-
-# import src_signals/CMakeLists.txt 
-#add_subdirectory( src_signals )
-
-# import src_pipnl/CMakeLists.txt
-#add_subdirectory( src_pipnl )
-
-# import src_mathtest/CMakeLists.txt
-#add_subdirectory( src_mathtest )
-
-# import src_timetest/CMakeLists.txt
-#add_subdirectory( src_timetest )
-
-# import src_gui/CMakeLists.txt
-#add_subdirectory( src_gui )
-
-# import src_tradelog/CMakeLists.txt
-#add_subdirectory( src_tradelog )
-
-# import src_playground/CMakeLists.txt
-#add_subdirectory( src_playground )
-
-# import src_renko/CMakeLists.txt
-#add_subdirectory( src_renko )

@@ -1,7 +1,7 @@
 #define RC_SHOW_DEBUG false
 
 #include "RenkoChart.h"
-#include "Math.h"
+#include "MathHelper.h"
 #include <stdexcept>
 
 #if RC_SHOW_DEBUG

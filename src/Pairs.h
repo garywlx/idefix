@@ -3,7 +3,7 @@
 
 #include <string>
 #include <map>
-#include "String.h"
+#include "StringHelper.h"
 
 namespace IDEFIX {
 	/*!

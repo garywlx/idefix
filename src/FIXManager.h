@@ -41,13 +41,12 @@
 #include "FXCMFields.h"
 #include "FIXFactory.h"
 #include "Account.h"
-#include "Math.h"
 #include "Pairs.h"
 #include "SignalType.h"
 
 #include <nod/nod.hpp>
 
-#include "spdlog/spdlog.h"
+#include <spdlog/spdlog.h>
 #include <spdlog/sinks/daily_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 

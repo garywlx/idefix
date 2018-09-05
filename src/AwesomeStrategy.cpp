@@ -5,7 +5,7 @@
 #include "Console.h"
 #include "Exceptions.h"
 #include "MarketOrder.h"
-#include "Math.h"
+#include "MathHelper.h"
 
 namespace IDEFIX {
 	AwesomeStrategy::AwesomeStrategy(const std::string& symbol): m_symbol( symbol ) {

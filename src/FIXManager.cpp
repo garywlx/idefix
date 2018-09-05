@@ -3,6 +3,7 @@
  *  http://www.arnegockeln.com
  */
 #include "FIXManager.h"
+#include "MathHelper.h"
 #include "spdlog/sinks/daily_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include <quickfix/Utility.h>

@@ -16,6 +16,9 @@
 #include "AwesomeStrategy.h"
 #include <functional>
 #include "Console.h"
+#include "QPlot.h"
+#include "MathHelper.h"
+#include <QtWidgets/QApplication>
 
 namespace IDEFIX {
 	void connect(FIXManager& fixmanager, AwesomeStrategy& strategy);	
@@ -37,7 +40,7 @@ int main(int argc, char** argv) {
 
 		// config file
 		const std::string config_file = argv[1];
-		
+
 		// init fix manager
 		FIXManager fixmanager;
 		
@@ -72,6 +75,14 @@ int main(int argc, char** argv) {
 		// connect 
 		fixmanager.connect( config_file );
 
+		QApplication qapp(argc, argv);
+		
+		QPlot chart;
+		chart.init();
+		chart.show();
+
+		qapp.exec();
+
 		// start loop
 		while ( ! fixmanager.isExiting() ) {
 			int command = 0;
@@ -85,7 +96,6 @@ int main(int argc, char** argv) {
 				fixmanager.closeAllPositions( "GBP/USD" );
 			}
 		}
-
 	} catch(std::exception& e) {
 		cout << "something horrible went wrong: " << e.what() << endl;
 		return EXIT_FAILURE;
@@ -175,7 +185,7 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		
 		console()->info("[on_entry_signal] Side: {}", mo.getSideStr() );
 
-		fixmanager.marketOrder( mo );
+		// fixmanager.marketOrder( mo );
 		fixmanager.queryPositionReport();
 	});
 

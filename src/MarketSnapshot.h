@@ -5,7 +5,7 @@
 #include <ostream>
 #include <iomanip>
 #include <cmath>
-#include "String.h"
+#include "StringHelper.h"
 
 using namespace std;
 
