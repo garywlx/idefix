@@ -289,8 +289,15 @@ namespace IDEFIX {
 		std::string filename = symbol_filename_ss.str();
 		str::replace( filename, "/", "" );
 
+		filename.insert(0, "public_html/");
+
 		std::ofstream barfile;
 		barfile.open( filename, ios::app | ios::out );
+
+		if ( ! barfile.good() ) {
+			return;
+		}
+
 		barfile << open_ss.str() << ",";
 		barfile << brick.open_price << ",";
 		barfile << brick.high_price << ",";

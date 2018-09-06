@@ -18,6 +18,7 @@
 #include "Console.h"
 #include "MathHelper.h"
 #include <sstream>
+#include <cstdlib>
 
 namespace IDEFIX {
 	void connect(FIXManager& fixmanager, AwesomeStrategy& strategy);	
@@ -37,27 +38,27 @@ int main(int argc, char** argv) {
 			return EXIT_SUCCESS;
 		}
 
+		// purge csv files in public_html folder
+		std::system( "if [ \"$(ls -A public_html/*.csv)\" ]; then rm public_html/*.csv; fi" );
+
 		// config file
 		const std::string config_file = argv[1];
 
 		// init fix manager
 		FIXManager fixmanager;
 		
-		AwesomeStrategy test( "EUR/USD" );
-		connect( fixmanager, test );
-
 		// Add chart with strategy
 		// AUD/USD
 		// AwesomeStrategy audusd( "AUD/USD" );
 		// connect( fixmanager, audusd );
 
 		// EUR/USD		
-		// AwesomeStrategy eurusd( "EUR/USD" );
-		// connect( fixmanager, eurusd );
+		AwesomeStrategy eurusd( "EUR/USD" );
+		connect( fixmanager, eurusd );
 		
 		// GBP/USD
-		// AwesomeStrategy gbpusd( "GBP/USD" );
-		// connect( fixmanager, gbpusd );
+		AwesomeStrategy gbpusd( "GBP/USD" );
+		connect( fixmanager, gbpusd );
 
 		// // NZD/USD
 		// AwesomeStrategy nzdusd( "NZD/USD" );
@@ -83,8 +84,6 @@ int main(int argc, char** argv) {
 				fixmanager.setExiting( true );
 				fixmanager.disconnect();
 				break;
-			} else if ( command == 1 && ! fixmanager.isExiting() ) {
-				fixmanager.closeAllPositions( "GBP/USD" );
 			}
 		}
 
