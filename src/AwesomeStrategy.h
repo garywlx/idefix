@@ -23,6 +23,7 @@ namespace IDEFIX {
 		// Signals
 		nod::signal<void(const MarketSide side)> on_entry_signal;
 		nod::signal<void(const std::string&)> on_close_all_signal;
+		nod::signal<void(const Bar&)> on_bar_signal;
 
 		// Slots
 		void on_tick(const MarketSnapshot& tick);
@@ -52,6 +53,8 @@ namespace IDEFIX {
 		double m_current_spread;
 
 		FIX::Mutex m_mutex;
+
+		void log_brick(const Bar& bar, const double sma);
 	};
 };
 

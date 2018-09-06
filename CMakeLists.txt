@@ -2,7 +2,6 @@
 cmake_minimum_required(VERSION 3.9)
 
 # include directories
-#include_directories(/usr/local/include)
 include_directories(./include)
 
 # set c++ standard

@@ -2,6 +2,7 @@
 
 #include "RenkoChart.h"
 #include "MathHelper.h"
+#include "StringHelper.h"
 #include <stdexcept>
 
 #if RC_SHOW_DEBUG
@@ -48,6 +49,8 @@ namespace IDEFIX {
 
 		// renko calculation
 		if ( m_current_brick.status == RenkoBrick::STATUS::NOSTATUS && m_current_brick.volume == 0 ) {
+			m_current_brick.symbol     = tick.getSymbol();
+			m_current_brick.period     = m_period;
 			m_current_brick.open_time  = m_last_brick.close_time;
 			m_current_brick.open_price = m_last_brick.close_price;
 			m_current_brick.low_price  = m_last_brick.close_price;
@@ -234,6 +237,8 @@ namespace IDEFIX {
 
 		// init first brick
 		if ( m_init_brick.status == RenkoBrick::STATUS::NOSTATUS && m_init_brick.volume == 0 ) {
+			m_init_brick.symbol     = tick.getSymbol();
+			m_init_brick.period     = m_period;
 			m_init_brick.open_time  = tick_sending_time;
 			m_init_brick.open_price = tick_bid;
 			m_init_brick.low_price  = tick_bid;

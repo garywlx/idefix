@@ -1,11 +1,16 @@
 #include "AwesomeStrategy.h"
 #include <iostream>
 #include <sstream>
+#include <fstream>
+#include <string>
 #include <functional>
+#include <quickfix/FieldConvertors.h>
+
 #include "Console.h"
 #include "Exceptions.h"
 #include "MarketOrder.h"
 #include "MathHelper.h"
+#include "StringHelper.h"
 
 namespace IDEFIX {
 	AwesomeStrategy::AwesomeStrategy(const std::string& symbol): m_symbol( symbol ) {
@@ -45,7 +50,7 @@ namespace IDEFIX {
 		m_max_spread    = 1;
 
 		// set renko chart periode
-		m_chart = new RenkoChart( 2 );
+		m_chart = new RenkoChart( 1 ); // 2
 		// set sma periode
 		m_sma5 = new SimpleMovingAverage( 5 );
 
@@ -73,8 +78,14 @@ namespace IDEFIX {
 	void AwesomeStrategy::on_bar(const Bar &bar) {
 		try {
 
+			// call external signal on_bar
+			on_bar_signal( bar );
+
 			// add value to moving average
 			m_sma5->add( ( bar.open_price + bar.close_price ) / 2 );
+
+			// write bar with sma value to log file
+			log_brick(bar, m_sma5->value() );
 
 			if ( bar.status == Bar::STATUS::LONG ) {
 				console()->info("Bar open {:.5f} close {:.5f} sma {:.5f}", bar.open_price, bar.close_price, m_sma5->value() );
@@ -243,6 +254,53 @@ namespace IDEFIX {
 
 	double AwesomeStrategy::get_max_spread() const {
 		return m_max_spread;
+	}
+
+	/*!
+	 * Save brick to <symbol>_bars.csv in running directory
+	 * 
+	 * @param const Bar& brick
+	 * @param const double      sma
+	 */
+	void AwesomeStrategy::log_brick(const Bar& brick, const double sma) {
+		// parse dates
+		auto open_dt = FIX::UtcTimeStampConvertor::convert( brick.open_time );
+		std::stringstream open_ss;
+		open_ss << open_dt.getYear() << "-" 
+				 << setfill('0') << setw(2) << open_dt.getMonth() << "-" 
+				 << setfill('0') << setw(2) << open_dt.getDay() << " " 
+				 << setfill('0') << setw(2) << open_dt.getHour() << ":" 
+				 << setfill('0') << setw(2) << open_dt.getMinute() << ":" 
+				 << setfill('0') << setw(2) << open_dt.getSecond() << "." << open_dt.getMillisecond();
+
+		auto close_dt = FIX::UtcTimeStampConvertor::convert( brick.close_time );
+		std::stringstream close_ss;
+		close_ss << close_dt.getYear() << "-" 
+				 << setfill('0') << setw(2) << close_dt.getMonth() << "-" 
+				 << setfill('0') << setw(2) << close_dt.getDay() << " " 
+				 << setfill('0') << setw(2) << close_dt.getHour() << ":" 
+				 << setfill('0') << setw(2) << close_dt.getMinute() << ":" 
+				 << setfill('0') << setw(2) << close_dt.getSecond() << "." << close_dt.getMillisecond();
+
+		 // make filename for symbol bars
+		std::stringstream symbol_filename_ss;
+		symbol_filename_ss << brick.symbol.c_str() << "_bars.csv";
+
+		std::string filename = symbol_filename_ss.str();
+		str::replace( filename, "/", "" );
+
+		std::ofstream barfile;
+		barfile.open( filename, ios::app | ios::out );
+		barfile << open_ss.str() << ",";
+		barfile << brick.open_price << ",";
+		barfile << brick.high_price << ",";
+		barfile << brick.low_price << ",";
+		barfile << brick.close_price << ",";
+		barfile << close_ss.str() << ",";
+		barfile << brick.volume << ",";
+		barfile << sma << ",";
+		barfile << brick.point_size << endl;
+		barfile.close();
 	}
 
 };

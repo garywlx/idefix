@@ -117,6 +117,7 @@ public:
   nod::signal<void(Account&)> on_account_change;
   // on_market_order
   nod::signal<void(const SignalType type, const MarketOrder&)> on_market_order;
+  
 
   FIXManager();
   // FIXManager(const std::string settingsFile);

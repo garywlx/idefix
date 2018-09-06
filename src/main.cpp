@@ -16,9 +16,8 @@
 #include "AwesomeStrategy.h"
 #include <functional>
 #include "Console.h"
-#include "QPlot.h"
 #include "MathHelper.h"
-#include <QtWidgets/QApplication>
+#include <sstream>
 
 namespace IDEFIX {
 	void connect(FIXManager& fixmanager, AwesomeStrategy& strategy);	
@@ -75,14 +74,6 @@ int main(int argc, char** argv) {
 		// connect 
 		fixmanager.connect( config_file );
 
-		QApplication qapp(argc, argv);
-		
-		QPlot chart;
-		chart.init();
-		chart.show();
-
-		qapp.exec();
-
 		// start loop
 		while ( ! fixmanager.isExiting() ) {
 			int command = 0;
@@ -96,6 +87,7 @@ int main(int argc, char** argv) {
 				fixmanager.closeAllPositions( "GBP/USD" );
 			}
 		}
+
 	} catch(std::exception& e) {
 		cout << "something horrible went wrong: " << e.what() << endl;
 		return EXIT_FAILURE;
@@ -154,6 +146,48 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 	// });
 
 	// Strategy signals
+	// on bar signal save bar values as json to a file for charting
+	// strategy.on_bar_signal.connect( [&](const Bar& bar){
+	// 	// parse dates
+	// 	auto open_dt = FIX::UtcTimeStampConvertor::convert( bar.open_time );
+	// 	std::stringstream open_ss;
+	// 	open_ss << open_dt.getYear() << "-" 
+	// 			 << setfill('0') << setw(2) << open_dt.getMonth() << "-" 
+	// 			 << setfill('0') << setw(2) << open_dt.getDay() << " " 
+	// 			 << setfill('0') << setw(2) << open_dt.getHour() << ":" 
+	// 			 << setfill('0') << setw(2) << open_dt.getMinute() << ":" 
+	// 			 << setfill('0') << setw(2) << open_dt.getSecond() << "." << open_dt.getMillisecond();
+
+	// 	auto close_dt = FIX::UtcTimeStampConvertor::convert( bar.close_time );
+	// 	std::stringstream close_ss;
+	// 	close_ss << close_dt.getYear() << "-" 
+	// 			 << setfill('0') << setw(2) << close_dt.getMonth() << "-" 
+	// 			 << setfill('0') << setw(2) << close_dt.getDay() << " " 
+	// 			 << setfill('0') << setw(2) << close_dt.getHour() << ":" 
+	// 			 << setfill('0') << setw(2) << close_dt.getMinute() << ":" 
+	// 			 << setfill('0') << setw(2) << close_dt.getSecond() << "." << close_dt.getMillisecond();
+
+	// 	 // make filename for symbol bars
+	// 	std::stringstream symbol_filename_ss;
+	// 	symbol_filename_ss << strategy.get_symbol().c_str() << "_bars.csv";
+
+	// 	std::string filename = symbol_filename_ss.str();
+	// 	str::replace( filename, "/", "" );
+
+	// 	std::ofstream barfile;
+	// 	barfile.open( filename, ios::app | ios::out );
+	// 	barfile << open_ss.str() << ",";
+	// 	barfile << bar.open_price << ",";
+	// 	barfile << bar.high_price << ",";
+	// 	barfile << bar.low_price << ",";
+	// 	barfile << bar.close_price << ",";
+	// 	barfile << close_ss.str() << ",";
+	// 	barfile << bar.volume << ",";
+	// 	barfile << bar.point_size << endl;
+	// 	barfile.close();
+
+	// });
+
 	// on entry signal open new market order
 	strategy.on_entry_signal.connect( [&](const MarketSide side) {
 		FIX::Locker lock( fixmanager.m_mutex );
