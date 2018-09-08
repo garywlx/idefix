@@ -6,6 +6,7 @@
 #include "MathHelper.h"
 #include "spdlog/sinks/daily_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
+#include "CSVHandler.h"
 #include <quickfix/Utility.h>
 #include <cmath>
 #include <string>
@@ -304,7 +305,7 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
   console()->info( "[Account] {} Balance: {:.2f} {}", account.getAccountID(), account.getBalance(), account.getCurrency() );
 
   // check if we are already initialized
-  if ( m_symbol_subscriptions.empty() ) {
+  if ( m_symbol_subscriptions.empty() && ! isExiting() ) {
     // set account free margin to balance
     m_account.setFreeMargin( account.getBalance() );
     // call init
@@ -475,6 +476,7 @@ void FIXManager::onMessage(const FIX44::MarketDataSnapshotFullRefresh &mds, cons
 
 /*!
  * Is called if an ExecutionReport for an order is available
+ * 
  * @param const FIX44::ExecutionReport er
  * @param const SessionID& session_ID
  */
@@ -491,6 +493,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
   FIX::Side side;
   FIX::Symbol symbol;
   FIX::Account account;
+  FIX::CumQty cumQty;
   
   string fxcm_pos_id = er.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
   string sendingTime = er.getHeader().getField( FIELD::SendingTime );
@@ -499,11 +502,13 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
   er.get( ordStatus );
   er.get( ordType );
   er.get( clOrdID );
+  er.get( cumQty );
   er.get( lastQty );
   er.get( lastPx );
   er.get( side );
   er.get( symbol );
   er.get( account );
+
   
   // If we have a new market order with fxcm position id.
   if ( ! fxcm_pos_id.empty() ) {
@@ -522,6 +527,10 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     marketOrder.setTakePrice( 0 );
     marketOrder.setClosePrice( 0 );
 
+    auto md = getMarketDetails( symbol.getValue() );
+    marketOrder.setPrecision( md.getSymPrecision() );
+    marketOrder.setPointSize( md.getSymPointsize() );
+
     // MassOrderStatus
     if ( execType == FIX::ExecType_ORDER_STATUS ) {
       // get specific fields for OrderStatus
@@ -530,9 +539,9 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
 
       // MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 2 = Limit
       // update order in list, set take profit
-      if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT ) {
+      if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT && orderQty.getValue() > 0 ) {
         // console output
-        console()->info( "{} OrderStatus->updateMarketOrder (LIMIT)", prefix );
+        console()->info( "{} OrderStatus->updateMarketOrder (LIMIT) {}", prefix, marketOrder.getSymbol() );
         // set take profit price.
         marketOrder.setTakePrice( marketOrder.getPrice() );
         // set OrderQty
@@ -544,9 +553,9 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
       }
       // MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 3 = Stop
       // update order in list, set stop loss
-      else if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP ) {
+      else if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP && orderQty.getValue() > 0 ) {
         // console output
-        console()->info( "{} OrderStatus->updateMarketOrder (STOP)", prefix );
+        console()->info( "{} OrderStatus->updateMarketOrder (STOP) {}", prefix, marketOrder.getSymbol() );
         // set stop price.
         marketOrder.setStopPrice( marketOrder.getPrice() );
         // set OrderQty
@@ -561,9 +570,11 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     // add new order in list
     else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_MARKET ) {
       // console output
-      console()->info( "{} addMarketOrder {}", prefix, marketOrder.getPosID() );
+      console()->info( "{} addMarketOrder {} {} fill @ {:.5f} {} qty {:.2f}", prefix, marketOrder.getSymbol(), marketOrder.getPosID(), marketOrder.getPrice(), marketOrder.getSideStr(), marketOrder.getQty() );
       // add order  
       addMarketOrder( marketOrder );
+      // trade log
+      tradelog( marketOrder );
       // signal
       on_market_order( SignalType::MARKET_ORDER_NEW, marketOrder );
     }
@@ -571,7 +582,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     // take profit filled -> remove order from list
     else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_LIMIT ) {
       // console output
-      console()->info( "{} removeMarketOrder (LIMIT) {}", prefix, marketOrder.getPosID() );
+      console()->info( "{} removeMarketOrder (LIMIT) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
       // trade log
       tradelog( marketOrder );
       // remove market order
@@ -583,7 +594,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     // stop loss filled -> remove order form list
     else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_STOP ) { 
       // console output
-      console()->info( "{} removeMarketOrder (STOP) {}", prefix, marketOrder.getPosID() );
+      console()->info( "{} removeMarketOrder (STOP) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
       // trade log
       tradelog( marketOrder );
       // remove market order
@@ -595,7 +606,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     // remove order from list
     else if ( execType == FIX::ExecType_CANCELED && ordStatus == FIX::OrdStatus_CANCELED ) {
       // console output
-      console()->warn( "{} removeMarketOrder (CANCELED) {}", prefix, marketOrder.getPosID() );
+      console()->info( "{} removeMarketOrder (CANCELED) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
       // remove market order.
       removeMarketOrder( marketOrder.getPosID() );
       // signal
@@ -905,19 +916,19 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
       // -----------------------------------------------------------------------------------------------------------------------
       // DEBUG output
       // -----------------------------------------------------------------------------------------------------------------------
-      console()->info( "---" );
-      console()->info( " PosID         {}", position.getPosID() );
-      console()->info( " Side          {}", position.getSideStr() );
-      console()->info( " Qty           {:.0f}", position.getQty() );
-      console()->info( " Open Price    {:.5f}", position.getPrice() );
-      console()->info( " Ask  Price    {:.5f}", snapshot.getAsk() );
-      console()->info( " Bid  Price    {:.5f}", snapshot.getBid() );      
-      console()->info( " PipValue      {:.5f}", pip_value );
-      console()->info( " PnL           {:.2f} {}", position.getProfitLoss(), accountCurrency );
-      console()->info( " Balance       {:.2f} {}", account.getBalance(), accountCurrency );
-      console()->info( " Equity        {:.2f} {}", account.getEquity(), accountCurrency );
-      console()->info( " Free Margin   {:.2f} {}", account.getFreeMargin(), accountCurrency );
-      console()->info( " Margin Ratio  {:.2f} %%", account.getMarginRatio() );
+      // console()->info( "---" );
+      // console()->info( " PosID         {}", position.getPosID() );
+      // console()->info( " Side          {}", position.getSideStr() );
+      // console()->info( " Qty           {:.0f}", position.getQty() );
+      // console()->info( " Open Price    {:.5f}", position.getPrice() );
+      // console()->info( " Ask  Price    {:.5f}", snapshot.getAsk() );
+      // console()->info( " Bid  Price    {:.5f}", snapshot.getBid() );      
+      // console()->info( " PipValue      {:.5f}", pip_value );
+      // console()->info( " PnL           {:.2f} {}", position.getProfitLoss(), accountCurrency );
+      // console()->info( " Balance       {:.2f} {}", account.getBalance(), accountCurrency );
+      // console()->info( " Equity        {:.2f} {}", account.getEquity(), accountCurrency );
+      // console()->info( " Free Margin   {:.2f} {}", account.getFreeMargin(), accountCurrency );
+      // console()->info( " Margin Ratio  {:.2f} %%", account.getMarginRatio() );
     } // - if snapshot symbol == position symbol
   } // - for marketorder loop
 }
@@ -1443,29 +1454,53 @@ std::shared_ptr<spdlog::logger> FIXManager::console() {
  */
 void FIXManager::tradelog(const MarketOrder& marketOrder) {
   FIX::Locker lock( m_mutex );
-  // get open trade from list
-  auto it = m_list_marketorders.find( marketOrder.getPosID() );
-  if ( it != m_list_marketorders.end() ) {
+  
+  std::stringstream filename_ss;
+  filename_ss << marketOrder.getSymbol() << "_trades.csv";
 
-    // set close price and close sending time
-    MarketOrder extendOrder = marketOrder;
-    extendOrder.setCloseTime( marketOrder.getSendingTime() );
-    extendOrder.setSendingTime( it->second.getSendingTime() );
-    extendOrder.setClosePrice( marketOrder.getPrice() );
-    extendOrder.setPrice( it->second.getPrice() );
+  auto open_dt = FIX::UtcTimeStampConvertor::convert( marketOrder.getSendingTime() );
+    std::stringstream open_ss;
+    open_ss << open_dt.getYear() << "-" 
+         << std::setfill('0') << std::setw(2) << open_dt.getMonth() << "-" 
+         << std::setfill('0') << std::setw(2) << open_dt.getDay() << " " 
+         << std::setfill('0') << std::setw(2) << open_dt.getHour() << ":" 
+         << std::setfill('0') << std::setw(2) << open_dt.getMinute() << ":" 
+         << std::setfill('0') << std::setw(2) << open_dt.getSecond() << "." << open_dt.getMillisecond();
 
-    // %orderid,%symbol,%short|long,%datetime.ms,%entry_px,%datetime.ms,%tp_px,%pips,%pnl
-    m_tradelog->info( "{},{},{},{},{:f},{},{:f},{:d},{:f}", 
-      extendOrder.getPosID(), 
-      extendOrder.getSymbol(),
-      extendOrder.getSideStr(),
-      extendOrder.getSendingTime(),
-      extendOrder.getPrice(),
-      extendOrder.getCloseTime(),
-      extendOrder.getClosePrice(),
-      extendOrder.getPrice() - extendOrder.getClosePrice(),
-      extendOrder.getProfitLoss() );  
+  std::stringstream line_ss;
+  // set pos id
+  line_ss << marketOrder.getPosID()       << ",";
+  // set symbol
+  line_ss << marketOrder.getSymbol()      << ",";
+  // set side char
+  line_ss << marketOrder.getSideStr()     << ",";
+  // set open time
+  line_ss << open_ss.str()                << ",";
+  // set open price
+  line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getPrice() << ",";
+  // set stop price
+  if ( marketOrder.getStopPrice() > 0 ) {
+    line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getStopPrice() << ",";  
+  } else {
+    line_ss << 0 << ",";
   }
+  
+  // line_ss << close_ss.str()               << ",";
+  // set close price if available
+  if ( marketOrder.getClosePrice() > 0 ) {
+    line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getClosePrice()  << ",";
+    line_ss << Math::get_spread(marketOrder.getPrice(), marketOrder.getClosePrice(), marketOrder.getPointSize() ) << ",";  
+  } else {
+    line_ss << 0 << ",";
+  }
+  // set qty
+  line_ss << marketOrder.getQty();
+
+  // output
+  CSVHandler csv;
+  csv.set_path( "public_html/" );
+  csv.set_filename( filename_ss.str() );
+  csv.add_line( line_ss.str() );
 }
 
 /*!

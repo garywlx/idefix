@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
 		}
 
 		// purge csv files in public_html folder
-		std::system( "if [ \"$(ls -A public_html/*.csv)\" ]; then rm public_html/*.csv; fi" );
+		std::system( "if [ \"$(ls -A public_html/*_bars.csv)\" ]; then rm public_html/*_bars.csv; fi" );
 
 		// config file
 		const std::string config_file = argv[1];
@@ -49,28 +49,28 @@ int main(int argc, char** argv) {
 		
 		// Add chart with strategy
 		// AUD/USD
-		// AwesomeStrategy audusd( "AUD/USD" );
-		// connect( fixmanager, audusd );
+		AwesomeStrategy audusd( "AUD/USD" );
+		connect( fixmanager, audusd );
 
 		// EUR/USD		
 		AwesomeStrategy eurusd( "EUR/USD" );
 		connect( fixmanager, eurusd );
 		
-		// GBP/USD
+		// // GBP/USD
 		AwesomeStrategy gbpusd( "GBP/USD" );
 		connect( fixmanager, gbpusd );
 
 		// // NZD/USD
-		// AwesomeStrategy nzdusd( "NZD/USD" );
-		// connect( fixmanager, nzdusd );
+		AwesomeStrategy nzdusd( "NZD/USD" );
+		connect( fixmanager, nzdusd );
 
 		// // USD/CAD
-		// AwesomeStrategy usdcad( "USD/CAD" );
-		// connect( fixmanager, usdcad );
+		AwesomeStrategy usdcad( "USD/CAD" );
+		connect( fixmanager, usdcad );
 
 		// // USD/CHF
-		// AwesomeStrategy usdchf( "USD/CHF" );
-		// connect( fixmanager, usdchf );
+		AwesomeStrategy usdchf( "USD/CHF" );
+		connect( fixmanager, usdchf );
 
 		// connect 
 		fixmanager.connect( config_file );
@@ -122,7 +122,10 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		FIX::Locker lock( fixmanager.m_mutex );
 
 		fixmanager.closeAllPositions( strategy.get_symbol() );
+		fixmanager.queryAccounts();
+
 		fixmanager.unsubscribeMarketData( strategy.get_symbol() ); 
+		
 		strategy.on_exit();
 	});
 
@@ -135,58 +138,6 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		}
 	});
 	
-	// On Market Order Change
-	// fixmanager.on_market_order.connect( [&](const SignalType type, const MarketOrder& mo) {
-	// 	FIX::Locker lock( fixmanager.m_mutex );
-
-	// 	if ( mo.getSymbol() == strategy.get_symbol() ) {
-	// 		strategy.on_market_order( type, mo );
-	// 	}
-	// });
-
-	// Strategy signals
-	// on bar signal save bar values as json to a file for charting
-	// strategy.on_bar_signal.connect( [&](const Bar& bar){
-	// 	// parse dates
-	// 	auto open_dt = FIX::UtcTimeStampConvertor::convert( bar.open_time );
-	// 	std::stringstream open_ss;
-	// 	open_ss << open_dt.getYear() << "-" 
-	// 			 << setfill('0') << setw(2) << open_dt.getMonth() << "-" 
-	// 			 << setfill('0') << setw(2) << open_dt.getDay() << " " 
-	// 			 << setfill('0') << setw(2) << open_dt.getHour() << ":" 
-	// 			 << setfill('0') << setw(2) << open_dt.getMinute() << ":" 
-	// 			 << setfill('0') << setw(2) << open_dt.getSecond() << "." << open_dt.getMillisecond();
-
-	// 	auto close_dt = FIX::UtcTimeStampConvertor::convert( bar.close_time );
-	// 	std::stringstream close_ss;
-	// 	close_ss << close_dt.getYear() << "-" 
-	// 			 << setfill('0') << setw(2) << close_dt.getMonth() << "-" 
-	// 			 << setfill('0') << setw(2) << close_dt.getDay() << " " 
-	// 			 << setfill('0') << setw(2) << close_dt.getHour() << ":" 
-	// 			 << setfill('0') << setw(2) << close_dt.getMinute() << ":" 
-	// 			 << setfill('0') << setw(2) << close_dt.getSecond() << "." << close_dt.getMillisecond();
-
-	// 	 // make filename for symbol bars
-	// 	std::stringstream symbol_filename_ss;
-	// 	symbol_filename_ss << strategy.get_symbol().c_str() << "_bars.csv";
-
-	// 	std::string filename = symbol_filename_ss.str();
-	// 	str::replace( filename, "/", "" );
-
-	// 	std::ofstream barfile;
-	// 	barfile.open( filename, ios::app | ios::out );
-	// 	barfile << open_ss.str() << ",";
-	// 	barfile << bar.open_price << ",";
-	// 	barfile << bar.high_price << ",";
-	// 	barfile << bar.low_price << ",";
-	// 	barfile << bar.close_price << ",";
-	// 	barfile << close_ss.str() << ",";
-	// 	barfile << bar.volume << ",";
-	// 	barfile << bar.point_size << endl;
-	// 	barfile.close();
-
-	// });
-
 	// on entry signal open new market order
 	strategy.on_entry_signal.connect( [&](const MarketSide side) {
 		FIX::Locker lock( fixmanager.m_mutex );
@@ -197,28 +148,48 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 
 		// open new trade
 		double conversion_price = 0;
-		double free_margin = fixmanager.getAccount().getFreeMargin();
+		double free_margin      = fixmanager.getAccount().getFreeMargin();
+		double pip_risk         = 30; // 10 = 1 pip 
+		double percent_risk     = 1;
 
+		// get latest data
+		// latest market snapshot
+		auto ms = fixmanager.getLatestSnapshot( strategy.get_symbol() );
+		// latest market details
+		auto md = fixmanager.getMarketDetails( strategy.get_symbol() );
+
+		// create market order
 		MarketOrder mo;
+		// set account id
 		mo.setAccountID( fixmanager.getAccountID() );
+		// set symbol
 		mo.setSymbol( strategy.get_symbol() );
+		// set side
 		FIX::Side fix_side( ( side == MarketSide::Side_SELL ? FIX::Side_SELL : FIX::Side_BUY ) );
 		mo.setSide( fix_side.getValue() );
-		mo.setQty( Math::get_unit_size( free_margin, 1, 1, conversion_price ) );
+		// set qty
+		mo.setQty( Math::get_unit_size( free_margin, percent_risk, pip_risk, conversion_price ) );
 		if ( mo.getQty() > strategy.get_max_qty() ) {
 			mo.setQty( strategy.get_max_qty() );
 		}
+		// set entry price
 		mo.setPrice( 0 ); // MarketOrder
-
 		// set market detail precision and pointsize
-	    auto marketDetail = fixmanager.getMarketDetails( mo.getSymbol() );
-
-	    mo.setPrecision( marketDetail.getSymPrecision() );
-	    mo.setPointSize( marketDetail.getSymPointsize() );
+	    mo.setPrecision( md.getSymPrecision() );
+	    mo.setPointSize( md.getSymPointsize() );
+		// set stoploss
+		// for sell
+		if ( side == MarketSide::Side_SELL ) {
+			mo.setStopPrice( ms.getBid() + ( mo.getPointSize() * pip_risk ) );
+		} 
+		// for buy
+		else if ( side == MarketSide::Side_BUY ) {
+			mo.setStopPrice( ms.getAsk() - ( mo.getPointSize() * pip_risk ) );
+		}
 		
-		console()->info("[on_entry_signal] Side: {}", mo.getSideStr() );
+		console()->info("[on_entry_signal] Open Position for Side: {}", mo.getSideStr() );
 
-		// fixmanager.marketOrder( mo );
+		fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL );
 		fixmanager.queryPositionReport();
 	});
 

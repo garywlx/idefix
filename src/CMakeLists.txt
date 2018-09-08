@@ -13,6 +13,7 @@ set(SRC main.cpp
 	RequestId.h RequestId.cpp 
 	RenkoChart.h RenkoChart.cpp 
 	AwesomeStrategy.h AwesomeStrategy.cpp
+	CSVHandler.h CSVHandler.cpp
 	Bar.h
 	RenkoBrick.h 
 	AbstractMovingAverage.h

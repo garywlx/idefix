@@ -11,6 +11,7 @@
 #include "MarketOrder.h"
 #include "MathHelper.h"
 #include "StringHelper.h"
+#include "CSVHandler.h"
 
 namespace IDEFIX {
 	AwesomeStrategy::AwesomeStrategy(const std::string& symbol): m_symbol( symbol ) {
@@ -41,7 +42,7 @@ namespace IDEFIX {
 		// how many long positions actually?
 		m_long_pos      = 0;
 		// wait for at least 5 bricks before entering the markets
-		m_wait_bricks   = 2;
+		m_wait_bricks   = 5;
 		// maximum risk per trade in percent
 		m_max_risk      = 1;
 		// maximum quantity size
@@ -50,7 +51,7 @@ namespace IDEFIX {
 		m_max_spread    = 1;
 
 		// set renko chart periode
-		m_chart = new RenkoChart( 1 ); // 2
+		m_chart = new RenkoChart( 2 ); // 2
 		// set sma periode
 		m_sma5 = new SimpleMovingAverage( 5 );
 
@@ -85,13 +86,13 @@ namespace IDEFIX {
 			m_sma5->add( ( bar.open_price + bar.close_price ) / 2 );
 
 			// write bar with sma value to log file
-			log_brick(bar, m_sma5->value() );
+			log_brick( bar, m_sma5->value() );
 
-			if ( bar.status == Bar::STATUS::LONG ) {
-				console()->info("Bar open {:.5f} close {:.5f} sma {:.5f}", bar.open_price, bar.close_price, m_sma5->value() );
-			} else {
-				console()->error("Bar open {:.5f} close {:.5f} sma {:.5f}", bar.open_price, bar.close_price, m_sma5->value() );
-			}
+			// if ( bar.status == Bar::STATUS::LONG ) {
+			// 	console()->info("[AwesomeStrategy] Bar open {:.5f} close {:.5f} sma {:.5f}", bar.open_price, bar.close_price, m_sma5->value() );
+			// } else {
+			// 	console()->error("[AwesomeStrategy] Bar open {:.5f} close {:.5f} sma {:.5f}", bar.open_price, bar.close_price, m_sma5->value() );
+			// }
 
 			if ( ! m_sma5->is_valid() ) {
 				console()->info("[AwesomeStrategy] {} Waiting for valid sma.", get_symbol() );
@@ -286,28 +287,24 @@ namespace IDEFIX {
 		std::stringstream symbol_filename_ss;
 		symbol_filename_ss << brick.symbol.c_str() << "_bars.csv";
 
-		std::string filename = symbol_filename_ss.str();
-		str::replace( filename, "/", "" );
+		// create line
+		std::stringstream line_ss;
+		line_ss << open_ss.str() << ",";
+		line_ss << brick.open_price << ",";
+		line_ss << brick.high_price << ",";
+		line_ss << brick.low_price << ",";
+		line_ss << brick.close_price << ",";
+		line_ss << close_ss.str() << ",";
+		line_ss << brick.volume << ",";
+		line_ss << sma << ",";
+		line_ss << brick.point_size;
 
-		filename.insert(0, "public_html/");
+		// write to csv file
+		CSVHandler csv;
+		csv.set_path( "public_html/" );
+		csv.set_filename( symbol_filename_ss.str() );
+		csv.add_line( line_ss.str() );
 
-		std::ofstream barfile;
-		barfile.open( filename, ios::app | ios::out );
-
-		if ( ! barfile.good() ) {
-			return;
-		}
-
-		barfile << open_ss.str() << ",";
-		barfile << brick.open_price << ",";
-		barfile << brick.high_price << ",";
-		barfile << brick.low_price << ",";
-		barfile << brick.close_price << ",";
-		barfile << close_ss.str() << ",";
-		barfile << brick.volume << ",";
-		barfile << sma << ",";
-		barfile << brick.point_size << endl;
-		barfile.close();
 	}
 
 };

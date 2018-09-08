@@ -114,6 +114,18 @@ namespace IDEFIX {
       str.replace(start_pos, from.length(), to);
       return true;
     }
+
+    /*!
+     * Add trailing slash to path if none exists
+     * 
+     * @param std::string& path
+     */
+    inline void trailingslashit(std::string &path) {
+      auto last_char = path.back();
+      if( last_char != '/' ) {
+        path += '/';
+      }
+    }
   }; // - ns str
 }; // - ns idefix
 

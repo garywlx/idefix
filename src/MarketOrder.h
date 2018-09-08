@@ -183,14 +183,24 @@ public:
 			m_close_time = close_time;
 		}
 	}
-	inline int getPrecision() const { return m_precision; }
+	inline int getPrecision() const { 
+		if ( m_precision < 0 ) {
+			return 0;
+		}
+		return m_precision; 
+	}
 	inline void setPrecision(const int precision) {
 		if ( m_precision != precision ) {
 			m_precision = precision;
 		}
 	}
 
-	inline double getPointSize() const { return m_point_size; }
+	inline double getPointSize() const { 
+		if ( m_point_size < 0 ) {
+			return 0;
+		}
+		return m_point_size; 
+	}
 	inline void setPointSize(const double pointsize) {
 		if ( m_point_size != pointsize ) {
 			m_point_size = pointsize;
