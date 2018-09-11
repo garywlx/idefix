@@ -14,8 +14,17 @@
 #include "CSVHandler.h"
 
 namespace IDEFIX {
-	AwesomeStrategy::AwesomeStrategy(const std::string& symbol): m_symbol( symbol ) {
+	AwesomeStrategy::AwesomeStrategy(const std::string& symbol, const AwesomeStrategyConfig& config): m_symbol( symbol ) {
 		// Constructor
+		// Set config values
+		m_max_short_pos = config.max_short_pos;
+		m_max_long_pos  = config.max_long_pos;
+		m_wait_bricks   = config.wait_bricks;
+		m_max_risk      = config.max_risk;
+		m_max_qty       = config.max_qty;
+		m_max_spread    = config.max_spread;
+		m_renko_size    = config.renko_size;
+		m_sma_size      = config.sma_size;
 	}
 
 	AwesomeStrategy::~AwesomeStrategy() {
@@ -32,29 +41,14 @@ namespace IDEFIX {
 	 */
 	void AwesomeStrategy::on_init() {
 		console()->info("[AwesomeStrategy] on_init {}", get_symbol() );
-		// set max values
-		// how many parallel short positions are allowed?
-		m_max_short_pos = 1;
 		// how many short positions actually?
-		m_short_pos     = 0;
-		// how many parallel long positions are allowed?
-		m_max_long_pos  = 1;
+		m_short_pos     = 0;		
 		// how many long positions actually?
 		m_long_pos      = 0;
-		// wait for at least 5 bricks before entering the markets
-		m_wait_bricks   = 5;
-		// maximum risk per trade in percent
-		m_max_risk      = 1;
-		// maximum quantity size
-		m_max_qty       = 1 * 100000;
-		// maximum spread to open a position
-		m_max_spread    = 1;
-
 		// set renko chart periode
-		m_chart = new RenkoChart( 2 ); // 2
+		m_chart = new RenkoChart( m_renko_size );
 		// set sma periode
-		m_sma5 = new SimpleMovingAverage( 5 );
-
+		m_sma5 = new SimpleMovingAverage( m_sma_size );
 		// connect signal
 		m_chart->on_brick.connect( std::bind( &AwesomeStrategy::on_bar, this, std::placeholders::_1 ) );
 	}

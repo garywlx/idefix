@@ -14,11 +14,6 @@
 
 namespace IDEFIX {
 /*!
- * Constructs FIXManager
- */
-// FIXManager::FIXManager(): m_is_exiting( false ) {}
-
-/*!
  * Constructs FIXManager and starts a FIX Session from settings file
  *
  * @param const std::string settingsFile The FIX settings file
@@ -652,8 +647,10 @@ void FIXManager::connect(const std::string settingsFile) {
     m_pinitiator->start();
   } catch( ConfigError& error ){
     console()->error( "[connect:exception] {}", error.what() );
+    on_error( __FUNCTION__, error.what() );
   } catch( ... ) {
     console()->error( "[connect:exception] unknown error." );
+    on_error( __FUNCTION__, "unknown error." );
   }
 }
 
@@ -667,8 +664,10 @@ void FIXManager::disconnect() {
     m_pinitiator->stop();  
   } catch( ConfigError& error ) {
     console()->error( "[disconnect:exception] unknown error." );
+    on_error( __FUNCTION__, error.what() );
   } catch( ... ) {
     console()->error( "[disconnect:exception] unknown error." );
+    on_error( __FUNCTION__, "unknown error." );
   }
 }
 
@@ -766,6 +765,7 @@ void FIXManager::marketOrder(const MarketOrder& marketOrder, const FIXFactory::S
     }
   } catch(std::exception& e){
     console()->error( "[marketOrder:exception] {}", e.what() );
+    on_error( __FUNCTION__, e.what() );
   }
 }
 
@@ -1172,10 +1172,8 @@ void FIXManager::removeMarketOrder(const string posID){
   FIX::Locker lock(m_mutex);
   map<string, MarketOrder>::iterator moIterator = m_list_marketorders.find(posID);
   if( moIterator != m_list_marketorders.end() ){
-    // Update strategy
-    // if ( m_pstrategy != NULL ) {
-    //   m_pstrategy->onPositionChange( *this, moIterator->second, MarketOrder::Status::REMOVED );
-    // }
+    // Send update signal
+    on_update_marketorder( moIterator->second, MarketOrder::Status::REMOVED );
     // posID found, remove
     m_list_marketorders.erase( moIterator );
   }
@@ -1378,29 +1376,6 @@ void FIXManager::onInit() {
 
   // Query position reports
   queryPositionReport();
-
-  // create test market order for eurusd
-  // MarketOrder longtest;
-  // longtest.setPosID( "dem_arne_seine_pos_long" );
-  // longtest.setSymbol( "EUR/USD" );
-  // longtest.setQty( 100000 );
-  // longtest.setPrice( 1.1632 );
-  // longtest.setPointSize( 0.0001 );
-  // longtest.setPrecision( 5 );
-  // FIX::Side lside( FIX::Side_BUY );
-  // longtest.setSide( lside.getValue() );
-  // addMarketOrder( longtest );
-
-  // MarketOrder shorttest;
-  // shorttest.setPosID( "dem_arne_seine_pos_short" );
-  // shorttest.setSymbol( "EUR/USD" );
-  // shorttest.setQty( 100000 );
-  // shorttest.setPrice( 1.1632 );
-  // shorttest.setPointSize( 0.0001 );
-  // shorttest.setPrecision( 5 );
-  // FIX::Side sside( FIX::Side_SELL );
-  // shorttest.setSide( sside.getValue() );
-  // addMarketOrder( shorttest );
 }
 /*!
  * Call this, if you want to handle things before exiting
@@ -1455,52 +1430,58 @@ std::shared_ptr<spdlog::logger> FIXManager::console() {
 void FIXManager::tradelog(const MarketOrder& marketOrder) {
   FIX::Locker lock( m_mutex );
   
-  std::stringstream filename_ss;
-  filename_ss << marketOrder.getSymbol() << "_trades.csv";
+  try {
+    std::stringstream filename_ss;
+    filename_ss << marketOrder.getSymbol() << "_trades.csv";
 
-  auto open_dt = FIX::UtcTimeStampConvertor::convert( marketOrder.getSendingTime() );
-    std::stringstream open_ss;
-    open_ss << open_dt.getYear() << "-" 
-         << std::setfill('0') << std::setw(2) << open_dt.getMonth() << "-" 
-         << std::setfill('0') << std::setw(2) << open_dt.getDay() << " " 
-         << std::setfill('0') << std::setw(2) << open_dt.getHour() << ":" 
-         << std::setfill('0') << std::setw(2) << open_dt.getMinute() << ":" 
-         << std::setfill('0') << std::setw(2) << open_dt.getSecond() << "." << open_dt.getMillisecond();
+    auto open_dt = FIX::UtcTimeStampConvertor::convert( marketOrder.getSendingTime() );
+      std::stringstream open_ss;
+      open_ss << open_dt.getYear() << "-" 
+           << std::setfill('0') << std::setw(2) << open_dt.getMonth() << "-" 
+           << std::setfill('0') << std::setw(2) << open_dt.getDay() << " " 
+           << std::setfill('0') << std::setw(2) << open_dt.getHour() << ":" 
+           << std::setfill('0') << std::setw(2) << open_dt.getMinute() << ":" 
+           << std::setfill('0') << std::setw(2) << open_dt.getSecond() << "." << open_dt.getMillisecond();
 
-  std::stringstream line_ss;
-  // set pos id
-  line_ss << marketOrder.getPosID()       << ",";
-  // set symbol
-  line_ss << marketOrder.getSymbol()      << ",";
-  // set side char
-  line_ss << marketOrder.getSideStr()     << ",";
-  // set open time
-  line_ss << open_ss.str()                << ",";
-  // set open price
-  line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getPrice() << ",";
-  // set stop price
-  if ( marketOrder.getStopPrice() > 0 ) {
-    line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getStopPrice() << ",";  
-  } else {
-    line_ss << 0 << ",";
+    std::stringstream line_ss;
+    // set pos id
+    line_ss << marketOrder.getPosID()       << ",";
+    // set symbol
+    line_ss << marketOrder.getSymbol()      << ",";
+    // set side char
+    line_ss << marketOrder.getSideStr()     << ",";
+    // set open time
+    line_ss << open_ss.str()                << ",";
+    // set open price
+    line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getPrice() << ",";
+    // set stop price
+    if ( marketOrder.getStopPrice() > 0 ) {
+      line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getStopPrice() << ",";  
+    } else {
+      line_ss << 0 << ",";
+    }
+    
+    // line_ss << close_ss.str()               << ",";
+    // set close price if available
+    if ( marketOrder.getClosePrice() > 0 ) {
+      line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getClosePrice()  << ",";
+      line_ss << Math::get_spread(marketOrder.getPrice(), marketOrder.getClosePrice(), marketOrder.getPointSize() ) << ",";  
+    } else {
+      line_ss << 0 << ",";
+    }
+    // set qty
+    line_ss << marketOrder.getQty();
+
+    // output
+    CSVHandler csv;
+    csv.set_path( "public_html/" );
+    csv.set_filename( filename_ss.str() );
+    csv.add_line( line_ss.str() );
+  } catch ( std::exception& e ) {
+    on_error( __FUNCTION__, e.what() );
+  } catch ( ... ) {
+    on_error( __FUNCTION__, "unknown error." );
   }
-  
-  // line_ss << close_ss.str()               << ",";
-  // set close price if available
-  if ( marketOrder.getClosePrice() > 0 ) {
-    line_ss << std::setprecision( marketOrder.getPrecision() ) << std::fixed << marketOrder.getClosePrice()  << ",";
-    line_ss << Math::get_spread(marketOrder.getPrice(), marketOrder.getClosePrice(), marketOrder.getPointSize() ) << ",";  
-  } else {
-    line_ss << 0 << ",";
-  }
-  // set qty
-  line_ss << marketOrder.getQty();
-
-  // output
-  CSVHandler csv;
-  csv.set_path( "public_html/" );
-  csv.set_filename( filename_ss.str() );
-  csv.add_line( line_ss.str() );
 }
 
 /*!

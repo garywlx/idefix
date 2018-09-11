@@ -108,7 +108,7 @@ public:
   // on_update_marketorder
   nod::signal<void(const MarketOrder&, const MarketOrder::Status)> on_update_marketorder;
   // on_error
-  nod::signal<void(const std::string&)> on_error;
+  nod::signal<void(const std::string& sender, const std::string& message)> on_error;
   // on_before_session_start
   nod::signal<void()> on_before_session_start;
   // on_before_session_end

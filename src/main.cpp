@@ -49,28 +49,48 @@ int main(int argc, char** argv) {
 		
 		// Add chart with strategy
 		// AUD/USD
-		AwesomeStrategy audusd( "AUD/USD" );
-		connect( fixmanager, audusd );
+		// AwesomeStrategy audusd( "AUD/USD" );
+		// connect( fixmanager, audusd );
 
-		// EUR/USD		
-		AwesomeStrategy eurusd( "EUR/USD" );
+		// Strategy Configuration
+		AwesomeStrategyConfig strategy_config;
+		// how many parallel short positions are allowed?
+		strategy_config.max_short_pos = 1;
+		// how many parallel long positions are allowed?
+		strategy_config.max_long_pos  = 1;
+		// maximum risk per trade in percent
+		strategy_config.max_risk      = 1;
+		// maximum quantity size
+		strategy_config.max_qty       = 1 * 100000;
+		// maximum spread to open a position
+		strategy_config.max_spread    = 1;
+		// Renko brick size
+		strategy_config.renko_size    = 5;
+		// SMA size
+		strategy_config.sma_size      = 5;
+		// wait for at least 5 bricks before entering the markets
+		strategy_config.wait_bricks   = strategy_config.sma_size + 1;
+
+		// EUR/USD
+		AwesomeStrategy eurusd( "EUR/USD", strategy_config );
 		connect( fixmanager, eurusd );
 		
-		// // GBP/USD
-		AwesomeStrategy gbpusd( "GBP/USD" );
+		// GBP/USD
+		
+		AwesomeStrategy gbpusd( "GBP/USD", strategy_config );
 		connect( fixmanager, gbpusd );
 
 		// // NZD/USD
-		AwesomeStrategy nzdusd( "NZD/USD" );
-		connect( fixmanager, nzdusd );
+		// AwesomeStrategy nzdusd( "NZD/USD" );
+		// connect( fixmanager, nzdusd );
 
 		// // USD/CAD
-		AwesomeStrategy usdcad( "USD/CAD" );
-		connect( fixmanager, usdcad );
+		// AwesomeStrategy usdcad( "USD/CAD" );
+		// connect( fixmanager, usdcad );
 
 		// // USD/CHF
-		AwesomeStrategy usdchf( "USD/CHF" );
-		connect( fixmanager, usdchf );
+		// AwesomeStrategy usdchf( "USD/CHF" );
+		// connect( fixmanager, usdchf );
 
 		// connect 
 		fixmanager.connect( config_file );
