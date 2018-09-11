@@ -253,13 +253,13 @@ void FIXManager::onMessage(const FIX44::CollateralInquiryAck& ack, const Session
 // under your login. Notable fields include Account(1) which is the AccountID and CashOutstanding(901) which
 // is the account balance
 void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &session_ID) {
-  IDEFIX::Account account;
-  account.setAccountID( cr.getField( FIELD::Account ) );
-  account.setBalance( DoubleConvertor::convert( cr.getField( FIELD::CashOutstanding ) ) );
-  account.setMarginUsed( DoubleConvertor::convert( cr.getField( FXCM_FIX_FIELDS::FXCM_USED_MARGIN ) ) );
-  account.setMarginRatio( DoubleConvertor::convert( cr.getField( FIELD::MarginRatio ) ) );
-  //account.setContractSize( DoubleConvertor::convert( cr.getField( FIELD::Quantity ) ) );
-  account.setMinTradeSize( DoubleConvertor::convert( cr.getField( FIELD::Quantity ) ) );
+  std::shared_ptr<Account> account = std::make_shared<Account>();
+  account->setAccountID( cr.getField( FIELD::Account ) );
+  account->setBalance( DoubleConvertor::convert( cr.getField( FIELD::CashOutstanding ) ) );
+  account->setMarginUsed( DoubleConvertor::convert( cr.getField( FXCM_FIX_FIELDS::FXCM_USED_MARGIN ) ) );
+  account->setMarginRatio( DoubleConvertor::convert( cr.getField( FIELD::MarginRatio ) ) );
+  //account->setContractSize( DoubleConvertor::convert( cr.getField( FIELD::Quantity ) ) );
+  account->setMinTradeSize( DoubleConvertor::convert( cr.getField( FIELD::Quantity ) ) );
 
   // The CollateralReport NoPartyIDs group can be inspected for additional information such as AccountName
   // or HedgingStatus
@@ -278,31 +278,31 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
     string sub_value = sub_group.getField(FIELD::PartySubID);
     // hedging
     if( sub_type == "4000" ){
-      account.setHedging( (sub_value == "0" ? false : true ) );
+      account->setHedging( (sub_value == "0" ? false : true ) );
     } 
     // securities account id
     else if ( sub_type == "2" ) {
-      account.setSecuritiesAccountID( sub_value );
+      account->setSecuritiesAccountID( sub_value );
     }
     // Person lastname
     else if ( sub_type == "22" ) {
-      account.setPerson( sub_value );
+      account->setPerson( sub_value );
     }
   }
 
   // get base currency from system parameters
-  account.setCurrency( getSysParam("BASE_CRNCY") );
+  account->setCurrency( getSysParam("BASE_CRNCY") );
 
   // set account
   setAccount( account );
 
   // output account
-  console()->info( "[Account] {} Balance: {:.2f} {}", account.getAccountID(), account.getBalance(), account.getCurrency() );
+  console()->info( "[Account] {} Balance: {:.2f} {}", account->getAccountID(), account->getBalance(), account->getCurrency() );
 
   // check if we are already initialized
   if ( m_symbol_subscriptions.empty() && ! isExiting() ) {
     // set account free margin to balance
-    m_account.setFreeMargin( account.getBalance() );
+    m_account->setFreeMargin( account->getBalance() );
     // call init
     onInit();
   }
@@ -383,8 +383,8 @@ void FIXManager::onMessage(const FIX44::PositionReport& pr, const SessionID& ses
     marketOrder.setSendingTime( pr.getField( FXCM_FIX_FIELDS::FXCM_POS_OPEN_TIME ) );
 
     // set precision
-    MarketDetail marketDetail = getMarketDetails( marketOrder.getSymbol() );
-    marketOrder.setPrecision( marketDetail.getSymPrecision() );
+    auto marketDetail = getMarketDetails( marketOrder.getSymbol() );
+    marketOrder.setPrecision( marketDetail->getSymPrecision() );
 
     // add order to list
     addMarketOrder( marketOrder );
@@ -430,9 +430,9 @@ void FIXManager::onMessage(const FIX44::MarketDataSnapshotFullRefresh &mds, cons
   snapshot.setSymbol( symbol );
   snapshot.setSendingTime( entry_date );
   // set precision
-  MarketDetail marketDetail = getMarketDetails( symbol );
-  snapshot.setPrecision( marketDetail.getSymPrecision() );
-  snapshot.setPointSize( marketDetail.getSymPointsize() );
+  auto marketDetail = getMarketDetails( symbol );
+  snapshot.setPrecision( marketDetail->getSymPrecision() );
+  snapshot.setPointSize( marketDetail->getSymPointsize() );
 
   // For each MDEntry in the message, inspect the NoMDEntries group for the presence of either the Bid or Ask
   // (Offer) type
@@ -523,8 +523,8 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     marketOrder.setClosePrice( 0 );
 
     auto md = getMarketDetails( symbol.getValue() );
-    marketOrder.setPrecision( md.getSymPrecision() );
-    marketOrder.setPointSize( md.getSymPointsize() );
+    marketOrder.setPrecision( md->getSymPrecision() );
+    marketOrder.setPointSize( md->getSymPointsize() );
 
     // MassOrderStatus
     if ( execType == FIX::ExecType_ORDER_STATUS ) {
@@ -702,7 +702,7 @@ void FIXManager::subscribeMarketData(const std::string symbol) {
   addSubscription( symbol );
 
   // check if we need a counter pair for price conversion
-  auto counterPair = getCounterPair( symbol, getAccount().getCurrency() );
+  auto counterPair = getCounterPair( symbol, getAccount()->getCurrency() );
   if ( ! counterPair.empty() && counterPair != symbol ) {
     if ( m_list_market.find( counterPair ) == m_list_market.end() ) {
       console()->info( "[subscribeMarketData] {} for price conversion of {}", counterPair, symbol );
@@ -723,7 +723,7 @@ void FIXManager::unsubscribeMarketData(const std::string symbol) {
 
   // check base and quote of symbol
   // check if we need a counter pair for price conversion
-  auto counterPair = getCounterPair( symbol, getAccount().getCurrency() );
+  auto counterPair = getCounterPair( symbol, getAccount()->getCurrency() );
   if ( ! counterPair.empty() && counterPair != symbol ) {
     if ( m_list_market.find( counterPair ) != m_list_market.end() ) {
       console()->info( "[unsubscribeMarketData] {} for price conversion of {}", counterPair, symbol );
@@ -826,9 +826,9 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
   if ( m_list_marketorders.empty() ) return;
 
   // get account currency
-  auto accountCurrency = getAccount().getCurrency();
+  auto accountCurrency = getAccount()->getCurrency();
   // get market detail for snapshot
-  auto marketDetail = getMarketDetails( snapshot.getSymbol() );
+  //@deprecated auto marketDetail = getMarketDetails( snapshot.getSymbol() );
 
   for ( auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ) {
     // handle only positions with the same symbol trading
@@ -856,7 +856,7 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
         // AUD/USD, EUR/USD, GBP/USD, NZD/USD, ...
         if ( snapshot.getQuoteCurrency() == "USD" ) {
           // calculate pip value
-          pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, eurusd_snapshot.getAsk(), position.getSide() );
+          pip_value = Math::get_pip_value( snapshot, position.getQty(), accountCurrency, eurusd_snapshot->getAsk(), position.getSide() );
         }
         // USD/CAD, USD/CHF, USD/JPY...
         else if ( snapshot.getBaseCurrency() == "USD" ) {
@@ -868,21 +868,21 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
             // get latest snapshot for EUR/CAD
             auto eurcad_snapshot = getLatestSnapshot( "EUR/CAD" );
             // set conversion price
-            conversion_price = eurcad_snapshot.getAsk();
+            conversion_price = eurcad_snapshot->getAsk();
           }
           // USD/CHF use EUR/CHF
           else if ( snapshot.getQuoteCurrency() == "CHF" ) {
             // get latest snapshot for EUR/CHF
             auto eurchf_snapshot = getLatestSnapshot( "EUR/CHF" );
             // set conversion price
-            conversion_price = eurchf_snapshot.getAsk();
+            conversion_price = eurchf_snapshot->getAsk();
           }
           // USD/JPY use EUR/JPY
           else if ( snapshot.getQuoteCurrency() == "JPY" ) {
             // get latest snapshot for EUR/JPY
             auto eurjpy_snapshot = getLatestSnapshot( "EUR/JPY" );
             // set conversion price
-            conversion_price = eurjpy_snapshot.getAsk();
+            conversion_price = eurjpy_snapshot->getAsk();
           }
 
           // calculate pip value with conversion price
@@ -905,11 +905,11 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
       // -----------------------------------------------------------------------------------------------------------------------
       auto account = getAccount();
       // account equity
-      account.setEquity( Math::get_equity( account.getBalance(), position.getProfitLoss() ) );
+      account->setEquity( Math::get_equity( account->getBalance(), position.getProfitLoss() ) );
       // free margin
-      account.setFreeMargin( Math::get_free_margin( account.getBalance(), account.getEquity(), account.getMarginUsed() ) );
+      account->setFreeMargin( Math::get_free_margin( account->getBalance(), account->getEquity(), account->getMarginUsed() ) );
       // margin ratio
-      account.setMarginRatio( Math::get_margin_ratio( account.getEquity(), account.getFreeMargin() ) );
+      account->setMarginRatio( Math::get_margin_ratio( account->getEquity(), account->getFreeMargin() ) );
       // Signal
       on_account_change( account );
       
@@ -936,18 +936,17 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
 /*!
  * Returns last market snapshot for symbol
  * @param  symbol symbol
- * @return        IDEFIX::MarketSnapshot
+ * @return std::shared_ptr<MarketSnapshot> 
  */
-MarketSnapshot FIXManager::getLatestSnapshot(const string symbol) {
-  MarketSnapshot snapshot;
-  Market market = getMarket(symbol);
+std::shared_ptr<MarketSnapshot> FIXManager::getLatestSnapshot(const string symbol) {
+  FIX::Locker lock( m_mutex );
 
-  FIX::Locker lock(m_mutex);
-  if( market.isValid() ){
-    snapshot = market.getLatestSnapshot();
+  auto market = getMarket( symbol );
+  if( market->isValid() ){
+    return std::make_shared<MarketSnapshot>( market->getLatestSnapshot() );
   }
 
-  return snapshot;
+  return nullptr;
 }
 
 /*!
@@ -989,14 +988,15 @@ void FIXManager::closePosition(const IDEFIX::MarketOrder &marketOrder){
 
     std::ostringstream oss;
     oss << " - {} P&L {:.";
-    oss << marketDetail.getSymPrecision();
+    oss << marketDetail->getSymPrecision();
     oss << "f} {}";
 
-    console()->info( oss.str().c_str(), marketOrder.getPosID(), marketOrder.getProfitLoss(), getAccount().getCurrency() );
+    console()->info( oss.str().c_str(), marketOrder.getPosID(), marketOrder.getProfitLoss(), getAccount()->getCurrency() );
 
     auto request = FIXFactory::NewOrderSingle( nextOrderID(), marketOrder, FIXFactory::SingleOrderType::CLOSEORDER );
     Session::sendToTarget(request, getOrderSessionID());  
   } catch(std::exception& e){
+    on_error( __FUNCTION__, e.what() );
     console()->error( "[closePosition:exception] {}", e.what() );
   }
 }
@@ -1059,15 +1059,15 @@ void FIXManager::queryOrderMassStatus() {
 }
 
 string FIXManager::getAccountID() const {
-  return m_account.getAccountID();
+  return m_account->getAccountID();
 }
 
 /*!
  * Set Account
  * 
- * @param IDEFIX::Account account
+ * @param std::shared_ptr<Account> account
  */
-void FIXManager::setAccount(IDEFIX::Account account) {
+void FIXManager::setAccount(std::shared_ptr<Account> account) {
   if ( m_account != account ) {
     m_account = account;
     // signal
@@ -1080,7 +1080,7 @@ void FIXManager::setAccount(IDEFIX::Account account) {
  * 
  * @return
  */
-IDEFIX::Account FIXManager::getAccount() {
+std::shared_ptr<IDEFIX::Account> FIXManager::getAccount() {
   return m_account;
 }
 
@@ -1107,18 +1107,17 @@ void FIXManager::setOrderSessionID(const FIX::SessionID &session_ID){
 /*!
  * Returns the market for given symbol
  * @param  symbol [description]
- * @return        [description] 
+ * @return std::shared_ptr<Market>|nullptr
  */
-Market FIXManager::getMarket(const string symbol) {
-  Market market;
-  FIX::Locker lock(m_mutex);
-  map<string, Market>::iterator it = m_list_market.find(symbol);
+std::shared_ptr<Market> FIXManager::getMarket(const string& symbol) {
+  FIX::Locker lock( m_mutex );
+  map<string, Market>::iterator it = m_list_market.find( symbol );
   if( it != m_list_market.end() ){
     // found market
-    market = it->second;
+    return std::make_shared<Market>( it->second );
   }
 
-  return market;
+  return nullptr;
 }
 
 /*!
@@ -1228,36 +1227,36 @@ void FIXManager::updateMarketOrder(const MarketOrder& rH, const bool isUnsolicit
 
 /*!
  * Returns the market order by fxcm_pos_id
- * @param  fxcm_pos_id [description]
- * @return             [description]
+ * @param const std::string fxcm_pos_id 
+ * 
+ * @return std::shared_ptr<MarketOrder>|nullptr
  */
-MarketOrder FIXManager::getMarketOrder(const string fxcm_pos_id) const {
-  MarketOrder marketOrder;
-  FIX::Locker lock(m_mutex);
+std::shared_ptr<MarketOrder> FIXManager::getMarketOrder(const std::string fxcm_pos_id) const {
+  FIX::Locker lock( m_mutex );
   for(auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
     if( it->second.getPosID() == fxcm_pos_id ){
-      marketOrder = it->second;
+      return std::make_shared<MarketOrder>( it->second );
       break;
     }
   }
-  return marketOrder;
+  return nullptr;
 }
 
 /*!
  * Returns the market order by clOrdID
- * @param  clOrdID [description]
- * @return         [description]
+ * @param const ClOrdID clOrdID
+ * 
+ * @return std::shared_ptr<MarketOrder>|nullptr
  */
-MarketOrder FIXManager::getMarketOrder(const ClOrdID clOrdID) const {
-  MarketOrder marketOrder;
+std::shared_ptr<MarketOrder> FIXManager::getMarketOrder(const ClOrdID clOrdID) const {
   FIX::Locker lock(m_mutex);
   for(auto it = m_list_marketorders.begin(); it != m_list_marketorders.end(); ++it ){
     if( it->second.getClOrdID() == clOrdID ){
-      marketOrder = it->second;
+      return std::make_shared<MarketOrder>( it->second );
       break;
     }
   }
-  return marketOrder;
+  return nullptr;
 }
 
 /*!
@@ -1275,18 +1274,19 @@ void FIXManager::addMarketDetail(const MarketDetail& marketDetail){
 /*!
  * Get MarketDetail for symbol
  * @param const std::string& symbol
- * @return
+ * @return std::shared_ptr<MarketDetail>
  */
-MarketDetail FIXManager::getMarketDetails(const std::string& symbol) {
+std::shared_ptr<MarketDetail> FIXManager::getMarketDetails(const std::string& symbol) {
   FIX::Locker lock(m_mutex);
-  MarketDetail marketDetail;
+  
   for(auto it = m_market_details.begin(); it != m_market_details.end(); ++it) {
     if( it->first == symbol ) {
-      marketDetail = it->second;
+      return std::make_shared<MarketDetail>( it->second );
       break;
     }
   }
-  return marketDetail;
+
+  return nullptr;
 }
 
 /*!

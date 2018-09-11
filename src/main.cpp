@@ -153,6 +153,8 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 	fixmanager.on_tick.connect( [&](const MarketSnapshot& tick){
 		FIX::Locker lock( fixmanager.m_mutex );
 
+		if ( fixmanager.isExiting() ) return;
+
 		if ( tick.getSymbol() == strategy.get_symbol() ) {
 			strategy.on_tick( tick );
 		}
@@ -168,7 +170,7 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 
 		// open new trade
 		double conversion_price = 0;
-		double free_margin      = fixmanager.getAccount().getFreeMargin();
+		double free_margin      = fixmanager.getAccount()->getFreeMargin();
 		double pip_risk         = 30; // 10 = 1 pip 
 		double percent_risk     = 1;
 
@@ -195,16 +197,16 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		// set entry price
 		mo.setPrice( 0 ); // MarketOrder
 		// set market detail precision and pointsize
-	    mo.setPrecision( md.getSymPrecision() );
-	    mo.setPointSize( md.getSymPointsize() );
+	    mo.setPrecision( md->getSymPrecision() );
+	    mo.setPointSize( md->getSymPointsize() );
 		// set stoploss
 		// for sell
 		if ( side == MarketSide::Side_SELL ) {
-			mo.setStopPrice( ms.getBid() + ( mo.getPointSize() * pip_risk ) );
+			mo.setStopPrice( ms->getBid() + ( mo.getPointSize() * pip_risk ) );
 		} 
 		// for buy
 		else if ( side == MarketSide::Side_BUY ) {
-			mo.setStopPrice( ms.getAsk() - ( mo.getPointSize() * pip_risk ) );
+			mo.setStopPrice( ms->getAsk() - ( mo.getPointSize() * pip_risk ) );
 		}
 		
 		console()->info("[on_entry_signal] Open Position for Side: {}", mo.getSideStr() );

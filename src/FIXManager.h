@@ -81,7 +81,7 @@ private:
   // the session id for order management, such as open/closing positions
   SessionID m_order_sessionID;
   // The account
-  IDEFIX::Account m_account;
+  std::shared_ptr<IDEFIX::Account> m_account;
 
   // hold all market snapshots per symbol list[symbol] = Market
   map<std::string, Market> m_list_market;
@@ -114,7 +114,7 @@ public:
   // on_before_session_end
   nod::signal<void()> on_before_session_end;
   // on_account_change
-  nod::signal<void(Account&)> on_account_change;
+  nod::signal<void(std::shared_ptr<IDEFIX::Account>)> on_account_change;
   // on_market_order
   nod::signal<void(const SignalType type, const MarketOrder&)> on_market_order;
   
@@ -163,11 +163,11 @@ public:
   void closeLoosers(const std::string symbol);
 
   // Public Getter & Setter
-  MarketSnapshot getLatestSnapshot(const std::string symbol);
-  MarketDetail getMarketDetails(const std::string& symbol);
-  Account getAccount();
+  std::shared_ptr<MarketSnapshot> getLatestSnapshot(const std::string symbol);
+  std::shared_ptr<MarketDetail> getMarketDetails(const std::string& symbol);
+  std::shared_ptr<Account> getAccount();
   std::string getAccountID() const;
-  Market getMarket(const std::string symbol);
+  std::shared_ptr<Market> getMarket(const std::string& symbol);
   
   void showSysParamList();
   void showAvailableMarketList();
@@ -199,7 +199,7 @@ private:
   bool isMarketDataSession(const SessionID& session_ID);
   bool isOrderSession(const SessionID& session_ID);
   
-  void setAccount(const Account account);
+  void setAccount(std::shared_ptr<Account> account);
 
   SessionID getMarketSessionID() const;
   void setMarketSessionID(const SessionID& session_ID);
@@ -213,8 +213,8 @@ private:
   void removeMarketOrder(const std::string posID);
   void updateMarketOrder(const MarketOrder& marketOrder, const bool isUnsolicited = false);
 
-  MarketOrder getMarketOrder(const std::string fxcm_pos_id) const;
-  MarketOrder getMarketOrder(const ClOrdID clOrdID) const;
+  std::shared_ptr<MarketOrder> getMarketOrder(const std::string fxcm_pos_id) const;
+  std::shared_ptr<MarketOrder> getMarketOrder(const ClOrdID clOrdID) const;
 
   void addMarketDetail(const MarketDetail& marketDetail);
 
