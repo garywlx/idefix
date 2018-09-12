@@ -12,7 +12,7 @@
 #include <string>
 #include <nod/nod.hpp>
 #include <quickfix/Mutex.h>
-#include <quickfix/FIXFields.h>
+#include <quickfix/FixFields.h>
 
 namespace IDEFIX {
 	struct AwesomeStrategyConfig {

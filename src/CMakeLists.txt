@@ -23,7 +23,14 @@ set(SRC main.cpp
 add_executable(${PROJECT_NAME} ${SRC})
 
 # linker
-target_link_libraries(${PROJECT_NAME} /usr/local/lib/libquickfix.dylib)
+if(APPLE)
+set(QUICKFIXLIB "/usr/local/lib/libquickfix.dylib")
+endif(APPLE)
+if(UNIX)
+set(QUICKFIXLIB "/usr/local/lib/libquickfix.so")
+endif(UNIX)
+
+target_link_libraries(${PROJECT_NAME} ${QUICKFIXLIB})
 
 # copy binary to parent directory build/
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ../)

@@ -1,5 +1,5 @@
 # Require cmake version
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.7)
 
 # include directories
 include_directories(./include)
@@ -8,13 +8,25 @@ include_directories(./include)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+if(UNIX)
+set(CMAKE_CXX_COMPILER g++)
+set(CMAKE_C_COMPILER gcc)
+add_compile_options(-I/usr/local/include/llvm/c++/v1)
+endif(UNIX)
+
 # built my own version of llvm for c++11 on macos https://libcxx.llvm.org/docs/index.html
 add_compile_options(-std=c++11)
+
+if(APPLE)
 add_compile_options(-stdlib=libc++)
-add_compile_options(-nostdinc++)
 add_compile_options(-I/usr/local/llvm/include/c++/v1)
+endif(APPLE)
+
+add_compile_options(-nostdinc++)
+
 #add_compile_options(-L/usr/local/llvm/lib) # clang: warning: argument unused during compilation
 #add_compile_options(-Wl,-rpath,/usr/local/llvm/lib) # clang: warning: argument unused during compilation
+
 add_compile_options(-Wno-c++98-compat)
 
 # set build type
