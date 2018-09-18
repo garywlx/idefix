@@ -8,19 +8,19 @@ include_directories(./include)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-if(UNIX)
-set(CMAKE_CXX_COMPILER g++)
-set(CMAKE_C_COMPILER gcc)
-add_compile_options(-I/usr/local/include/llvm/c++/v1)
-endif(UNIX)
-
 # built my own version of llvm for c++11 on macos https://libcxx.llvm.org/docs/index.html
 add_compile_options(-std=c++11)
 
-if(APPLE)
-add_compile_options(-stdlib=libc++)
-add_compile_options(-I/usr/local/llvm/include/c++/v1)
-endif(APPLE)
+if(NOT APPLE)
+	# unix compiling
+	set(CMAKE_CXX_COMPILER g++)
+	set(CMAKE_C_COMPILER g++)
+	add_compile_options(-I/usr/local/include/llvm/c++/v1)
+elseif(APPLE)
+	# apple compiling
+	add_compile_options(-stdlib=libc++)
+	add_compile_options(-I/usr/local/llvm/include/c++/v1)
+endif(NOT APPLE)
 
 add_compile_options(-nostdinc++)
 
