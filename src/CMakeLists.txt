@@ -1,6 +1,9 @@
-#
+##
 # QUICKFIX BUILD
-#
+##
+if(NOT PROJECT_NAME)
+	set(PROJECT_NAME idefix)
+endif(NOT PROJECT_NAME)
 
 # quickfix flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../include/spdlog -fexceptions -finline-functions") #-lpthread -lxml2 -lz
@@ -24,11 +27,10 @@ add_executable(${PROJECT_NAME} ${SRC})
 
 # linker
 if(APPLE)
-set(QUICKFIXLIB "/usr/local/lib/libquickfix.dylib")
+	set(QUICKFIXLIB "/usr/local/lib/libquickfix.dylib")
+elseif(UNIX)
+	set(QUICKFIXLIB "/usr/local/lib/libquickfix.so")
 endif(APPLE)
-if(UNIX)
-set(QUICKFIXLIB "/usr/local/lib/libquickfix.so")
-endif(UNIX)
 
 target_link_libraries(${PROJECT_NAME} ${QUICKFIXLIB})
 
