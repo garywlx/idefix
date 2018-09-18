@@ -14,7 +14,7 @@ add_compile_options(-std=c++11)
 if(NOT APPLE)
 	message(STATUS "Unix compiling...")
 	# unix compiling
-	set(CMAKE_CXX_COMPILER g++)
+	set(CMAKE_CXX_COMPILER clang)
 	add_compile_options(-I/usr/local/llvm-6.0.1/include/c++/v1)
 	add_compile_options(-Wl,-rpath,/usr/local/llvm-6.0.1/lib)
 elseif(APPLE)
