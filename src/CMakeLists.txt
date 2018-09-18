@@ -10,7 +10,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../inclu
 
 #set unix specific flags
 if(NOT APPLE)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lxml2 -lz -lpthread")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lpthread")
 endif(NOT APPLE)
 
 set(SRC main.cpp 
