@@ -8,6 +8,11 @@ endif(NOT PROJECT_NAME)
 # quickfix flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../include/spdlog -fexceptions -finline-functions") #-lpthread -lxml2 -lz
 
+#set unix specific flags
+if(NOT APPLE)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lxml2 -lz -lpthread")
+endif(NOT APPLE)
+
 set(SRC main.cpp 
 	RiskManagement.h MathHelper.h Pairs.h MarketDetail.h FXCMFields.h FIXFactory.h times.h StringHelper.h 
 	MarketOrder.h MarketSnapshot.h Market.h Operators.h Exceptions.h SignalType.h MarketSide.h
