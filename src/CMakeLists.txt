@@ -33,8 +33,8 @@ add_executable(${PROJECT_NAME} ${SRC})
 # linker
 if(APPLE)
 	set(QUICKFIXLIB "/usr/local/lib/libquickfix.dylib")
-elseif(UNIX)
-	set(QUICKFIXLIB "/usr/local/lib/libquickfix.so")
+elseif(NOT APPLE)
+	set(QUICKFIXLIB "/usr/local/lib/libquickfix.so -lpthread")
 endif(APPLE)
 
 target_link_libraries(${PROJECT_NAME} ${QUICKFIXLIB})
