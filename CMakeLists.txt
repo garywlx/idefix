@@ -16,6 +16,7 @@ if(NOT APPLE)
 	set(CMAKE_CXX_COMPILER g++)
 	set(CMAKE_C_COMPILER g++)
 	add_compile_options(-I/usr/local/include/llvm/c++/v1)
+	add_compile_options(-L/usr/local/include/llvm/lib)
 elseif(APPLE)
 	# apple compiling
 	add_compile_options(-stdlib=libc++)
