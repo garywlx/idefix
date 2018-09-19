@@ -8,11 +8,6 @@ endif(NOT PROJECT_NAME)
 # quickfix flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../include/spdlog -fexceptions -finline-functions") #-lpthread -lxml2 -lz
 
-#set unix specific flags
-#if(NOT APPLE)
-#	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lpthread")
-#endif(NOT APPLE)
-
 set(SRC main.cpp 
 	RiskManagement.h MathHelper.h Pairs.h MarketDetail.h FXCMFields.h FIXFactory.h times.h StringHelper.h 
 	MarketOrder.h MarketSnapshot.h Market.h Operators.h Exceptions.h SignalType.h MarketSide.h
@@ -33,11 +28,16 @@ add_executable(${PROJECT_NAME} ${SRC})
 # linker
 if(APPLE)
 	set(QUICKFIXLIB "/usr/local/lib/libquickfix.dylib")
+	target_link_libraries(${PROJECT_NAME} ${QUICKFIXLIB})
 elseif(NOT APPLE)
-	set(QUICKFIXLIB "/usr/local/lib/libquickfix.so -lpthread")
+	find_package(Threads REQUIRED)
+	set(QUICKFIXLIB "/usr/local/lib/libquickfix.so")
+	target_link_libraries(${PROJECT_NAME} 
+				${QUICKFIXLIB} 
+				#-lstdc++ 
+				${CMAKE_THREAD_LIBS_INIT}
+	)
 endif(APPLE)
-
-target_link_libraries(${PROJECT_NAME} ${QUICKFIXLIB})
 
 # copy binary to parent directory build/
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ../)
