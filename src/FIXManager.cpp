@@ -8,6 +8,7 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "CSVHandler.h"
 #include <quickfix/Utility.h>
+#include <quickfix/Dictionary.h>
 #include <cmath>
 #include <string>
 #include <exception>
