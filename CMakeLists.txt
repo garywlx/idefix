@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.7)
 
 # include directories
-include_directories(./include)
+include_directories("include")
 
 # set c++ standard
 set(CMAKE_CXX_STANDARD 11)
@@ -12,16 +12,17 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
 #add_compile_options("-Wall" "-Wextra" "-Werror" "-Wno-c++98-compat" "-I/usr/local/llvm-6.0.1/include/c++/v1")
-add_compile_options("-Wno-c++98-compat" "-I/usr/local/include/llvm/c++1/v1")
+#add_compile_options("-Wno-c++98-compat" "-I/usr/lib/llvm-6.0/include/c++/v1")
+add_compile_options("-Wno-c++98-compat" "-std=c++11")
 
 # set build type
 set(CMAKE_BUILD_TYPE Debug)
 
 # Change this to your project name
-project(idefix) #  VERSION 0.1.0 LANGUAGES CXX
+project(idefix VERSION 0.1.0 LANGUAGES CXX)
 
 # quickfix flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../include/spdlog -fexceptions") # -finline-functions") #-lpthread -lxml2 -lz
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../include/spdlog -fexceptions -stdlib=libc++") # -finline-functions") #-lpthread -lxml2 -lz
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
 
 set(SRC src/main.cpp 
@@ -49,10 +50,9 @@ if(APPLE)
 	)
 elseif(NOT APPLE)
 	find_package(Threads REQUIRED)
-	set(QUICKFIXLIB "/usr/local/lib/libquickfix.so")
+	set(QUICKFIXLIB "/usr/local/lib/libquickfix.so.16")
 	target_link_libraries(${PROJECT_NAME} 
 				${QUICKFIXLIB} 
-				#-lstdc++ 
 				${CMAKE_THREAD_LIBS_INIT}
 	)
 endif(APPLE)

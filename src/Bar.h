@@ -51,7 +51,7 @@ namespace IDEFIX {
 			is_long = false;
 		}
 
-		out << "\033[" << ( brick.status == Bar::STATUS::SHORT ? "31" : "32" ) << "m";
+		//out << "\033[" << ( brick.status == Bar::STATUS::SHORT ? "31" : "32" ) << "m";
 		out << "Brick " << status << " " << brick.open_time << " ";
 		out << std::setprecision(5) << std::fixed; 
 		out << brick.open_price << " ";
@@ -63,7 +63,7 @@ namespace IDEFIX {
 		out << brick.close_price << " ";
 		out << brick.close_time << " ";
 		out << brick.diff << " " << brick.volume;
-		out << "\033[0m";
+		//out << "\033[0m";
 		return out;
 	};
 };
