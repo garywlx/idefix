@@ -23,7 +23,7 @@ include_directories(src ${inc_QUICKFIX} ${inc_PROJECT_DIR})
 #include_directories(${LLVM_INCLUDE_DIRS})
 #add_definitions(${LLVM_DEFINITIONS})
 #message(STATUS "Including llvm dirs: ${LLVM_INCLUDE_DIRS}")
-message(STATUS "Adding llvm definitions: ${LLVM_DEFINITIONS}")
+#message(STATUS "Adding llvm definitions: ${LLVM_DEFINITIONS}")
 
 # set c++ standard
 include(CheckCXXCompilerFlag)
@@ -79,16 +79,16 @@ elseif(NOT APPLE)
 	set(LINK_LIBS /usr/local/lib/libquickfix.so ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
-target_link_libraries(${PROJECT_NAME} ${llvm_libs} ${LINK_LIBS})
+target_link_libraries(${PROJECT_NAME} ${LINK_LIBS}) #${llvm_libs}
 
 # copy binary to parent directory build/
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ../)
 # copy fxcm cfg file to build/
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ../../specs/fxcm.cfg ../)
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ../specs/fxcm.cfg ../)
 # copy fixfxcm10.xml to build/
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ../../specs/FIXFXCM10.xml ../)
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ../specs/FIXFXCM10.xml ../)
 
 # create folder build/public_html
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../public_html)
 # copy chart.html to parent directory build/public_html
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/html/chart.html ../public_html)
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src/html/chart.html ../public_html)
