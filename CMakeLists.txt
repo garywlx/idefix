@@ -5,13 +5,13 @@ cmake_minimum_required(VERSION 3.7)
 project(idefix VERSION 0.1.0 LANGUAGES CXX)
 
 # set compiler
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_C_COMPILER gcc)
+set(CMAKE_CXX_COMPILER g++)
 
 # llvm project
-find_package(LLVM REQUIRED CONFIG)
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+#find_package(LLVM REQUIRED CONFIG)
+#message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+#message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 # set directories of custom includes
 set(inc_QUICKFIX "/usr/local/include/quickfix")
@@ -20,9 +20,9 @@ set(inc_SPDLOG "include/spdlog")
 
 # include directories
 include_directories(src ${inc_QUICKFIX} ${inc_PROJECT_DIR})
-include_directories(${LLVM_INCLUDE_DIRS})
-add_definitions(${LLVM_DEFINITIONS})
-message(STATUS "Including llvm dirs: ${LLVM_INCLUDE_DIRS}")
+#include_directories(${LLVM_INCLUDE_DIRS})
+#add_definitions(${LLVM_DEFINITIONS})
+#message(STATUS "Including llvm dirs: ${LLVM_INCLUDE_DIRS}")
 message(STATUS "Adding llvm definitions: ${LLVM_DEFINITIONS}")
 
 # set c++ standard
@@ -39,7 +39,7 @@ endif()
 
 #set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-add_compile_options("-Wno-c++98-compat" "-stdlib=libc++")
+add_compile_options("-Wno-c++98-compat") # "-stdlib=libc++")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${inc_QUICKFIX} -I${inc_NOD} -I${inc_SPDLOG} -v -Wno-c++98-compat -stdlib=libc++ -std=c++11 -fexceptions")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${inc_PROJECT_DIR} -I${inc_QUICKFIX} -fexceptions")
 
@@ -69,7 +69,7 @@ add_executable(${PROJECT_NAME} ${SRC})
 
 # Find the libraries that correspond to the LLVM components
 # that we wish to use
-llvm_map_components_to_libnames(llvm_libs support core bitreader linker)
+#llvm_map_components_to_libnames(llvm_libs support core bitreader linker)
 
 # linker
 if(APPLE)
