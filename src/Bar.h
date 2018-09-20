@@ -1,6 +1,8 @@
 #ifndef IDEFIX_BAR_H
 #define IDEFIX_BAR_H
 
+#include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <string>
 
