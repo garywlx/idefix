@@ -76,7 +76,6 @@ int main(int argc, char** argv) {
 		connect( fixmanager, eurusd );
 		
 		// GBP/USD
-		
 		AwesomeStrategy gbpusd( "GBP/USD", strategy_config );
 		connect( fixmanager, gbpusd );
 
