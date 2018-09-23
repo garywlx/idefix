@@ -96,3 +96,6 @@ message(STATUS "Made directory ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html/")
 # copy chart.html to parent directory build/public_html
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src/html/chart.html ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
 message(STATUS "Copied ${CMAKE_CURRENT_SOURCE_DIR}/src/html/chart.html to ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html")
+
+# install idefix in /usr/local/bin
+install(TARGETS ${PROJECT_NAME} DESTINATION bin)
