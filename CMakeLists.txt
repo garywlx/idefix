@@ -44,7 +44,11 @@ add_compile_options("-Wno-c++98-compat") # "-stdlib=libc++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${inc_PROJECT_DIR} -I${inc_QUICKFIX} -fexceptions")
 
 # set build type
-set(CMAKE_BUILD_TYPE Debug)
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE Debug)
+endif()
+
+message(STATUS "Build Type is: ${CMAKE_BUILD_TYPE}")
 
 # quickfix flags
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I/usr/local/include/quickfix -I../include/spdlog -fexceptions -stdlib=libc++") # -finline-functions") #-lpthread -lxml2 -lz
