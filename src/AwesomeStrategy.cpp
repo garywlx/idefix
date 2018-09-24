@@ -79,9 +79,10 @@ namespace IDEFIX {
 			// add value to moving average
 			m_sma5->add( ( bar.open_price + bar.close_price ) / 2 );
 
+#ifndef RELEASE_LOG
 			// write bar with sma value to log file
 			log_brick( bar, m_sma5->value() );
-
+#endif
 			// if ( bar.status == Bar::STATUS::LONG ) {
 			// 	console()->info("[AwesomeStrategy] Bar open {:.5f} close {:.5f} sma {:.5f}", bar.open_price, bar.close_price, m_sma5->value() );
 			// } else {

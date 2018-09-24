@@ -38,9 +38,11 @@ int main(int argc, char** argv) {
 			return EXIT_SUCCESS;
 		}
 
+#ifndef RELEASE_LOG
 		// purge csv files in public_html folder
 		std::system( "if [ \"$(ls -A public_html/*_bars.csv)\" ]; then rm public_html/*_bars.csv; fi" );
-
+#endif
+		
 		// config file
 		const std::string config_file = argv[1];
 

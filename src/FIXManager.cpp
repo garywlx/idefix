@@ -21,11 +21,15 @@ namespace IDEFIX {
  */
 FIXManager::FIXManager(): m_is_exiting( false ) {
 
+#ifndef RELEASE_LOG
   // set up console
   m_console = spdlog::stdout_color_mt( "console" );
+#else
+  m_console = spdlog::daily_logger_mt( "console", "release.log", 0, 0 );
+#endif
   // set console pattern
   m_console->set_pattern( "%Y-%m-%d %T.%e: %^%v%$" );
-
+  
   // check if folder trades exists, if not create it
   file_mkdir( "trades/" );
 

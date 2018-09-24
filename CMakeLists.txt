@@ -31,11 +31,6 @@ endif()
 add_compile_options("-Wno-c++98-compat")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${inc_PROJECT_DIR} -I${inc_QUICKFIX} -fexceptions")
 
-# set build type
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE Debug)
-endif()
-
 message(STATUS "Build Type is: ${CMAKE_BUILD_TYPE}")
 
 set(SRC src/main.cpp 
@@ -76,6 +71,13 @@ set(SRC src/main.cpp
 # add source files for your binary
 add_executable(${PROJECT_NAME} ${SRC})
 
+# set build type
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+	target_compile_definitions(${PROJECT_NAME} PUBLIC RELEASE_LOG=1)
+else()
+	set(CMAKE_BUILD_TYPE Debug)
+endif()
+
 # linker
 if(APPLE)
 	set(LINK_LIBS /usr/local/lib/libquickfix.dylib)
@@ -88,21 +90,21 @@ target_link_libraries(${PROJECT_NAME} ${LINK_LIBS})
 
 # copy binary to parent directory build/
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/build/)
-message(STATUS "Copied binary ${PROJECT_NAME} to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
+message(STATUS "POST_BUILD copy ${PROJECT_NAME} binary to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	# copy fxcm cfg file to build/
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/fxcm.cfg ${CMAKE_CURRENT_SOURCE_DIR}/build/)
-	message(STATUS "Copied ${CMAKE_CURRENT_SOURCE_DIR}/specs/fxcm.cfg to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
+	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/fxcm.cfg to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
 	# copy fixfxcm10.xml to build/
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml ${CMAKE_CURRENT_SOURCE_DIR}/build/)
-	message(STATUS "Copied ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
+	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
 	# create folder build/public_html
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
-	message(STATUS "Made directory ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html/")
+	message(STATUS "POST_BUILD make directory ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html/")
 	# copy chart.html to parent directory build/public_html
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src/html/chart.html ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
-	message(STATUS "Copied ${CMAKE_CURRENT_SOURCE_DIR}/src/html/chart.html to ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html")
+	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/src/html/chart.html to ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html")
 endif()
 
 # install idefix in /usr/local/bin
