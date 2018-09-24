@@ -4,9 +4,9 @@
  */
 
 // Semantic versioning. idefix version can be printed with IDEFIX_VERSION();
-#define IDEFIX_VERSION_MAJOR 0
-#define IDEFIX_VERSION_MINOR 1
-#define IDEFIX_VERSION_PATCH 9
+#define IDEFIX_VERSION_MAJOR 0 // 0+
+#define IDEFIX_VERSION_MINOR 1 // 0-100
+#define IDEFIX_VERSION_PATCH 9 // 0-9
 
 #define IDEFIX_VERSION() printf("%d.%d.%d", IDEFIX_VERSION_MAJOR, IDEFIX_VERSION_MINOR, IDEFIX_VERSION_PATCH)
 
@@ -49,11 +49,6 @@ int main(int argc, char** argv) {
 		// init fix manager
 		FIXManager fixmanager;
 		
-		// Add chart with strategy
-		// AUD/USD
-		// AwesomeStrategy audusd( "AUD/USD" );
-		// connect( fixmanager, audusd );
-
 		// Strategy Configuration
 		AwesomeStrategyConfig strategy_config;
 		// how many parallel short positions are allowed?
@@ -80,6 +75,11 @@ int main(int argc, char** argv) {
 		// GBP/USD
 		AwesomeStrategy gbpusd( "GBP/USD", strategy_config );
 		connect( fixmanager, gbpusd );
+
+		// Add chart with strategy
+		// AUD/USD
+		// AwesomeStrategy audusd( "AUD/USD" );
+		// connect( fixmanager, audusd );
 
 		// // NZD/USD
 		// AwesomeStrategy nzdusd( "NZD/USD" );
