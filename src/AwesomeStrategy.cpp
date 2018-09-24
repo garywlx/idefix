@@ -175,7 +175,6 @@ namespace IDEFIX {
 			if ( enter_long && m_long_pos < m_max_long_pos ) {
 				console()->info("[SignalLong] {:d} {}", m_long_pos, get_symbol() );
 
-
 				// Signal
 				on_entry_signal( MarketSide::Side_BUY );
 				

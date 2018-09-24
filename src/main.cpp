@@ -109,10 +109,10 @@ int main(int argc, char** argv) {
 		}
 
 	} catch(std::exception& e) {
-		cout << "something horrible went wrong: " << e.what() << endl;
+		cout << "Damn: " << e.what() << endl;
 		return EXIT_FAILURE;
 	} catch(...) {
-		cout << "Unknonwn exception" << endl;
+		cout << "Unknonwn exception!" << endl;
 		return EXIT_FAILURE;
 	}
 
@@ -173,7 +173,7 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		double conversion_price = 0;
 		double free_margin      = fixmanager.getAccount()->getFreeMargin();
 		double pip_risk         = 30; // 10 = 1 pip 
-		double percent_risk     = 1;
+		double percent_risk     = strategy.get_max_risk();
 
 		// get latest data
 		// latest market snapshot
@@ -210,7 +210,7 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 			mo.setStopPrice( ms->getAsk() - ( mo.getPointSize() * pip_risk ) );
 		}
 		
-		console()->info("[on_entry_signal] Open Position for Side: {}", mo.getSideStr() );
+		console()->info("[on_entry_signal] Open Position in {} on {} with size {:d}", mo.getSymbol(), mo.getSideStr(), mo.getQty() );
 
 		fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL );
 		fixmanager.queryPositionReport();
