@@ -8,7 +8,5 @@ fi
 if [ -d build/ ]; then
 	cd build
 	cmake ..
-	make -j4
-#   cp ../specs/FIXFXCM10.xml .
-#	cp ../specs/fxcm.cfg .
+	make
 fi
