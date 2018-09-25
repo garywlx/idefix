@@ -11,10 +11,31 @@
 #include "MathHelper.h"
 #include <sstream>
 #include <cstdlib>
+#include "CFGParser.h"
+#include "StringHelper.h"
 
 namespace IDEFIX {
 	void connect(FIXManager& fixmanager, AwesomeStrategy& strategy);	
 };
+
+/*!
+ * Check argument with option if option value exists.
+ * If not show cerr message
+ * 
+ * @param const int         argc        
+ * @param const int         i           
+ * @param const std::string arg
+ * @param const std::string failure_msg 
+ * @return bool
+ */
+inline bool check_argument_option(const int argc, const int i, const std::string arg, const std::string failure_msg = " option requires one argument.") {
+	if ( i + 1 < argc ) {
+		return true;
+	} 
+
+	cerr << arg << failure_msg << endl;
+	return false;
+}
 
 using namespace std;
 using namespace IDEFIX;
@@ -28,12 +49,13 @@ int main(int argc, char** argv) {
 #endif
 
 	try {
-		if ( argc != 2 ) {
+		if ( argc < 2 ) {
 			cout << "IDEFIX v" << project_version << endl;
 			cout << "Usage:" << endl;
 			cout << "   idefix <options> <configfile>" << endl;
 			cout << "Options:" << endl;
-			cout << "\t-v		Show version." << endl;
+			cout << "   -v       \t Show version." << endl;
+			cout << "   -s file  \t Load strategy cfg file." << endl;
 			cout << endl;
 			
 			return EXIT_SUCCESS;
@@ -42,6 +64,8 @@ int main(int argc, char** argv) {
 		// defaults
 		// config file
 		std::string config_file;
+		std::string strategy_cfg_file;
+
 		// parse arguments
 		for ( int i = 0; i < argc; i++ ) {
 			std::string arg = argv[ i ];
@@ -51,13 +75,21 @@ int main(int argc, char** argv) {
 				cout << "Version " << project_version << endl;
 				return EXIT_SUCCESS;
 			} 
+			// strategy config file
+			else if ( arg == "-s" ) {
+				if ( ! check_argument_option( argc, i, arg ) ) {
+					return EXIT_FAILURE;
+				}
+
+				strategy_cfg_file = argv[ i + 1 ];
+			}
 			// Config File
 			else {
 				config_file = arg;
 			}
 		}
 
-#ifndef CMAKE_RELEASE_LOG
+#ifdef CMAKE_USE_HTML_CHARTS
 		// purge csv files in public_html folder
 		std::system( "if [ \"$(ls -A public_html/*_bars.csv)\" ]; then rm public_html/*_bars.csv; fi" );
 #endif
@@ -67,22 +99,42 @@ int main(int argc, char** argv) {
 		
 		// Strategy Configuration
 		AwesomeStrategyConfig strategy_config;
-		// how many parallel short positions are allowed?
-		strategy_config.max_short_pos = 1;
-		// how many parallel long positions are allowed?
-		strategy_config.max_long_pos  = 1;
-		// maximum risk per trade in percent
-		strategy_config.max_risk      = 1;
-		// maximum quantity size
-		strategy_config.max_qty       = 1 * 100000;
-		// maximum spread to open a position
-		strategy_config.max_spread    = 1;
-		// Renko brick size
-		strategy_config.renko_size    = 5;
-		// SMA size
-		strategy_config.sma_size      = 5;
-		// wait for at least 5 bricks before entering the markets
-		strategy_config.wait_bricks   = strategy_config.sma_size + 1;
+
+		// // DEFAULT STRATEGY CONFIG
+		// // how many parallel short positions are allowed?
+		// strategy_config.max_short_pos = 1;
+		// // how many parallel long positions are allowed?
+		// strategy_config.max_long_pos  = 1;
+		// // maximum risk per trade in percent
+		// strategy_config.max_risk      = 1;
+		// // maximum quantity size
+		// strategy_config.max_qty       = 1 * 100000;
+		// // maximum spread to open a position
+		// strategy_config.max_spread    = 1;
+		// // Renko brick size
+		// strategy_config.renko_size    = 5;
+		// // SMA size
+		// strategy_config.sma_size      = 5;
+		// // wait for at least 5 bricks before entering the markets
+		// strategy_config.wait_bricks   = strategy_config.sma_size + 1;
+
+		// Parse strategy config file
+		try {
+			auto scfg = CFGParser( strategy_cfg_file );
+			if ( ! scfg.has_error() ) {
+				// overwrite strategy config
+				strategy_config.max_short_pos = atoi( scfg.value( "max_short_pos" ).c_str() );
+				strategy_config.max_long_pos  = atoi( scfg.value( "max_long_pos" ).c_str() );
+				strategy_config.max_risk      = atof( scfg.value( "max_risk" ).c_str() );
+				strategy_config.max_qty       = atof( scfg.value( "max_qty" ).c_str() );
+				strategy_config.max_spread    = atof( scfg.value( "max_spread" ).c_str() );
+				strategy_config.renko_size    = atof( scfg.value( "renko_size" ).c_str() );
+				strategy_config.sma_size      = atoi( scfg.value( "sma_size" ).c_str() );
+				strategy_config.wait_bricks   = atoi( scfg.value( "wait_bricks" ).c_str() );
+			} 
+		} catch(...) {
+			return EXIT_FAILURE;
+		}
 
 		// EUR/USD
 		AwesomeStrategy eurusd( "EUR/USD", strategy_config );

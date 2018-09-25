@@ -26,6 +26,12 @@ namespace IDEFIX {
 			idefix_exception("Out of range.", file, line) {}
 		~out_of_range() throw() {}
 	};
+
+	struct file_not_found: public idefix_exception {
+		file_not_found(const std::string& file, const int line):
+			idefix_exception("File not found.", file, line) {}
+		~file_not_found() throw() {}
+	};
 };
 
 #endif

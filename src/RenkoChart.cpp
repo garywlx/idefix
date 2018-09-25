@@ -1,11 +1,9 @@
-#define RC_SHOW_DEBUG false
-
 #include "RenkoChart.h"
 #include "MathHelper.h"
 #include "StringHelper.h"
 #include <stdexcept>
 
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 #include "Console.h"
 #include <sstream>
 #endif
@@ -61,7 +59,7 @@ namespace IDEFIX {
 		// increase volume
 		m_current_brick.volume++;
 
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 		// for console output
 		std::stringstream ss_console;
 #endif
@@ -91,10 +89,10 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 					ss_console.clear();
 					ss_console.str("");
-					ss_console << "L+LONG  " << m_current_brick;
+					ss_console << m_current_brick.symbol << " L+LONG  " << m_current_brick;
 					console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 					
@@ -126,10 +124,10 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 					ss_console.clear();
 					ss_console.str("");
-					ss_console << "L+SHORT " << m_current_brick;
+					ss_console << m_current_brick.symbol << " L+SHORT " << m_current_brick;
 					console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 					
@@ -164,10 +162,10 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 					
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 					ss_console.clear();
 					ss_console.str("");
-					ss_console << "S+SHORT " << m_current_brick;
+					ss_console << m_current_brick.symbol << " S+SHORT " << m_current_brick;
 					console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 
@@ -199,10 +197,10 @@ namespace IDEFIX {
 					// add brick to stack
 					m_bricks.push_back( m_current_brick );
 
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 					ss_console.clear();
 					ss_console.str("");
-					ss_console << "S+LONG  " << m_current_brick;
+					ss_console << m_current_brick.symbol << " S+LONG  " << m_current_brick;
 					console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 
@@ -248,7 +246,7 @@ namespace IDEFIX {
 			m_init_brick.volume++;
 		}
 
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 		// console output
 		std::stringstream ss_console;
 #endif
@@ -270,10 +268,10 @@ namespace IDEFIX {
 
 			m_bricks.push_back( m_init_brick );
 
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 			ss_console.clear();
 			ss_console.str("");
-			ss_console << "0+LONG  " << m_init_brick;
+			ss_console << m_init_brick.symbol << " 0+LONG  " << m_init_brick;
 			console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 
@@ -302,10 +300,10 @@ namespace IDEFIX {
 			
 			m_bricks.push_back( m_init_brick );
 
-#if RC_SHOW_DEBUG
+#ifdef CMAKE_SHOW_DEBUG_OUTPUT
 			ss_console.clear();
 			ss_console.str("");
-			ss_console << "0+SHORT " << m_init_brick;
+			ss_console << m_init_brick.symbol << " 0+SHORT " << m_init_brick;
 			console()->info("[RenkoChart] {}", ss_console.str() );
 #endif
 

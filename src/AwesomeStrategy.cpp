@@ -79,14 +79,15 @@ namespace IDEFIX {
 			// add value to moving average
 			m_sma5->add( ( bar.open_price + bar.close_price ) / 2 );
 
-#ifndef CMAKE_RELEASE_LOG
+#ifdef CMAKE_USE_HTML_CHARTS
 			// write bar with sma value to log file
 			log_brick( bar, m_sma5->value() );
 #endif
+			// log bar
 			// if ( bar.status == Bar::STATUS::LONG ) {
-			// 	console()->info("[AwesomeStrategy] Bar open {:.5f} close {:.5f} sma {:.5f}", bar.open_price, bar.close_price, m_sma5->value() );
+			// 	console()->info("[AwesomeStrategy] {} Bar open {:.5f} close {:.5f} sma {:.5f}", bar.symbol, bar.open_price, bar.close_price, m_sma5->value() );
 			// } else {
-			// 	console()->error("[AwesomeStrategy] Bar open {:.5f} close {:.5f} sma {:.5f}", bar.open_price, bar.close_price, m_sma5->value() );
+			// 	console()->error("[AwesomeStrategy] {} Bar open {:.5f} close {:.5f} sma {:.5f}", bar.symbol, bar.open_price, bar.close_price, m_sma5->value() );
 			// }
 
 			if ( ! m_sma5->is_valid() ) {

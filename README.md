@@ -22,6 +22,13 @@ EURUSD_bars.csv
 When idefix is startet these files will be removed to prevent issues in drawing gaps.
 
 ## Build
+### Custom Compiler Definitions
+
+- CMAKE_SHOW_DEBUG_OUTPUT=1 # enables renkobrick brick output
+- CMAKE_USE_HTML_CHARTS=1 # writes csv files to public_html and creates chart.html
+- CMAKE_PROJECT_VERSION # sets project version. this is used in code for version printing.
+
+
 ### Debug
 To build a debug binary, you can use the `scripts/debug.sh` script or run:
 
@@ -47,3 +54,17 @@ $ sudo make install
 
 In Release mode the console output for debugging goes to a file `release.log` in the folder where you have executed idefix.
 
+## Run
+
+You have to set a strategy configuration file. Without the configuration, nothing happens.
+
+```bash
+$ screen
+$ idefix -s awesome.cfg fxcm.cfg
+```
+
+Leave screen session with STRG+A+d. In release mode all debug output goes to `release.log`, which can be watched by:
+
+```bash
+$ tail -f release.log
+```

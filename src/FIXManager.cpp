@@ -2,6 +2,7 @@
  *  Copyright(c)2018, Arne Gockeln. All rights reserved.
  *  http://www.arnegockeln.com
  */
+#include "Exceptions.h"
 #include "FIXManager.h"
 #include "MathHelper.h"
 #include "spdlog/sinks/daily_file_sink.h"
@@ -768,6 +769,13 @@ void FIXManager::marketOrder(const MarketOrder& marketOrder, const FIXFactory::S
       auto request = FIXFactory::NewOrderSingle( nextOrderID(), marketOrder, orderType );
       Session::sendToTarget( request, getOrderSessionID() );
     }
+    // not found
+    else {
+      throw IDEFIX::element_not_found( __FILE__, __LINE__ );
+    }
+  } catch(IDEFIX::element_not_found* e) {
+    console()->error( "[marketOrder:IDEFIX::element_not_found] {}", e->what() );
+    on_error( __FUNCTION__, e->what() );
   } catch(std::exception& e){
     console()->error( "[marketOrder:exception] {}", e.what() );
     on_error( __FUNCTION__, e.what() );

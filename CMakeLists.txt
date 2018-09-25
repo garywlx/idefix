@@ -48,7 +48,6 @@ set(SRC src/main.cpp
 	src/MarketOrder.h 
 	src/MarketSnapshot.h 
 	src/Market.h 
-	src/Operators.h 
 	src/Exceptions.h 
 	src/SignalType.h 
 	src/MarketSide.h
@@ -69,6 +68,8 @@ set(SRC src/main.cpp
 	src/AbstractMovingAverage.h
 	src/SimpleMovingAverage.h 
 	src/SimpleMovingAverage.cpp 
+	src/CFGParser.h
+	src/CFGParser.cpp
 )
 
 # add source files for your binary
@@ -76,6 +77,10 @@ add_executable(${PROJECT_NAME} ${SRC})
 
 # add version definition 
 target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_PROJECT_VERSION="${PROJECT_VERSION}")
+# uncomment if you want to use html charts
+#target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_USE_HTML_CHARTS=1)
+# uncomment if you want to show debug output on console()
+target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_SHOW_DEBUG_OUTPUT=1)
 
 # set build type
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -102,6 +107,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	# copy fxcm cfg file to build/
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/fxcm.cfg ${CMAKE_CURRENT_SOURCE_DIR}/build/)
 	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/fxcm.cfg to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
+	# copy awesome strategy cfg file to build/
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/awesome.cfg ${CMAKE_CURRENT_SOURCE_DIR}/build/)
+	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/awesome.cfg to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
 	# copy fixfxcm10.xml to build/
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml ${CMAKE_CURRENT_SOURCE_DIR}/build/)
 	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
