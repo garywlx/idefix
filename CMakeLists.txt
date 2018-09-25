@@ -2,7 +2,10 @@
 cmake_minimum_required(VERSION 3.7)
 
 # Change this to your project name
-project(idefix VERSION 0.1.0 LANGUAGES CXX)
+project(idefix LANGUAGES CXX)
+
+# set version MAJOR.MINOR.PATCH
+set(PROJECT_VERSION 0.2.0)
 
 # set compiler
 set(CMAKE_C_COMPILER gcc)
@@ -71,9 +74,12 @@ set(SRC src/main.cpp
 # add source files for your binary
 add_executable(${PROJECT_NAME} ${SRC})
 
+# add version definition 
+target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_PROJECT_VERSION="${PROJECT_VERSION}")
+
 # set build type
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-	target_compile_definitions(${PROJECT_NAME} PUBLIC RELEASE_LOG=1)
+	target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_RELEASE_LOG=1)
 else()
 	set(CMAKE_BUILD_TYPE Debug)
 endif()

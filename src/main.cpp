@@ -2,14 +2,6 @@
  * Copyright(c)2018, Arne Gockeln. All rights reserved.
  * https://arnegockeln.com
  */
-
-// Semantic versioning. idefix version can be printed with IDEFIX_VERSION();
-#define IDEFIX_VERSION_MAJOR 0 // 0+
-#define IDEFIX_VERSION_MINOR 1 // 0-100
-#define IDEFIX_VERSION_PATCH 9 // 0-9
-
-#define IDEFIX_VERSION() printf("%d.%d.%d", IDEFIX_VERSION_MAJOR, IDEFIX_VERSION_MINOR, IDEFIX_VERSION_PATCH)
-
 #include <iostream>
 #include <string>
 #include "FIXManager.h"
@@ -28,24 +20,48 @@ using namespace std;
 using namespace IDEFIX;
 
 int main(int argc, char** argv) {
+
+#ifdef CMAKE_PROJECT_VERSION
+	const std::string project_version = CMAKE_PROJECT_VERSION;
+#else
+	const std::string project_version = "not set";
+#endif
+
 	try {
 		if ( argc != 2 ) {
-			cout << "IDEFIX "; IDEFIX_VERSION(); cout << endl;
+			cout << "IDEFIX v" << project_version << endl;
 			cout << "Usage:" << endl;
-			cout << "   idefix <configfile>" << endl;
+			cout << "   idefix <options> <configfile>" << endl;
+			cout << "Options:" << endl;
+			cout << "\t-v		Show version." << endl;
 			cout << endl;
 			
 			return EXIT_SUCCESS;
 		}
 
-#ifndef RELEASE_LOG
+		// defaults
+		// config file
+		std::string config_file;
+		// parse arguments
+		for ( int i = 0; i < argc; i++ ) {
+			std::string arg = argv[ i ];
+
+			// Version
+			if ( arg == "-v" ) {
+				cout << "Version " << project_version << endl;
+				return EXIT_SUCCESS;
+			} 
+			// Config File
+			else {
+				config_file = arg;
+			}
+		}
+
+#ifndef CMAKE_RELEASE_LOG
 		// purge csv files in public_html folder
 		std::system( "if [ \"$(ls -A public_html/*_bars.csv)\" ]; then rm public_html/*_bars.csv; fi" );
 #endif
 		
-		// config file
-		const std::string config_file = argv[1];
-
 		// init fix manager
 		FIXManager fixmanager;
 		

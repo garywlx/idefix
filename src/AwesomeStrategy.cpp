@@ -79,7 +79,7 @@ namespace IDEFIX {
 			// add value to moving average
 			m_sma5->add( ( bar.open_price + bar.close_price ) / 2 );
 
-#ifndef RELEASE_LOG
+#ifndef CMAKE_RELEASE_LOG
 			// write bar with sma value to log file
 			log_brick( bar, m_sma5->value() );
 #endif
