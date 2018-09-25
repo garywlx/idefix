@@ -47,16 +47,16 @@ FIXManager::FIXManager(): m_is_exiting( false ) {
  * Deconstructor FIXManager
  */
 FIXManager::~FIXManager() {
-  if ( m_pinitiator != NULL ) {
+  if ( m_pinitiator != nullptr ) {
     delete m_pinitiator;
   }
-  if ( m_psettings != NULL ) {
+  if ( m_psettings != nullptr ) {
     delete m_psettings;
   }
-  if ( m_pstore_factory != NULL ) {
+  if ( m_pstore_factory != nullptr ) {
     delete m_pstore_factory;
   }
-  if ( m_plog_factory != NULL ) {
+  if ( m_plog_factory != nullptr ) {
     delete m_plog_factory;
   }
 }

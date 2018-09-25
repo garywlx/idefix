@@ -24,6 +24,8 @@ namespace IDEFIX {
 		int wait_bricks;
 		// SMA size
 		int sma_size;
+		// maximum pip risk per trade. 10 = 1 pip
+		int max_pip_risk;
 		// maximum risk per trade in percent
 		double max_risk;
 		// maximum quantity size
@@ -36,7 +38,7 @@ namespace IDEFIX {
 
 	class AwesomeStrategy {
 	public:
-		AwesomeStrategy(const std::string& symbol, const AwesomeStrategyConfig& config);
+		AwesomeStrategy(const std::string& symbol, AwesomeStrategyConfig& config);
 		~AwesomeStrategy();
 
 		// Signals
@@ -52,26 +54,16 @@ namespace IDEFIX {
 		void on_market_order(const SignalType type, const MarketOrder& mo);
 		
 		std::string& get_symbol();
-		double get_max_risk() const;
-		double get_max_qty() const;
-		double get_max_spread() const;
+		AwesomeStrategyConfig* get_config();
 
 	private:
 		SimpleMovingAverage* m_sma5;
 		RenkoChart* m_chart;
 		std::string m_symbol;
-
-		int m_max_long_pos;
-		int m_max_short_pos;
+		AwesomeStrategyConfig* m_config;
 		int m_long_pos;
 		int m_short_pos;
-		int m_wait_bricks;
-		int m_sma_size;
-		double m_max_risk;
-		double m_max_qty;
-		double m_max_spread;
 		double m_current_spread;
-		double m_renko_size;
 
 		FIX::Mutex m_mutex;
 

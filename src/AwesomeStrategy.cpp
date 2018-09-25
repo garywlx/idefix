@@ -14,17 +14,10 @@
 #include "CSVHandler.h"
 
 namespace IDEFIX {
-	AwesomeStrategy::AwesomeStrategy(const std::string& symbol, const AwesomeStrategyConfig& config): m_symbol( symbol ) {
+	AwesomeStrategy::AwesomeStrategy(const std::string& symbol, AwesomeStrategyConfig& config): m_symbol( symbol ) {
 		// Constructor
 		// Set config values
-		m_max_short_pos = config.max_short_pos;
-		m_max_long_pos  = config.max_long_pos;
-		m_wait_bricks   = config.wait_bricks;
-		m_max_risk      = config.max_risk;
-		m_max_qty       = config.max_qty;
-		m_max_spread    = config.max_spread;
-		m_renko_size    = config.renko_size;
-		m_sma_size      = config.sma_size;
+		m_config = &config;
 	}
 
 	AwesomeStrategy::~AwesomeStrategy() {
@@ -46,9 +39,9 @@ namespace IDEFIX {
 		// how many long positions actually?
 		m_long_pos      = 0;
 		// set renko chart periode
-		m_chart = new RenkoChart( m_renko_size );
+		m_chart = new RenkoChart( m_config->renko_size ); //m_renko_size
 		// set sma periode
-		m_sma5 = new SimpleMovingAverage( m_sma_size );
+		m_sma5 = new SimpleMovingAverage( m_config->sma_size ); //m_sma_size
 		// connect signal
 		m_chart->on_brick.connect( std::bind( &AwesomeStrategy::on_bar, this, std::placeholders::_1 ) );
 	}
@@ -96,8 +89,8 @@ namespace IDEFIX {
 			}
 
 			int brick_count = m_chart->brick_count();
-			if ( brick_count < m_wait_bricks ) {
-				console()->info("[AwesomeStrategy] {} Waiting for minimum bar count ({:d}/{:d})", get_symbol(), brick_count, m_wait_bricks );
+			if ( brick_count < m_config->wait_bricks ) {
+				console()->info("[AwesomeStrategy] {} Waiting for minimum bar count ({:d}/{:d})", get_symbol(), brick_count, m_config->wait_bricks );
 				return;
 			}
 
@@ -119,6 +112,9 @@ namespace IDEFIX {
 			bool bar_above_ma = open > last_ma && close > last_ma;
 			bool bar_below_ma = open < last_ma && close < last_ma;
 
+			// for debugging
+			bar_above_ma = bar_below_ma = true;
+
 			// RULES
 			// ------------------------------
 			// entry signal long
@@ -130,7 +126,7 @@ namespace IDEFIX {
 			// brick   == LONG
 			// 
 			// brick > last_ma
-			if ( ( ( bar_long && ! bar_1_long ) || ( bar_long && bar_1_long ) ) && bar_above_ma && m_current_spread <= m_max_spread ) {
+			if ( ( ( bar_long && ! bar_1_long ) || ( bar_long && bar_1_long ) ) && bar_above_ma && m_current_spread <= m_config->max_spread ) {
 				enter_long = true;
 			}
 
@@ -154,7 +150,7 @@ namespace IDEFIX {
 			// brick   == SHORT
 			// 
 			// brick < last_ma
-			if ( ( ( bar_1_long && ! bar_long ) || ( ! bar_1_long && ! bar_long ) ) && bar_below_ma && m_current_spread <= m_max_spread ) {
+			if ( ( ( bar_1_long && ! bar_long ) || ( ! bar_1_long && ! bar_long ) ) && bar_below_ma && m_current_spread <= m_config->max_spread ) {
 				enter_short = true;
 			}
 
@@ -173,7 +169,7 @@ namespace IDEFIX {
 			// ------------------------------
 
 			// LONG ENTRY
-			if ( enter_long && m_long_pos < m_max_long_pos ) {
+			if ( enter_long && m_long_pos < m_config->max_long_pos ) {
 				console()->info("[SignalLong] {:d} {}", m_long_pos, get_symbol() );
 
 				// Signal
@@ -191,7 +187,7 @@ namespace IDEFIX {
 				m_long_pos = 0;
 			}
 			// SHORT ENTRY
-			if ( enter_short && m_short_pos < m_max_short_pos ) {
+			if ( enter_short && m_short_pos < m_config->max_short_pos ) {
 				console()->error("[SignalShort] {:d} {}", m_short_pos, get_symbol() );
 
 				// Signal
@@ -236,20 +232,22 @@ namespace IDEFIX {
 		}
 	}
 
+	/*!
+	 * Get current strategy configuration
+	 * 
+	 * @return AwesomeStrategyConfig*
+	 */
+	AwesomeStrategyConfig* AwesomeStrategy::get_config() {
+		return m_config;
+	}
+
+	/*!
+	 * Get symbol
+	 * 
+	 * @return std::string&
+	 */
 	std::string& AwesomeStrategy::get_symbol() {
 		return m_symbol;
-	}
-
-	double AwesomeStrategy::get_max_risk() const {
-		return m_max_risk;
-	}
-
-	double AwesomeStrategy::get_max_qty() const {
-		return m_max_qty;
-	}
-
-	double AwesomeStrategy::get_max_spread() const {
-		return m_max_spread;
 	}
 
 	/*!

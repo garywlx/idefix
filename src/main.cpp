@@ -7,7 +7,6 @@
 #include "FIXManager.h"
 #include "AwesomeStrategy.h"
 #include <functional>
-#include "Console.h"
 #include "MathHelper.h"
 #include <sstream>
 #include <cstdlib>
@@ -100,24 +99,6 @@ int main(int argc, char** argv) {
 		// Strategy Configuration
 		AwesomeStrategyConfig strategy_config;
 
-		// // DEFAULT STRATEGY CONFIG
-		// // how many parallel short positions are allowed?
-		// strategy_config.max_short_pos = 1;
-		// // how many parallel long positions are allowed?
-		// strategy_config.max_long_pos  = 1;
-		// // maximum risk per trade in percent
-		// strategy_config.max_risk      = 1;
-		// // maximum quantity size
-		// strategy_config.max_qty       = 1 * 100000;
-		// // maximum spread to open a position
-		// strategy_config.max_spread    = 1;
-		// // Renko brick size
-		// strategy_config.renko_size    = 5;
-		// // SMA size
-		// strategy_config.sma_size      = 5;
-		// // wait for at least 5 bricks before entering the markets
-		// strategy_config.wait_bricks   = strategy_config.sma_size + 1;
-
 		// Parse strategy config file
 		try {
 			auto scfg = CFGParser( strategy_cfg_file );
@@ -125,6 +106,7 @@ int main(int argc, char** argv) {
 				// overwrite strategy config
 				strategy_config.max_short_pos = atoi( scfg.value( "max_short_pos" ).c_str() );
 				strategy_config.max_long_pos  = atoi( scfg.value( "max_long_pos" ).c_str() );
+				strategy_config.max_pip_risk  = atoi( scfg.value( "max_pip_risk" ).c_str() );
 				strategy_config.max_risk      = atof( scfg.value( "max_risk" ).c_str() );
 				strategy_config.max_qty       = atof( scfg.value( "max_qty" ).c_str() );
 				strategy_config.max_spread    = atof( scfg.value( "max_spread" ).c_str() );
@@ -240,8 +222,8 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		// open new trade
 		double conversion_price = 0;
 		double free_margin      = fixmanager.getAccount()->getFreeMargin();
-		double pip_risk         = 30; // 10 = 1 pip 
-		double percent_risk     = strategy.get_max_risk();
+		double pip_risk         = strategy.get_config()->max_pip_risk;
+		double percent_risk     = strategy.get_config()->max_risk;
 
 		// get latest data
 		// latest market snapshot
@@ -260,9 +242,18 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		mo.setSide( fix_side.getValue() );
 		// set qty
 		mo.setQty( Math::get_unit_size( free_margin, percent_risk, pip_risk, conversion_price ) );
-		if ( mo.getQty() > strategy.get_max_qty() ) {
-			mo.setQty( strategy.get_max_qty() );
+		
+		cout << "[on_entry_signal] " << mo.getSymbol() << " qty " << mo.getQty() << endl;
+
+		//fixmanager.console()->info("[on_entry_signal] {} {:d} qty", mo.getSymbol(), mo.getQty() );
+
+		if ( mo.getQty() > strategy.get_config()->max_qty ) {
+			mo.setQty( strategy.get_config()->max_qty );
 		}
+
+		// fixmanager.console()->info("[on_entry_signal] {} {:d} qty", mo.getSymbol(), mo.getQty() );
+		cout << "[on_entry_signal] " << mo.getSymbol() << " qty " << mo.getQty() << endl;
+
 		// set entry price
 		mo.setPrice( 0 ); // MarketOrder
 		// set market detail precision and pointsize
@@ -278,9 +269,11 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 			mo.setStopPrice( ms->getAsk() - ( mo.getPointSize() * pip_risk ) );
 		}
 		
-		console()->info("[on_entry_signal] Open Position in {} on {} with size {:d}", mo.getSymbol(), mo.getSideStr(), mo.getQty() );
+		//fixmanager.console()->info("[on_entry_signal] Open Position in {} on {} with size {:d}", mo.getSymbol(), mo.getSideStr(), mo.getQty() );
+		cout << "[on_entry_signal] Open Position in " << mo.getSymbol() << " on " << mo.getSideStr() << " with size " << mo.getQty() << endl;
 
-		fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL );
+		// fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL );
+		// fixmanager.marketOrder( mo );
 		fixmanager.queryPositionReport();
 	});
 
