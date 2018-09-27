@@ -4,12 +4,12 @@
  */
 #include <iostream>
 #include <string>
-#include "FIXManager.h"
-#include "AwesomeStrategy.h"
 #include <functional>
-#include "MathHelper.h"
 #include <sstream>
 #include <cstdlib>
+#include "FIXManager.h"
+#include "AwesomeStrategy.h"
+#include "MathHelper.h"
 #include "CFGParser.h"
 #include "StringHelper.h"
 
@@ -39,6 +39,7 @@ inline bool check_argument_option(const int argc, const int i, const std::string
 using namespace std;
 using namespace IDEFIX;
 
+// Main Entry
 int main(int argc, char** argv) {
 
 #ifdef CMAKE_PROJECT_VERSION
@@ -53,7 +54,6 @@ int main(int argc, char** argv) {
 			cout << "Usage:" << endl;
 			cout << "   idefix <options> <configfile>" << endl;
 			cout << "Options:" << endl;
-			cout << "   -v       \t Show version." << endl;
 			cout << "   -s file  \t Load strategy cfg file." << endl;
 			cout << endl;
 			
@@ -69,13 +69,8 @@ int main(int argc, char** argv) {
 		for ( int i = 0; i < argc; i++ ) {
 			std::string arg = argv[ i ];
 
-			// Version
-			if ( arg == "-v" ) {
-				cout << "Version " << project_version << endl;
-				return EXIT_SUCCESS;
-			} 
 			// strategy config file
-			else if ( arg == "-s" ) {
+			if ( arg == "-s" ) {
 				if ( ! check_argument_option( argc, i, arg ) ) {
 					return EXIT_FAILURE;
 				}
@@ -88,13 +83,18 @@ int main(int argc, char** argv) {
 			}
 		}
 
+		// init fix manager, early init because of fixmanager.console()
+		FIXManager fixmanager;
+
+		// check config file
 		if ( config_file.empty() ) {
-			cout << "No config file found." << endl;
+			fixmanager.console()->error( "No config file found." );
 			return EXIT_FAILURE;
 		}
 
+		// check strategy config file
 		if ( strategy_cfg_file.empty() ) {
-			cout << "No strategy config file found." << endl;
+			fixmanager.console()->error( "No strategy config file found." );
 			return EXIT_FAILURE;
 		}
 
@@ -102,10 +102,7 @@ int main(int argc, char** argv) {
 		// purge csv files in public_html folder
 		std::system( "if [ \"$(ls -A public_html/*_bars.csv)\" ]; then rm public_html/*_bars.csv; fi" );
 #endif
-		
-		// init fix manager
-		FIXManager fixmanager;
-		
+				
 		// Strategy Configuration
 		AwesomeStrategyConfig strategy_config;
 
@@ -123,35 +120,29 @@ int main(int argc, char** argv) {
 				strategy_config.renko_size    = atof( scfg.value( "renko_size" ).c_str() );
 				strategy_config.sma_size      = atoi( scfg.value( "sma_size" ).c_str() );
 				strategy_config.wait_bricks   = atoi( scfg.value( "wait_bricks" ).c_str() );
+
+				// parse symbols
+				std::string symbol_list = scfg.value( "symbols" );
+				auto slist              = str::explode( symbol_list, ',' );
+				strategy_config.symbols = slist;
 			} 
 		} catch(...) {
 			return EXIT_FAILURE;
+		} 
+
+		// check if symbols are configured
+		if ( strategy_config.symbols.empty() ) {
+			fixmanager.console()->error( "No symbols found in {}.", strategy_cfg_file );
+			return EXIT_FAILURE;
 		}
 
-		// EUR/USD
-		AwesomeStrategy eurusd( "EUR/USD", strategy_config );
-		connect( fixmanager, eurusd );
-		
-		// GBP/USD
-		AwesomeStrategy gbpusd( "GBP/USD", strategy_config );
-		connect( fixmanager, gbpusd );
-
-		// Add chart with strategy
-		// AUD/USD
-		// AwesomeStrategy audusd( "AUD/USD" );
-		// connect( fixmanager, audusd );
-
-		// // NZD/USD
-		// AwesomeStrategy nzdusd( "NZD/USD" );
-		// connect( fixmanager, nzdusd );
-
-		// // USD/CAD
-		// AwesomeStrategy usdcad( "USD/CAD" );
-		// connect( fixmanager, usdcad );
-
-		// // USD/CHF
-		// AwesomeStrategy usdchf( "USD/CHF" );
-		// connect( fixmanager, usdchf );
+		// init strategy and connect with fixmanager
+		for ( auto& symbol : strategy_config.symbols ) {
+			if ( ! symbol.empty() ) {
+				AwesomeStrategy* strategy = new AwesomeStrategy( symbol, strategy_config );
+				connect( fixmanager, *strategy );
+			}
+		}
 
 		// connect 
 		fixmanager.connect( config_file );
@@ -169,10 +160,10 @@ int main(int argc, char** argv) {
 		}
 
 	} catch(std::exception& e) {
-		cout << "Damn: " << e.what() << endl;
+		cerr << "Damn: " << e.what() << endl;
 		return EXIT_FAILURE;
 	} catch(...) {
-		cout << "Unknonwn exception!" << endl;
+		cerr << "Unknonwn exception!" << endl;
 		return EXIT_FAILURE;
 	}
 

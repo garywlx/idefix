@@ -34,6 +34,8 @@ namespace IDEFIX {
 		double max_spread;
 		// Renko brick size
 		double renko_size;
+		// symbols to trade
+		std::vector<std::string> symbols;
 	};
 
 	class AwesomeStrategy {
