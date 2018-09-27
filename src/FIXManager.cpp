@@ -22,10 +22,10 @@ namespace IDEFIX {
  */
 FIXManager::FIXManager(): m_is_exiting( false ) {
 
+#ifndef CMAKE_RELEASE_LOG
   // set up console
   m_console = spdlog::stdout_color_mt( "console" );
-
-#ifdef CMAKE_RELEASE_LOG
+#else
   // overwrite console
   m_console = spdlog::daily_logger_mt( "console", "release.log", 0, 0 );
 #endif
