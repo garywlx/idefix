@@ -88,6 +88,16 @@ int main(int argc, char** argv) {
 			}
 		}
 
+		if ( config_file.empty() ) {
+			cout << "No config file found." << endl;
+			return EXIT_FAILURE;
+		}
+
+		if ( strategy_cfg_file.empty() ) {
+			cout << "No strategy config file found." << endl;
+			return EXIT_FAILURE;
+		}
+
 #ifdef CMAKE_USE_HTML_CHARTS
 		// purge csv files in public_html folder
 		std::system( "if [ \"$(ls -A public_html/*_bars.csv)\" ]; then rm public_html/*_bars.csv; fi" );
@@ -235,30 +245,22 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 		MarketOrder mo;
 		// set account id
 		mo.setAccountID( fixmanager.getAccountID() );
+		// set market detail precision and pointsize
+	    mo.setPrecision( md->getSymPrecision() );
+	    mo.setPointSize( md->getSymPointsize() );
 		// set symbol
 		mo.setSymbol( strategy.get_symbol() );
 		// set side
 		FIX::Side fix_side( ( side == MarketSide::Side_SELL ? FIX::Side_SELL : FIX::Side_BUY ) );
 		mo.setSide( fix_side.getValue() );
 		// set qty
-		mo.setQty( Math::get_unit_size( free_margin, percent_risk, pip_risk, conversion_price ) );
-		
-		cout << "[on_entry_signal] " << mo.getSymbol() << " qty " << mo.getQty() << endl;
-
-		//fixmanager.console()->info("[on_entry_signal] {} {:d} qty", mo.getSymbol(), mo.getQty() );
-
+		mo.setQty( Math::get_unit_size( free_margin, percent_risk, pip_risk, conversion_price, mo.getPointSize() ) );
+		// set qty to maximum in strategy config		
 		if ( mo.getQty() > strategy.get_config()->max_qty ) {
 			mo.setQty( strategy.get_config()->max_qty );
 		}
-
-		// fixmanager.console()->info("[on_entry_signal] {} {:d} qty", mo.getSymbol(), mo.getQty() );
-		cout << "[on_entry_signal] " << mo.getSymbol() << " qty " << mo.getQty() << endl;
-
 		// set entry price
 		mo.setPrice( 0 ); // MarketOrder
-		// set market detail precision and pointsize
-	    mo.setPrecision( md->getSymPrecision() );
-	    mo.setPointSize( md->getSymPointsize() );
 		// set stoploss
 		// for sell
 		if ( side == MarketSide::Side_SELL ) {
@@ -269,10 +271,10 @@ void IDEFIX::connect(FIXManager& fixmanager, AwesomeStrategy& strategy) {
 			mo.setStopPrice( ms->getAsk() - ( mo.getPointSize() * pip_risk ) );
 		}
 		
-		//fixmanager.console()->info("[on_entry_signal] Open Position in {} on {} with size {:d}", mo.getSymbol(), mo.getSideStr(), mo.getQty() );
-		cout << "[on_entry_signal] Open Position in " << mo.getSymbol() << " on " << mo.getSideStr() << " with size " << mo.getQty() << endl;
+		fixmanager.console()->info("[on_entry_signal] Open Position in {} on {} with size {:f}", mo.getSymbol(), mo.getSideStr(), mo.getQty() );
+		//cout << "[on_entry_signal] Open Position in " << mo.getSymbol() << " on " << mo.getSideStr() << " with size " << mo.getQty() << endl;
 
-		// fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL );
+		fixmanager.marketOrder( mo, FIXFactory::SingleOrderType::MARKET_ORDER_SL );
 		// fixmanager.marketOrder( mo );
 		fixmanager.queryPositionReport();
 	});

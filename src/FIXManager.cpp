@@ -22,12 +22,14 @@ namespace IDEFIX {
  */
 FIXManager::FIXManager(): m_is_exiting( false ) {
 
-#ifndef CMAKE_RELEASE_LOG
   // set up console
   m_console = spdlog::stdout_color_mt( "console" );
-#else
+
+#ifdef CMAKE_RELEASE_LOG
+  // overwrite console
   m_console = spdlog::daily_logger_mt( "console", "release.log", 0, 0 );
 #endif
+
   // set console pattern
   m_console->set_pattern( "%Y-%m-%d %T.%e: %^%v%$" );
   
@@ -305,10 +307,15 @@ void FIXManager::onMessage(const FIX44::CollateralReport &cr, const SessionID &s
   // output account
   console()->info( "[Account] {} Balance: {:.2f} {}", account->getAccountID(), account->getBalance(), account->getCurrency() );
 
-  // check if we are already initialized
-  if ( m_symbol_subscriptions.empty() && ! isExiting() ) {
+  // if there are no market orders, set account free margin to account balance
+  // otherwise free margin will be set inside function processMarketOrders
+  if ( m_list_marketorders.empty() ) {
     // set account free margin to balance
     m_account->setFreeMargin( account->getBalance() );
+  }
+
+  // check if we are already initialized
+  if ( m_symbol_subscriptions.empty() && ! isExiting() ) {
     // call init
     onInit();
   }
@@ -333,11 +340,8 @@ void FIXManager::onMessage(const FIX44::RequestForPositionsAck &ack, const Sessi
   // if a PositionReport is requested and no positions exist for that request, the Text field will
   // indicate that no positions matched the requested criteria
   else if( ack.isSetField(FIELD::Text) ){
-    // Call strategy onRequestAck
-    // if ( m_pstrategy != NULL ) {
-    //   auto text = ack.getField( FIELD::Text );
-    //   m_pstrategy->onRequestAck( *this, "RequestForPositionsAck", text );
-    // }
+    auto text = ack.getField( FIELD::Text );
+    console()->info("[RequestForPositionsAck] {}", text);
   }
 }
 
@@ -533,7 +537,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
     marketOrder.setPointSize( md->getSymPointsize() );
 
     // MassOrderStatus
-    if ( execType == FIX::ExecType_ORDER_STATUS ) {
+    if ( execType == FIX::ExecType_NEW ) { // FIX::ExecType_ORDER_STATUS
       // get specific fields for OrderStatus
       FIX::OrderQty orderQty;
       er.get( orderQty );
@@ -542,7 +546,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
       // update order in list, set take profit
       if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT && orderQty.getValue() > 0 ) {
         // console output
-        console()->info( "{} OrderStatus->updateMarketOrder (LIMIT) {}", prefix, marketOrder.getSymbol() );
+        console()->info( "{} OrderStatus->updateMarketOrder (LIMIT) {} {} ", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
         // set take profit price.
         marketOrder.setTakePrice( marketOrder.getPrice() );
         // set OrderQty
@@ -556,7 +560,7 @@ void FIXManager::onMessage(const FIX44::ExecutionReport& er, const SessionID& se
       // update order in list, set stop loss
       else if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP && orderQty.getValue() > 0 ) {
         // console output
-        console()->info( "{} OrderStatus->updateMarketOrder (STOP) {}", prefix, marketOrder.getSymbol() );
+        console()->info( "{} OrderStatus->updateMarketOrder (STOP) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
         // set stop price.
         marketOrder.setStopPrice( marketOrder.getPrice() );
         // set OrderQty
@@ -920,7 +924,8 @@ void FIXManager::processMarketOrders(const MarketSnapshot& snapshot) {
       // account equity
       account->setEquity( Math::get_equity( account->getBalance(), position.getProfitLoss() ) );
       // free margin
-      account->setFreeMargin( Math::get_free_margin( account->getBalance(), account->getEquity(), account->getMarginUsed() ) );
+      auto free_margin = Math::get_free_margin( account->getBalance(), account->getEquity(), account->getMarginUsed() );
+      account->setFreeMargin( free_margin );
       // margin ratio
       account->setMarginRatio( Math::get_margin_ratio( account->getEquity(), account->getFreeMargin() ) );
       // Signal
