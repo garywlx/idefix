@@ -40,6 +40,12 @@ namespace IDEFIX {
 
 	class AwesomeStrategy {
 	public:
+
+		enum Side {
+			LONG = 0, 
+			SHORT = 1
+		};
+
 		AwesomeStrategy(const std::string& symbol, AwesomeStrategyConfig& config);
 		~AwesomeStrategy();
 
@@ -70,6 +76,9 @@ namespace IDEFIX {
 		FIX::Mutex m_mutex;
 
 		void log_brick(const Bar& bar, const double sma);
+		// side = 1 long, -1 = short
+		bool isEntry(const std::vector<double> open_price, const std::vector<double> close_price, const double moving_average, const AwesomeStrategy::Side side);
+		bool isExit(const std::vector<double> open_price, const std::vector<double> close_price, const double moving_average, const AwesomeStrategy::Side side);
 	};
 };
 
