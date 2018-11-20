@@ -115,3 +115,29 @@ Unrealized profit, sometimes called "paper profit" (or "paper loss" if negative)
 Unrealized profit will change with each price change, so it can be reduced to zero or become an unrealized loss at any time. Unrealized profit becomes realized profit at the moment that a trade is exited.
 
 https://fxnews.exness.com/how-to-calculate-profits-and-losses-in-forex/
+
+## Recovery Factor
+
+The recovery factor indicates how quickly a system recovers from a drawdown. The higher the value the better. At least we are looking for a value from 2.0+.
+$$
+RecoveryFactor=NetProfit \div MaxDrawdownInCurrency
+$$
+
+## Profit Factor
+
+The profit factor should be at least 1.6.
+
+
+
+## System Optimization
+
+Look for results with numbers at least:
+
+- Profit Factor > 1.6
+- Drawdown < 15%
+- Recovery Factor > 2
+
+Expected Payoff means Profit per Trade.
+
+
+
