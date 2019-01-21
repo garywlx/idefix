@@ -11,8 +11,23 @@ set(PROJECT_VERSION 0.2.8)
 set(CMAKE_C_COMPILER gcc)
 set(CMAKE_CXX_COMPILER g++)
 
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE Debug)
+endif()
+
 # set directories of custom includes
-set(inc_QUICKFIX "/usr/local/include/quickfix")
+#find_path(QUICKFIX_INCLUDE_PATH quickfix/FixFields.h)
+#find_library(QUICKFIX_LIBRARY_PATH quickfix)
+#if(QUICKFIX_INCLUDE_PATH AND QUICKFIX_LIBRARY_PATH)
+#  message(STATUS "Found quickfix")
+#  include_directories(${QUICKFIX_INCLUDE_PATH})
+#else()
+#  set(inc_QUICKFIX "/usr/local/include/quickfix")
+#endif()
+
+find_package(Boost REQUIRED COMPONENTS system program_options date_time filesystem iostreams) 
+include_directories({Boost_INCLUDE_DIRS})
+
 set(inc_PROJECT_DIR "include")
 set(inc_SPDLOG "include/spdlog")
 
@@ -34,60 +49,23 @@ endif()
 add_compile_options("-Wno-c++98-compat")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${inc_PROJECT_DIR} -I${inc_QUICKFIX} -fexceptions")
 
+# set build type
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+	target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_RELEASE_LOG=1)
+endif()
+
 message(STATUS "Build Type is: ${CMAKE_BUILD_TYPE}")
 
-set(SRC src/main.cpp 
-	src/RiskManagement.h 
-	src/MathHelper.h 
-	src/Pairs.h 
-	src/MarketDetail.h 
-	src/FXCMFields.h 
-	src/FIXFactory.h 
-	src/times.h 
-	src/StringHelper.h 
-	src/MarketOrder.h 
-	src/MarketSnapshot.h 
-	src/Market.h 
-	src/Exceptions.h 
-	src/SignalType.h 
-	src/MarketSide.h
-	src/Account.h 
-	src/Account.cpp 
-	src/FIXManager.h 
-	src/FIXManager.cpp 
-	src/RequestId.h 
-	src/RequestId.cpp 
-	src/RenkoChart.h 
-	src/RenkoChart.cpp 
-	src/AwesomeStrategy.h 
-	src/AwesomeStrategy.cpp
-	src/CSVHandler.h 
-	src/CSVHandler.cpp
-	src/Bar.h
-	src/RenkoBrick.h 
-	src/AbstractMovingAverage.h
-	src/SimpleMovingAverage.h 
-	src/SimpleMovingAverage.cpp 
-	src/CFGParser.h
-	src/CFGParser.cpp
-)
+# find all cpp files 
+file(GLOB_RECURSE SRC src/*.cpp)
 
 # add source files for your binary
 add_executable(${PROJECT_NAME} ${SRC})
 
 # add version definition 
 target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_PROJECT_VERSION="${PROJECT_VERSION}")
-# uncomment if you want to use html charts
-#target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_USE_HTML_CHARTS=1)
 # uncomment if you want to show debug output on console()
 target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_SHOW_DEBUG_OUTPUT=1)
-
-# set build type
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-	target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_RELEASE_LOG=1)
-else()
-	set(CMAKE_BUILD_TYPE Debug)
-endif()
 
 # linker
 if(APPLE)
@@ -97,7 +75,7 @@ elseif(NOT APPLE)
 	set(LINK_LIBS /usr/local/lib/libquickfix.so ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
-target_link_libraries(${PROJECT_NAME} ${LINK_LIBS})
+target_link_libraries(${PROJECT_NAME} ${LINK_LIBS} ${Boost_LIBRARIES})
 
 # copy binary to parent directory build/
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/build/)
@@ -113,12 +91,12 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	# copy fixfxcm10.xml to build/
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml ${CMAKE_CURRENT_SOURCE_DIR}/build/)
 	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
-	# create folder build/public_html
+	# make public_html directory and copy index.html to it
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
 	message(STATUS "POST_BUILD make directory ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html/")
-	# copy chart.html to parent directory build/public_html
-	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src/html/chart.html ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
-	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/src/html/chart.html to ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html")
+	# copy index.html to public_html directory
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src_html/index.html ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
+	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/src_html/index.html to ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html")
 endif()
 
 # install idefix in /usr/local/bin
