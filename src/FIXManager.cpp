@@ -417,7 +417,10 @@ void FIXManager::onMessage(const FIX44::MarketDataRequestReject &mdr, const Sess
   // If MarketDataRequestReject is returned as the result of a MarketDataRequest message
   // print out the contents of the Text field but first check that it is set
   if ( mdr.isSetField( FIELD::Text ) ) {
-    // Call strategy onRequestAck
+    console()->error("[MarketData] {}", mdr.getField( FIELD::Text ) );
+    on_error( __FUNCTION__, mdr.getField( FIELD::Text ) );
+    
+    // Call strategy onRequestAck 
     // if ( m_pstrategy != NULL ) {
     //   auto text = mdr.getField( FIELD::Text );
     //   m_pstrategy->onRequestAck( *this, "MarketDataRequestReject", text );
@@ -684,16 +687,34 @@ void FIXManager::disconnect() {
 // Sends TradingSessionStatusRequest message in order to receive as a response the
 // TradingSessionStatus message
 void FIXManager::queryTradingStatus() {
-  auto request = FIXFactory::TradingSessionStatusRequest( nextRequestID() );
-  Session::sendToTarget( request, getOrderSessionID() );
+  try {
+    auto request = FIXFactory::TradingSessionStatusRequest( nextRequestID() );
+    Session::sendToTarget( request, getOrderSessionID() );  
+  } catch( SessionNotFound& e ) {
+    console()->error( "[queryTradingStatus] SessionNotFound");
+    on_error( __FUNCTION__, "SessionNotFound" );
+  } catch( ... ) {
+    console()->error( "[queryTradingStatus] catch." );
+    on_error( __FUNCTION__, "unknown error." );
+  }
+  
 }
 
 // Sends the CollateralInquiry message in order to receive as a response the CollateralReport message
 void FIXManager::queryAccounts(){
-  // Request CollateralReport message. We will receive a CollateralReport for each
-  // account under our login
-  auto request = FIXFactory::CollateralInquiry( nextRequestID() );
-  Session::sendToTarget(request, getOrderSessionID());
+  try {
+    // Request CollateralReport message. We will receive a CollateralReport for each
+    // account under our login
+    auto request = FIXFactory::CollateralInquiry( nextRequestID() );
+    Session::sendToTarget(request, getOrderSessionID());  
+  } catch( SessionNotFound& e ) {
+    console()->error( "[queryTradingStatus] SessionNotFound");
+    on_error( __FUNCTION__, "SessionNotFound" );
+  } catch( ... ) {
+    console()->error( "[queryAccounts] catch." );
+    on_error( __FUNCTION__, "unknown error." );
+  }
+  
 }
 
 /*!
