@@ -84,19 +84,23 @@ message(STATUS "POST_BUILD copy ${PROJECT_NAME} binary to ${CMAKE_CURRENT_SOURCE
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	# copy fxcm cfg file to build/
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/fxcm.cfg ${CMAKE_CURRENT_SOURCE_DIR}/build/)
-	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/fxcm.cfg to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
-	# copy awesome strategy cfg file to build/
-	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/awesome.cfg ${CMAKE_CURRENT_SOURCE_DIR}/build/)
-	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/awesome.cfg to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
+	message(STATUS "POST_BUILD copy /specs/fxcm.cfg to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
 	# copy fixfxcm10.xml to build/
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml ${CMAKE_CURRENT_SOURCE_DIR}/build/)
-	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/specs/FIXFXCM10.xml to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
-	# make public_html directory and copy index.html to it
-	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
+	message(STATUS "POST_BUILD copy /specs/FIXFXCM10.xml to ${CMAKE_CURRENT_SOURCE_DIR}/build/")
+	
+	# make public_html directory and copy everything to it
+	set(CDIR ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
+	file(MAKE_DIRECTORY ${CDIR} ${CDIR}/js ${CDIR}/css ${CDIR}/img )
 	message(STATUS "POST_BUILD make directory ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html/")
-	# copy index.html to public_html directory
-	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src_html/index.html ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html)
-	message(STATUS "POST_BUILD copy ${CMAKE_CURRENT_SOURCE_DIR}/src_html/index.html to ${CMAKE_CURRENT_SOURCE_DIR}/build/public_html")
+		
+	file(GLOB_RECURSE SRC_HTML src_html/*.html src_html/*.css src_html/*.js src_html/*.png)
+	foreach(filename ${SRC_HTML})
+		string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/src_html" "${CMAKE_CURRENT_SOURCE_DIR}/build/public_html" PUBLIC_HTML_PATH ${filename})
+		add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${filename} ${PUBLIC_HTML_PATH})
+		string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "" PUBLIC_HTML_PATH_MSG ${filename})
+		message(STATUS "POST_BUILD copy ${PUBLIC_HTML_PATH_MSG} to /build/public_html")
+	endforeach()
 endif()
 
 # install idefix in /usr/local/bin
