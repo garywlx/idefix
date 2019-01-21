@@ -1,8 +1,8 @@
-#include <Simple-Web-Server/server_http.hpp>
+#include <Simple-WebSocket-Server/server_ws.hpp>
 
-#define BOOST_SPIRIT_THREADSAFE
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
+// #define BOOST_SPIRIT_THREADSAFE
+// #include <boost/property_tree/json_parser.hpp>
+// #include <boost/property_tree/ptree.hpp>
 
 #include <algorithm>
 #include <boost/filesystem.hpp>
@@ -10,12 +10,11 @@
 #include <vector>
 
 using namespace std;
-using namespace boost::property_tree;
-using HttpServer = SimpleWeb::Server<SimpleWeb::HTTP>;
+using WsServer   = SimpleWeb::SocketServer<SimpleWeb::WS>;
 
 namespace idefix {
 
-	static HttpServer kHttpServer;
+	static WsServer kWsServer;
 
 class WebContext {
 public:
@@ -25,6 +24,11 @@ public:
 
 	void start();
 	void stop();
+
+	void send(const std::string message);
+
+private:
+	void startWsServer();
 };
 
 };

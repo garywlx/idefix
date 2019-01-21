@@ -1,11 +1,30 @@
 <html>
     <head>
-        <title>Simple-Web-Server html-file</title>
+        <title>IDEFIX</title>
     </head>
     <body>
         This is the content of index.html
 
-        <script src="/socket.io/socket.io.js"></script>
-        
+        <button onclick="javascript:send()">send</button>
+
+        <script type="text/javascript">
+            "use strict";
+
+            var WebSocket = WebSocket || MozWebSocket;
+
+        	var socket = new WebSocket("ws://localhost:8891/api");
+            
+            socket.onmessage = function(evt) {
+                console.log(evt.data);
+            }
+            
+            socket.onopen = function(evt) {
+                console.log("onopen", evt.data);
+            }
+
+            function send() {
+                socket.send('hallo welt');
+            }
+        </script>
     </body>
 </html>
