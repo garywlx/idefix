@@ -1,11 +1,19 @@
+# get all source files
 file(GLOB SRC_FILES *.cpp core/*.cpp db/*.cpp webinterface/*.cpp)
-add_executable(${PROJECT_NAME} ${SRC_FILES})
-
+# get all header files 
+file(GLOB SRC_HEADER_FILES *.h core/*.h db/*.h webinterface/*.h)
+# add executable
+add_executable(${PROJECT_NAME} ${SRC_FILES} ${SRC_HEADER_FILES})
+# add target link libraries
 target_link_libraries(${PROJECT_NAME}
 	${QUICKFIX_LIBRARY_PATH}
 	${Boost_LIBRARIES}
 	dl pthread crypto
 )
+# add target include directories
+target_include_directories(${PROJECT_NAME} PRIVATE core)
+target_include_directories(${PROJECT_NAME} PRIVATE db)
+target_include_directories(${PROJECT_NAME} PRIVATE webinterface)
 
 # set version MAJOR.MINOR.PATCH
 set(PROJECT_VERSION 0.2.8)

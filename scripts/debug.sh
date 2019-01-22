@@ -7,7 +7,7 @@ if [ -d build/ ]; then
 fi
 if [ -d build/ ]; then
 	cd build
-	cmake -DCMAKE_BUILD_TYPE=Debug ..
+	cmake ..
 	make
 else
 	echo "build directory does not exist."
