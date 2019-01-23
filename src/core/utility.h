@@ -5,8 +5,11 @@
 #include <optional>
 #include <variant>
 #include <vector>
+#include <unordered_map>
 
 namespace idefix {
+
+typedef std::unordered_map<std::string, std::string> UnorderedStrMap;
 
 template <typename V>
 const typename V::mapped_type& FindInMap(const V& map, const typename V::key_type& key) {

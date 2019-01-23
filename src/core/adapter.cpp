@@ -4,8 +4,6 @@
 
 namespace idefix {
 
-Adapter::~Adapter() {}
-
 Adapter* Adapter::load(const std::string &sofile) {
 	std::cout << "Trying to load " << sofile << std::endl;
 

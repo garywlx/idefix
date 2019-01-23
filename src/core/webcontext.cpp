@@ -1,4 +1,4 @@
-#include "WebContext.h"
+#include "webcontext.h"
 #include "../core/logger.h"
 
 namespace idefix {

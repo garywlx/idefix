@@ -47,7 +47,11 @@ else()
 endif()
 
 # set CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fexceptions")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat -fexceptions")
+
+# add build/adapter directory
+set(ADAPTER_BUILD_DIRECTORY "${CMAKE_HOME_DIRECTORY}/build/adapter")
+file(MAKE_DIRECTORY ${ADAPTER_BUILD_DIRECTORY})
 
 # add source directory
 add_subdirectory(src)

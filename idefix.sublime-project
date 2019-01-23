@@ -18,18 +18,6 @@
 		{
 			"path": ".",
             "index_exclude_patterns": ["build", "cmake-build-debug", "libs"]
-		},
-        {
-            "path": "./build/Logs",
-            "name": "Logs"
-        },
-        {
-            "path": "libs",
-            "name": "Libraries"
-        },
-        {
-            "path": "src",
-            "name": "Source"
-        }
+		}
 	]
 }

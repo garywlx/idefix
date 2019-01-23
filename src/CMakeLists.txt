@@ -1,7 +1,7 @@
 # get all source files
-file(GLOB SRC_FILES *.cpp core/*.cpp db/*.cpp webinterface/*.cpp)
+file(GLOB SRC_FILES *.cpp core/*.cpp db/*.cpp)
 # get all header files 
-file(GLOB SRC_HEADER_FILES *.h core/*.h db/*.h webinterface/*.h)
+file(GLOB SRC_HEADER_FILES *.h core/*.h db/*.h)
 # add executable
 add_executable(${PROJECT_NAME} ${SRC_FILES} ${SRC_HEADER_FILES})
 # add target link libraries
@@ -27,12 +27,18 @@ message(STATUS "POST_BUILD copy ${PROJECT_NAME} binary to ${CMAKE_HOME_DIRECTORY
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	# copy fxcm cfg file to build/
-	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_HOME_DIRECTORY}/specs/fxcm.cfg ${CMAKE_HOME_DIRECTORY}/build/)
-	message(STATUS "POST_BUILD copy /specs/fxcm.cfg to ${CMAKE_HOME_DIRECTORY}/build/")
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_HOME_DIRECTORY}/specs/fxcm.conf ${CMAKE_HOME_DIRECTORY}/build/)
+	message(STATUS "POST_BUILD copy /specs/fxcm.conf to ${CMAKE_HOME_DIRECTORY}/build/")
 	# copy fixfxcm10.xml to build/
 	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_HOME_DIRECTORY}/specs/FIXFXCM10.xml ${CMAKE_HOME_DIRECTORY}/build/)
 	message(STATUS "POST_BUILD copy /specs/FIXFXCM10.xml to ${CMAKE_HOME_DIRECTORY}/build/")
+	# copy idefix.conf to build/
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_HOME_DIRECTORY}/specs/idefix.conf ${CMAKE_HOME_DIRECTORY}/build/)
+	message(STATUS "POST_BUILD copy /specs/idefix.conf to ${CMAKE_HOME_DIRECTORY}/build/")
 endif()
 
 # install idefix in /usr/local/bin
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+
+# add adapter modules
+add_subdirectory(adapter)

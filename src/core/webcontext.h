@@ -1,8 +1,4 @@
-#include <Simple-WebSocket-Server/server_ws.hpp>
-
-// #define BOOST_SPIRIT_THREADSAFE
-// #include <boost/property_tree/json_parser.hpp>
-// #include <boost/property_tree/ptree.hpp>
+#include <simple-websocket-server/server_ws.hpp>
 
 #include <algorithm>
 #include <boost/filesystem.hpp>
