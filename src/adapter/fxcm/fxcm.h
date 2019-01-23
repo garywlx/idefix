@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/adapter.h"
+#include "fxcmfields.h"
 
 #include <unordered_map>
 #include <vector>
@@ -69,30 +70,32 @@ public:
 	// do not pass validation required to construct SessionSettings 
 	void connect() noexcept;
 	// Logout and end session 
-	void disconnect() noexcept;	
+	void disconnect() noexcept;
+	// check wether there is a connection available
+	bool isConnected();
 private:
 	// Custom FXCM FIX fields
-	enum FXCM_FIX_FIELDS
-	{
-		FXCM_FIELD_PRODUCT_ID      = 9080,
-		FXCM_POS_ID                = 9041,
-		FXCM_POS_OPEN_TIME         = 9042,
-		FXCM_ERROR_DETAILS         = 9029,
-		FXCM_REQUEST_REJECT_REASON = 9025,
-		FXCM_USED_MARGIN           = 9038,
-		FXCM_POS_CLOSE_TIME        = 9044,
-		FXCM_MARGIN_CALL           = 9045,
-		FXCM_ORD_TYPE              = 9050,
-		FXCM_ORD_STATUS            = 9051,
-		FXCM_CLOSE_PNL             = 9052,
-		FXCM_SYM_POINT_SIZE        = 9002,
-		FXCM_SYM_PRECISION         = 9001,
-		FXCM_TRADING_STATUS        = 9096,
-		FXCM_PEG_FLUCTUATE_PTS     = 9061,
-		FXCM_NO_PARAMS             = 9016,
-		FXCM_PARAM_NAME            = 9017,
-		FXCM_PARAM_VALUE           = 9018
-	};
+	// enum FXCM_FIX_FIELDS
+	// {
+	// 	FXCM_FIELD_PRODUCT_ID      = 9080,
+	// 	FXCM_POS_ID                = 9041,
+	// 	FXCM_POS_OPEN_TIME         = 9042,
+	// 	FXCM_ERROR_DETAILS         = 9029,
+	// 	FXCM_REQUEST_REJECT_REASON = 9025,
+	// 	FXCM_USED_MARGIN           = 9038,
+	// 	FXCM_POS_CLOSE_TIME        = 9044,
+	// 	FXCM_MARGIN_CALL           = 9045,
+	// 	FXCM_ORD_TYPE              = 9050,
+	// 	FXCM_ORD_STATUS            = 9051,
+	// 	FXCM_CLOSE_PNL             = 9052,
+	// 	FXCM_SYM_POINT_SIZE        = 9002,
+	// 	FXCM_SYM_PRECISION         = 9001,
+	// 	FXCM_TRADING_STATUS        = 9096,
+	// 	FXCM_PEG_FLUCTUATE_PTS     = 9061,
+	// 	FXCM_NO_PARAMS             = 9016,
+	// 	FXCM_PARAM_NAME            = 9017,
+	// 	FXCM_PARAM_VALUE           = 9018
+	// };
 
 	// Store sessions
 	typedef std::unordered_map<std::string, SessionID> SessionMap;

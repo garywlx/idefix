@@ -1,7 +1,7 @@
 #ifndef IDEFIX_FXCMFIELDS_H
 #define IDEFIX_FXCMFIELDS_H
 
-namespace IDEFIX {
+namespace idefix {
 // Custom FXCM FIX fields
   enum FXCM_FIX_FIELDS
   {

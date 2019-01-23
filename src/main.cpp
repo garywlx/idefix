@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <fstream>
+#include <exception>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
@@ -111,35 +112,50 @@ int main(int argc, char const *argv[])
 
 		// set config file path
 		network_adapter->setConfigFile( adapter_configfile );
-		
+
 	} catch( bpo::error& e ) {
-		SPDLOG_ERROR("Options Error: {}", e.what() );
+		SPDLOG_ERROR( "Options Error: {}", e.what() );
 		return EXIT_FAILURE;
 	} catch( bpt::json_parser::json_parser_error& json_error ) {
-		SPDLOG_ERROR("Json Error: {}", json_error.what() );
+		SPDLOG_ERROR( "Json Error: {}", json_error.what() );
+		return EXIT_FAILURE;
+	} catch( ... ) {
+		SPDLOG_ERROR( "Unknown Exception." );
 		return EXIT_FAILURE;
 	}
 	
+	// Main
+	try {
+		// initiate WebContext
+		idefix::WebContext webContext( webctx_port );
 
-	// initiate WebContext
-	idefix::WebContext webContext( webctx_port );
+		// initiate system
+		idefix::MainApplication mainApp;
+		mainApp.setAdapter( network_adapter );
+		mainApp.setWebContext( &webContext );
 
-	// initiate system
-	idefix::MainApplication mainApp;
-	mainApp.setAdapter( network_adapter );
-	mainApp.setWebContext( &webContext );
+		mainApp.start();
 
-	mainApp.start();
+		unsigned int i = 0;
+		while(true) {
+			if ( i > 9 ) break;
+			i++;
 
-	int i = 0;
-	while(true) {
-		if ( i > 9 ) break;
-		i++;
+			this_thread::sleep_for( chrono::seconds( 1 ) );
 
-		this_thread::sleep_for( chrono::seconds( 2 ) );
+			std::string msg = "Hallo Welt ";
+
+			webContext.send( msg );
+		}
+
+		mainApp.stop();	
+	} catch( std::runtime_error& e ) {
+		SPDLOG_ERROR( "Runtime Error: {}", e.what() );
+		return EXIT_FAILURE;
+	} catch( ... ) {
+		SPDLOG_ERROR( "Unknown Exception." );
+		return EXIT_FAILURE;
 	}
-
-	mainApp.stop();
 	
-	return 0;
+	return EXIT_SUCCESS;
 }

@@ -3,13 +3,8 @@
 
 namespace idefix {
 
-	MainApplication::MainApplication() {
-
-	}
-
-	MainApplication::~MainApplication() {
-		stop();
-	}
+	MainApplication::MainApplication() {}
+	MainApplication::~MainApplication() {}
 
 	/**
 	 * Set WebContext pointer

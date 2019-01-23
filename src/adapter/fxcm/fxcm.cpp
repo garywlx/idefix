@@ -31,9 +31,9 @@ namespace idefix {
 	 */
 	void FXCM::onCreate(const SessionID &sessionID) {
 		SPDLOG_INFO( "[onCreate] send Logon(A) message." );
+
 		// FIX Session created. We must now logon. Quickfix will automatically send
 		// the Logon(A) message.
-  		
   		if ( sessionID.toString().find( "MD_" ) != string::npos ) {
   			// this is the market data session
   			m_sessions[ "market" ] = sessionID;
@@ -55,7 +55,9 @@ namespace idefix {
 		// Session logon successful. Now we request TradingSessionStatus which is
 		// used to determine market status (open or closed), to get a list of securities,
 		// and to obtain important FXCM system parameters		
-		sendTradingStatusRequest();
+		if ( getSessID( "order" ) == sessionID ) {
+			sendTradingStatusRequest();
+		}
 	}
 
 	/**
@@ -66,8 +68,14 @@ namespace idefix {
 	 */
 	void FXCM::onLogout(const SessionID &sessionID) {
 		if ( sessionID.toString().find( "MD_" ) != string::npos ) {
+			// remove market session id
+			m_sessions.erase( "market" );
+
 			SPDLOG_INFO( "MarketSession logout." );
 		} else {
+			// remove order session id
+			m_sessions.erase( "order" );
+
 			SPDLOG_INFO( "OrderSession logout." );
 		}
 	}
@@ -404,11 +412,42 @@ namespace idefix {
 	 * Logout and end session
 	 */
 	void FXCM::disconnect() noexcept {
-		m_initiator_ptr->stop();
-		delete m_initiator_ptr;
-		delete m_settings_ptr;
-		delete m_store_factory_ptr;
-		delete m_log_factory_ptr;
+		try {
+			m_initiator_ptr->stop();
+
+			while ( isConnected() ) {
+				// wait until stopped.
+			}
+
+			// clear accounts
+			m_account_vec.clear();
+
+			if ( m_initiator_ptr != nullptr ) delete m_initiator_ptr;
+			if ( m_settings_ptr != nullptr ) delete m_settings_ptr;
+			if ( m_store_factory_ptr != nullptr ) delete m_store_factory_ptr;
+			if ( m_log_factory_ptr != nullptr ) delete m_log_factory_ptr;	
+		} catch( ... ) {
+			SPDLOG_ERROR( "Unknown Exception." );
+		}
+	}
+
+	/**
+	 * Check if there is an open connection
+	 * 
+	 * @return bool
+	 */
+	bool FXCM::isConnected() {
+		if ( m_initiator_ptr != nullptr ) {
+			auto order_session = getSessID( "order" );
+			auto market_session = getSessID( "market" );
+
+			return ( ! order_session.toString().empty() && 
+				     ! market_session.toString().empty() && 
+				     ! m_initiator_ptr->isStopped() && 
+				     m_initiator_ptr->isLoggedOn() );
+		}
+
+		return false;
 	}
 
 	// ----------------------------------------------------------------------------------
