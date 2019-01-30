@@ -2,15 +2,17 @@
 #include <thread>
 #include <fstream>
 #include <exception>
+#include <memory>
 
-#include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
-#include <boost/property_tree/json_parser.hpp>
 
 #include "core/logger.h"
 #include "core/utility.h"
 #include "core/mainapplication.h"
+#include "core/configfile.h"
+#include "core/datacontext.h"
+#include "core/ordercontext.h"
 
 #ifdef CMAKE_PROJECT_VERSION
 	#define PROJECT_VERSION CMAKE_PROJECT_VERSION
@@ -54,19 +56,22 @@ int main(int argc, char const *argv[])
 
 	// variable declaration for further usage in MainApplication
 	unsigned int webctx_port;
-	idefix::NetworkAdapter* network_adapter;
+	idefix::NetworkAdapter* network_adapter_rawptr;
+	idefix::MainApplication mainApp;
 
 	try {
 		// parse idefix.conf file
-		bpt::ptree prop_tree;
-		bpt::json_parser::read_json( config_file_path, prop_tree );
+		idefix::config::ptree_t prop_tree;
+		if ( ! idefix::config::read_json( config_file_path, prop_tree ) ) {
+			return EXIT_FAILURE;
+		}
 
 		// database
 		auto db_host = prop_tree.get<std::string>( "db.host", "" );
 		auto db_user = prop_tree.get<std::string>( "db.user", "" );
 		auto db_pwd  = prop_tree.get<std::string>( "db.pwd", "" );
 		auto db_name = prop_tree.get<std::string>( "db.dbname", "" );
-		
+
 		// webcontext
 		webctx_port = prop_tree.get<unsigned int>( "api.port", 0 );
 
@@ -103,15 +108,42 @@ int main(int argc, char const *argv[])
 		}
 
 		// cast to network adapter
-		network_adapter = dynamic_cast<idefix::NetworkAdapter*>( adapter ); 
+		network_adapter_rawptr = dynamic_cast<idefix::NetworkAdapter*>( adapter );
 
-		if ( ! network_adapter ) {
+		if ( ! network_adapter_rawptr ) {
 			SPDLOG_ERROR( "Could not load network adapter!" );
 			return EXIT_FAILURE;
 		}
 
 		// set config file path
-		network_adapter->setConfigFile( adapter_configfile );
+		network_adapter_rawptr->setConfigFile( adapter_configfile );
+
+		// load algos
+		for ( auto& algo : prop_tree.get_child( "algos" ) ) {
+			auto algo_lib_file  = algo.second.get<std::string>("libfile");
+			auto algo_conf_file = algo.second.get<std::string>("configfile");
+
+			auto algo_module = idefix::Algo::load( "./algos/" + algo_lib_file );
+			if ( ! algo_module ) {
+				SPDLOG_ERROR( "Algo Module {} could not be loaded!", algo_lib_file );
+				continue;
+			}
+
+			idefix::Algo* algo_cast = dynamic_cast<idefix::Algo*>( algo_module );
+
+			if ( ! algo_cast ) {
+				SPDLOG_ERROR( "Could not cast {} to Algo*!", algo_lib_file );
+				continue;
+			}
+
+			// set config file
+			algo_cast->setConfigFile( algo_conf_file );
+
+			// add algo to main application
+			mainApp.addAlgo( algo_cast );
+
+			SPDLOG_INFO( "Added algo ./algos/{} with config file {}", algo_lib_file, algo_conf_file );
+		}
 
 	} catch( bpo::error& e ) {
 		SPDLOG_ERROR( "Options Error: {}", e.what() );
@@ -119,33 +151,36 @@ int main(int argc, char const *argv[])
 	} catch( bpt::json_parser::json_parser_error& json_error ) {
 		SPDLOG_ERROR( "Json Error: {}", json_error.what() );
 		return EXIT_FAILURE;
-	} catch( ... ) {
-		SPDLOG_ERROR( "Unknown Exception." );
+	} catch( std::exception &e ) {
+		SPDLOG_ERROR( "Error: {}", e.what() );
 		return EXIT_FAILURE;
 	}
 	
 	// Main
 	try {
-		// initiate WebContext
-		idefix::WebContext webContext( webctx_port );
-
+		// Initialize network adapter
+		std::unique_ptr<idefix::NetworkAdapter> network_adapter( network_adapter_rawptr );
+		// Initialize data context
+		std::unique_ptr<idefix::DataContext> data_context( new idefix::DataContext( std::move( network_adapter ) ) );
+		// Initialize order context
+		std::unique_ptr<idefix::OrderContext> order_context( new idefix::OrderContext() );
+		// Initialize web context
+		std::unique_ptr<idefix::WebContext> web_context( new idefix::WebContext( webctx_port ) );
+		
 		// initiate system
-		idefix::MainApplication mainApp;
-		mainApp.setAdapter( network_adapter );
-		mainApp.setWebContext( &webContext );
+		mainApp.setDataContext( std::move( data_context ) );
+		mainApp.setOrderContext( std::move( order_context ) );
+		mainApp.setWebContext( std::move( web_context ) );
 
+		// start application
 		mainApp.start();
 
-		unsigned int i = 0;
-		while(true) {
-			if ( i > 9 ) break;
-			i++;
+		while( true ) {
+			//if ( ! mainApp.isRunning() ) break;
 
-			this_thread::sleep_for( chrono::seconds( 1 ) );
-
-			std::string msg = "Hallo Welt ";
-
-			webContext.send( msg );
+			int cmd = 0;
+			std::cin >> cmd;
+			break;
 		}
 
 		mainApp.stop();	

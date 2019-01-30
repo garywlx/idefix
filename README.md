@@ -2,7 +2,7 @@
 Integrated Development Environment for Financial Information Exchange
 
 ## Style Guide
-Follow this cpp style guide [http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines](http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
+Follow this cpp style guide [https://google.github.io/styleguide/cppguide.html](https://google.github.io/styleguide/cppguide.html)
 
 ## Dependencies
 
@@ -12,6 +12,7 @@ Follow this cpp style guide [http://isocpp.github.io/CppCoreGuidelines/CppCoreGu
 - Simple-WebSocket-Server https://gitlab.com/eidheim/Simple-WebSocket-Server
 - spdlog https://github.com/gabime/spdlog
 - nod https://github.com/fr00b0/nod
+- fmt http://fmtlib.net
 
 ## Build
 ### Custom Compiler Definitions
@@ -45,6 +46,14 @@ $ sudo make install
 In Release mode the console output for debugging goes to a file `release.log` in the folder where you have executed idefix.
 
 ## Run
+
+You need at least a configuration file `idefix.conf` in the directory where you run it, or specify the location by using -c option.
+
+```bash
+$ idefix -c /path/to/idefix.conf
+```
+
+Also for the fxcm quickfix connection you need at least the `FIXFXCM10.xml` and `fxcm.conf` file in the working directory.
 
 ```bash
 $ idefix 

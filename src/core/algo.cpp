@@ -1,11 +1,10 @@
-#include "adapter.h"
+#include "algo.h"
 
 #include <dlfcn.h>
 #include <iostream>
 
 namespace idefix {
-
-Adapter* Adapter::load(const std::string &sofile) {
+Algo* Algo::load(const std::string &sofile) {
 	auto handle = dlopen( sofile.c_str(), RTLD_NOW );
 	if ( !handle ) {
 		std::cerr << dlerror() << std::endl;
@@ -27,6 +26,4 @@ Adapter* Adapter::load(const std::string &sofile) {
 
 	return out;
 }
-
 };
-

@@ -10,6 +10,8 @@ endif()
 
 # add include directory with 3rd party libraries
 include_directories(${CMAKE_HOME_DIRECTORY}/include)
+# add src as include directory path 
+include_directories(${CMAKE_HOME_DIRECTORY}/src)
 
 # try to find quickfix in /usr/local/include
 find_path(QUICKFIX_INCLUDE_PATH quickfix/FixFields.h)
@@ -30,9 +32,19 @@ else()
 	message(FATAL_ERROR "spdlog not found.")
 endif()
 
+# try to find fmt
+find_package(fmt)
+find_path(FMT_INCLUDE_PATH fmt/format.h)
+if(FMT_INCLUDE_PATH) 
+	message(STATUS "Found fmt in ${FMT_INCLUDE_PATH}")
+	include_directories(${FMT_INCLUDE_PATH})
+else()
+	message(FATAL_ERROR "fmt not found.")
+endif()
+
 # try to find boost
 find_package(Boost REQUIRED COMPONENTS system thread program_options date_time filesystem iostreams coroutine context regex)
-include_directories({Boost_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
 
 # set c++ standard
 include(CheckCXXCompilerFlag)
@@ -49,9 +61,17 @@ endif()
 # set CXX flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat -fexceptions")
 
+# if we are in debugging
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fshow-column -fshow-source-location")
+endif()
+
 # add build/adapter directory
 set(ADAPTER_BUILD_DIRECTORY "${CMAKE_HOME_DIRECTORY}/build/adapter")
 file(MAKE_DIRECTORY ${ADAPTER_BUILD_DIRECTORY})
+# add build/algos directory 
+set(ALGO_BUILD_DIRECTORY "${CMAKE_HOME_DIRECTORY}/build/algos")
+file(MAKE_DIRECTORY ${ALGO_BUILD_DIRECTORY})
 
 # add source directory
 add_subdirectory(src)

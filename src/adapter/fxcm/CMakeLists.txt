@@ -1,10 +1,11 @@
 # set lib name
 set(FXCM_LIB_TARGET fxcm)
 
-# get source files
-file(GLOB SRC_FILES *.cpp)
+# set source files
+set(FXCM_SRC_FILES "fxcm.cpp;${CMAKE_HOME_DIRECTORY}/src/core/exchangetypes.h;${CMAKE_HOME_DIRECTORY}/src/core/instrument.cpp;${CMAKE_HOME_DIRECTORY}/src/core/order.cpp;")
+
 # add library
-add_library(${FXCM_LIB_TARGET} MODULE ${SRC_FILES})
+add_library(${FXCM_LIB_TARGET} MODULE ${FXCM_SRC_FILES})
 # link libraries
 target_link_libraries(${FXCM_LIB_TARGET} ${QUICKFIX_LIBRARY_PATH})
 
