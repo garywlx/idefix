@@ -7,9 +7,11 @@
 
 #include <nod/nod.hpp>
 
+#include "enums.h"
 #include "exchangetypes.h"
 #include "instrument.h"
 #include "order.h"
+#include "execution.h"
 
 namespace idefix { 
 class Adapter {
@@ -85,7 +87,15 @@ public:
 	// if the exchange responds with a MarketDataSnapshot
 	nod::signal<void(const ExchangeTick tick)> onExchangeTick;
 	// if the exchange responds with an ExecutionReport
-	nod::signal<void(const ExchangeOrderEvent event, const Order order)> onExchangeOrder;
+	//nod::signal<void(const enums::ExchangeOrderEvent event, const Order order)> onExchangeOrder;
+	// if the exchange responds with a new order
+	nod::signal<void(std::shared_ptr<Order> order)> onExchangeOrderNew;
+	// if the exchange responds with a filled order
+	nod::signal<void(std::shared_ptr<Execution> execution)> onExchangeOrderFilled;
+	// if the exchange responds with a cancelled order
+	nod::signal<void(std::shared_ptr<Order> order)> onExchangeOrderCancelled;
+	// if the exchange responds with a rejected order
+	nod::signal<void(std::shared_ptr<Order> order)> onExchangeOrderRejected;
 };
 
 };

@@ -24,14 +24,4 @@ struct ExchangeTick {
 	double session_low;
 };
 
-enum ExchangeOrderEvent {
-    MARKET_ORDER_SET_SL,
-    MARKET_ORDER_SET_TP,
-    MARKET_ORDER_CANCELED,
-    MARKET_ORDER_REJECT,
-    MARKET_ORDER_NEW,
-    MARKET_ORDER_TP_HIT,
-    MARKET_ORDER_SL_HIT
-};
-
 };

@@ -4,7 +4,6 @@
 #include <functional>
 
 #include "datacontext.h"
-#include "ordercontext.h"
 
 namespace idefix {
 class Algo {

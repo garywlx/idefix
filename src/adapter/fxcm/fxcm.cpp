@@ -219,10 +219,33 @@ namespace idefix {
 			// Get the NoRelatedSym group and for each, print out the Symbol value
 			FIX44::SecurityList::NoRelatedSym symbols_group;
 			tss.getGroup( i, symbols_group );
-			std::string symbol = symbols_group.getField( FIELD::Symbol );
 			
 			// add instrument to list
-			Instrument instr( symbol );
+			Instrument instr( symbols_group.getField( FIELD::Symbol ) );
+
+		    instr.setCurrency( symbols_group.getField( FIELD::Currency ) );
+		    instr.setFactor( DoubleConvertor::convert( symbols_group.getField( FIELD::Factor ) ) );
+		    instr.setContractMultiplier( DoubleConvertor::convert( symbols_group.getField( FIELD::ContractMultiplier ) ) );
+		    instr.setProduct( IntConvertor::convert( symbols_group.getField( FIELD::Product ) ) );
+		    instr.setRoundLot( DoubleConvertor::convert( symbols_group.getField( FIELD::RoundLot ) ) );
+
+		    // FXCM related
+		    instr.setSymID( IntConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_SYM_ID ) ) );
+		    instr.setPrecision( IntConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_SYM_PRECISION ) ) );
+		    instr.setPointSize( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_SYM_POINT_SIZE ) ) );
+		    instr.setInterestBuy( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_SYM_INTEREST_BUY ) ) );
+		    instr.setInterestSell( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_SYM_INTEREST_SELL ) ) );
+		    instr.setSortOrder( IntConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_SYM_SORT_ORDER ) ) );
+		    instr.setSubscriptionStatus( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_SUBSCRIPTION_STATUS ) );
+		    instr.setFieldProductID( IntConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_FIELD_PRODUCT_ID ) ) );
+		    instr.setCondDistStop( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_COND_DIST_STOP ) ) );
+		    instr.setCondDistLimit( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_COND_DIST_LIMIT ) ) );
+		    instr.setCondDistEntryStop( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_COND_DIST_ENTRY_STOP ) ) );
+		    instr.setCondDistEntryLimit( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_COND_DIST_ENTRY_LIMIT ) ) );
+		    instr.setTradingStatus( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_TRADING_STATUS ) );
+		    instr.setMinQuantity( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_MIN_QUANTITY ) ) );
+		    instr.setMaxQuantity( DoubleConvertor::convert( symbols_group.getField( FXCM_FIX_FIELDS::FXCM_MAX_QUANTITY ) ) );
+
 			instruments.push_back( instr );
 		}
 
@@ -231,7 +254,6 @@ namespace idefix {
 		
 		// Also within TradingSessionStatus are FXCM system parameters. This includes important information
 		// such as account base currency, server time zone, the time at which the trading day ends, and more.
-		//SPDLOG_INFO( "System Parameters via TradingSessionStatus -> " );
 		
 		// Read field FXCMNoParam (9016) which shows us how many system parameters are 
 		// in the message
@@ -247,8 +269,6 @@ namespace idefix {
 			auto param_value = field_map.getField( FXCM_PARAM_VALUE );
 
 			settings_map.emplace( param_name, param_value );
-
-			//SPDLOG_INFO( "  Param {} = {}", field_map.getField( FXCM_PARAM_NAME ), field_map.getField( FXCM_PARAM_VALUE ) );
 		}
 		
 		// API Callback
@@ -309,6 +329,16 @@ namespace idefix {
 			string sub_type = sub_group.getField( FIELD::PartySubIDType );
 			string sub_value = sub_group.getField( FIELD::PartySubID );
 		
+			if ( sub_type == "4000" ) {
+				sub_type = "SUPPORTS_HEDGING";
+			} else if ( sub_type == "2" ) {
+				sub_type = "USERNAME";
+			} else if ( sub_type == "22" ) {
+				sub_type = "ACCOUNT_LASTNAME";
+			} else if ( sub_type == "10" ) {
+				sub_type = "ACCOUNT_ID";
+			}
+
 			settingsMap.emplace( sub_type, sub_value );
 		}
 
@@ -438,132 +468,187 @@ namespace idefix {
 		// Rejected (8), and Cancelled (4). When the OrdStatus field is set to one of these values, you know
 		// the execution is completed. At this time the CumQty (14) can be inspected to determine if and how
 		// much of an order was filled.
-		
-		FIX::ExecType execType;
-		FIX::OrdStatus ordStatus;
-		FIX::OrdType ordType;
-		FIX::ClOrdID clOrdID;
-		FIX::LastQty lastQty;
-		FIX::LastPx lastPx;
-		FIX::Side side;
-		FIX::Symbol symbol;
-		FIX::Account account;
-		FIX::CumQty cumQty;
 
-		string fxcm_pos_id = er.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
-		string sendingTime = er.getHeader().getField( FIELD::SendingTime );
+		std::string fxcm_pos_id = er.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
+		if ( fxcm_pos_id.empty() ) {
+			onExchangeError( "FIX44::ExecutionReport: FXCM PosID is empty!" );
+			return;
+		}
 
-		er.get( execType );
-		er.get( ordStatus );
-		er.get( ordType );
-		er.get( clOrdID );
-		er.get( cumQty );
-		er.get( lastQty );
-		er.get( lastPx );
-		er.get( side );
-		er.get( symbol );
-		er.get( account );
+		std::string sending_time = er.getHeader().getField( FIELD::SendingTime );
+		std::string order_status = er.getField( FIELD::OrdStatus );
+		std::string order_type   = er.getField( FIELD::OrdType );
+		std::string cl_ord_id    = er.getField( FIELD::ClOrdID );
+		std::string last_qty     = er.getField( FIELD::LastQty );
+		std::string last_price   = er.getField( FIELD::LastPx );
+		std::string symbol       = er.getField( FIELD::Symbol );
+		std::string account_id   = er.getField( FIELD::Account );
+		std::string side         = er.getField( FIELD::Side );
+		std::string cum_qty      = er.getField( FIELD::CumQty );
+		std::string exec_type    = er.getField( FIELD::ExecType );
+
+		if ( exec_type == FIX::ExecType_PARTIAL_FILL || exec_type == FIX::ExecType_FILL ) {
+			// order has been partial filled (1)
+			// order has been filled (2)
+			
+			auto exec = std::make_shared<Execution>();
+			exec->setId( fxcm_pos_id );
+			exec->setOrderID( cl_ord_id );
+			exec->setFilled( IntConvertor::convert( cum_qty ) );
+			exec->setLastFillPrice( DoubleConvertor::convert( last_price ) );
+			exec->setLastFillTime( IntConvertor::convert( sending_time ) );
+			exec->setSymbol( symbol );
+			exec->setAction( side == '1' ? enums::OrderAction::BUY : enums::OrderAction::SELL );
+			exec->setAccountID( account_id );
+			
+			if ( order_type == FIX::OrdType_MARKET ) {
+				exec->Order::setType( enums::OrderType::MARKET );
+				exec->setType( enums::ExecutionType::ENTRY );
+			} else if ( order_type == FIX::OrdType_LIMIT ) {
+				exec->Order::setType( enums::OrderType::LIMIT );
+				exec->setType( enums::ExecutionType::EXIT );
+			} else if ( order_type == FIX::OrdType_STOP ) {
+				exec->Order::setType( enums::OrderType::STOP );
+				exec->setType( enums::ExecutionType::EXIT );
+			}
+			
+			// API Callback
+			onExchangeOrderFilled( std::move( exec ) );
+
+		} else if ( exec_type == FIX::ExecType_REJECTED ) {
+			// order has been rejected (8)
+			
+		} else if ( exec_type == FIX::ExecType_CANCELED ) {
+			// order has been cancelled (4)
+			
+		} else if ( exec_type == FIX::ExecType_NEW ) {
+			// order has been received (0)
+			
+
+		}
+
+		// FIX::ExecType execType;
+		// FIX::OrdStatus ordStatus;
+		// FIX::OrdType ordType;
+		// FIX::ClOrdID clOrdID;
+		// FIX::LastQty lastQty;
+		// FIX::LastPx lastPx;
+		// FIX::Side side;
+		// FIX::Symbol symbol;
+		// FIX::Account account;
+		// FIX::CumQty cumQty;
+
+		// er.get( execType );
+		// er.get( ordStatus );
+		// er.get( ordType );
+		// er.get( clOrdID );
+		// er.get( cumQty );
+		// er.get( lastQty );
+		// er.get( lastPx );
+		// er.get( side );
+		// er.get( symbol );
+		// er.get( account );
 
 
 		// If we have a new market order with fxcm position id.
-		if ( ! fxcm_pos_id.empty() ) {
+		// if ( ! fxcm_pos_id.empty() ) {
 
-		// create market order.
-			Order marketOrder;
-			marketOrder.setPosID( fxcm_pos_id );
-			marketOrder.setSymbol( symbol.getValue() );
-			marketOrder.setSide( side.getValue() );
-			marketOrder.setPrice( lastPx.getValue() );
-			marketOrder.setQty( lastQty.getValue() );
-			marketOrder.setAccountID( account.getValue() );
-			marketOrder.setClOrdID( clOrdID.getValue() );
-			marketOrder.setSendingTime( sendingTime );
-			marketOrder.setStopPrice( 0 );
-			marketOrder.setTakePrice( 0 );
-			marketOrder.setClosePrice( 0 );
+		// // create market order.
+		// 	Order marketOrder;
+		// 	marketOrder.setPosID( fxcm_pos_id );
+		// 	marketOrder.setSymbol( symbol.getValue() );
+		// 	marketOrder.setSide( side.getValue() );
+		// 	marketOrder.setPrice( lastPx.getValue() );
+		// 	marketOrder.setQty( lastQty.getValue() );
+		// 	marketOrder.setAccountID( account.getValue() );
+		// 	marketOrder.setClOrdID( clOrdID.getValue() );
+		// 	marketOrder.setSendingTime( sendingTime );
+		// 	marketOrder.setStopPrice( 0 );
+		// 	marketOrder.setTakePrice( 0 );
+		// 	marketOrder.setClosePrice( 0 );
 
-			// MassOrderStatus
-			if ( execType == FIX::ExecType_NEW ) { // FIX::ExecType_ORDER_STATUS
-			  	// get specific fields for OrderStatus
-				FIX::OrderQty orderQty;
-				er.get( orderQty );
+		// 	// MassOrderStatus
+		// 	if ( execType == FIX::ExecType_NEW ) { // FIX::ExecType_ORDER_STATUS
+		// 	  	// get specific fields for OrderStatus
+		// 		FIX::OrderQty orderQty;
+		// 		er.get( orderQty );
 
-			  	// MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 2 = Limit
-			  	// update order in list, set take profit
-				if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT && orderQty.getValue() > 0 ) {
-			    	// console output
-					// console()->info( "{} OrderStatus->updateMarketOrder (LIMIT) {} {} ", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
-			    	// set take profit price.
-					marketOrder.setTakePrice( marketOrder.getPrice() );
-			    	// set OrderQty
-					marketOrder.setQty( orderQty.getValue() );
-			    	// update order in list.
-					// updateMarketOrder( marketOrder, true );
-			    	// API Callback
-					onExchangeOrder( idefix::ExchangeOrderEvent::MARKET_ORDER_SET_TP, marketOrder );
-				}
-			  	// MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 3 = Stop
-			  	// update order in list, set stop loss
-				else if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP && orderQty.getValue() > 0 ) {
-			    	// console output
-					// console()->info( "{} OrderStatus->updateMarketOrder (STOP) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
-			    	// set stop price.
-					marketOrder.setStopPrice( marketOrder.getPrice() );
-			    	// set OrderQty
-					marketOrder.setQty( orderQty.getValue() );
-			    	// update order in list.
-					// updateMarketOrder( marketOrder, true );
-			    	// API Callback
-					onExchangeOrder( idefix::ExchangeOrderEvent::MARKET_ORDER_SET_SL, marketOrder );
-				}
-			}
-			// MarketOrder with ExecTyp F = Trade && OrdStatus 2 = Filled && OrdType 1 = Market
-			// add new order in list
-			else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_MARKET ) {
-			  	// console output
-				// console()->info( "{} addMarketOrder {} {} fill @ {:.5f} {} qty {:.2f}", prefix, marketOrder.getSymbol(), marketOrder.getPosID(), marketOrder.getPrice(), marketOrder.getSideStr(), marketOrder.getQty() );
-			  	// add order  
-				// addMarketOrder( marketOrder );
-			  	// trade log
-				// tradelog( marketOrder );
-			  	// API Callback
-				onExchangeOrder( idefix::ExchangeOrderEvent::MARKET_ORDER_NEW, marketOrder );
-			}
-			// MarketOrder with ExecType F = Trade && OrdStatus 2 = Filled && OrdType 2 = Limit
-			// take profit filled -> remove order from list
-			else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_LIMIT ) {
-			  	// console output
-				// console()->info( "{} removeMarketOrder (LIMIT) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
-			  	// trade log
-				// tradelog( marketOrder );
-			  	// remove market order
-				// removeMarketOrder( marketOrder.getPosID() );
-			  	// API Callback
-				onExchangeOrder( idefix::ExchangeOrderEvent::MARKET_ORDER_TP_HIT, marketOrder );
-			}
-			// MarketOrder with ExecType F = Trade && OrdStatus 2 = Filled && OrdType 3 = Stop
-			// stop loss filled -> remove order form list
-			else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_STOP ) { 
-			  	// console output
-				// console()->info( "{} removeMarketOrder (STOP) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
-			  	// trade log
-				// tradelog( marketOrder );
-			  	// remove market order
-				// removeMarketOrder( marketOrder.getPosID() );
-			  	// API Callback
-				onExchangeOrder( idefix::ExchangeOrderEvent::MARKET_ORDER_SL_HIT, marketOrder );
-			}
-			// MarketOrder with ExecType 4 = Canceled && OrdStatus 4 = Canceled 
-			// remove order from list
-			else if ( execType == FIX::ExecType_CANCELED && ordStatus == FIX::OrdStatus_CANCELED ) {
-			  	// console output
-				// console()->info( "{} removeMarketOrder (CANCELED) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
-			  	// remove market order.
-				// removeMarketOrder( marketOrder.getPosID() );
-			  	// API Callback
-				onExchangeOrder( idefix::ExchangeOrderEvent::MARKET_ORDER_CANCELED, marketOrder );
-			}
-		}
+		// 	  	// MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 2 = Limit
+		// 	  	// update order in list, set take profit
+		// 		if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_LIMIT && orderQty.getValue() > 0 ) {
+		// 	    	// console output
+		// 			// console()->info( "{} OrderStatus->updateMarketOrder (LIMIT) {} {} ", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
+		// 	    	// set take profit price.
+		// 			marketOrder.setTakePrice( marketOrder.getPrice() );
+		// 	    	// set OrderQty
+		// 			marketOrder.setQty( orderQty.getValue() );
+		// 	    	// update order in list.
+		// 			// updateMarketOrder( marketOrder, true );
+		// 	    	// API Callback
+		// 			onExchangeOrder( idefix::enums::ExchangeOrderEvent::MARKET_ORDER_SET_TP, marketOrder );
+		// 		}
+		// 	  	// MarketOrder with ExecType I = OrderStatus && OrdStatus 0 = New && OrdType 3 = Stop
+		// 	  	// update order in list, set stop loss
+		// 		else if ( ordStatus == FIX::OrdStatus_NEW && ordType == FIX::OrdType_STOP && orderQty.getValue() > 0 ) {
+		// 	    	// console output
+		// 			// console()->info( "{} OrderStatus->updateMarketOrder (STOP) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
+		// 	    	// set stop price.
+		// 			marketOrder.setStopPrice( marketOrder.getPrice() );
+		// 	    	// set OrderQty
+		// 			marketOrder.setQty( orderQty.getValue() );
+		// 	    	// update order in list.
+		// 			// updateMarketOrder( marketOrder, true );
+		// 	    	// API Callback
+		// 			onExchangeOrder( idefix::enums::ExchangeOrderEvent::MARKET_ORDER_SET_SL, marketOrder );
+		// 		}
+		// 	}
+		// 	// MarketOrder with ExecTyp F = Trade && OrdStatus 2 = Filled && OrdType 1 = Market
+		// 	// add new order in list
+		// 	else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_MARKET ) {
+		// 	  	// console output
+		// 		// console()->info( "{} addMarketOrder {} {} fill @ {:.5f} {} qty {:.2f}", prefix, marketOrder.getSymbol(), marketOrder.getPosID(), marketOrder.getPrice(), marketOrder.getSideStr(), marketOrder.getQty() );
+		// 	  	// add order  
+		// 		// addMarketOrder( marketOrder );
+		// 	  	// trade log
+		// 		// tradelog( marketOrder );
+		// 	  	// API Callback
+		// 		onExchangeOrder( idefix::enums::ExchangeOrderEvent::MARKET_ORDER_NEW, marketOrder );
+		// 	}
+		// 	// MarketOrder with ExecType F = Trade && OrdStatus 2 = Filled && OrdType 2 = Limit
+		// 	// take profit filled -> remove order from list
+		// 	else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_LIMIT ) {
+		// 	  	// console output
+		// 		// console()->info( "{} removeMarketOrder (LIMIT) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
+		// 	  	// trade log
+		// 		// tradelog( marketOrder );
+		// 	  	// remove market order
+		// 		// removeMarketOrder( marketOrder.getPosID() );
+		// 	  	// API Callback
+		// 		onExchangeOrder( idefix::enums::ExchangeOrderEvent::MARKET_ORDER_TP_HIT, marketOrder );
+		// 	}
+		// 	// MarketOrder with ExecType F = Trade && OrdStatus 2 = Filled && OrdType 3 = Stop
+		// 	// stop loss filled -> remove order form list
+		// 	else if ( execType == FIX::ExecType_TRADE && ordStatus == FIX::OrdStatus_FILLED && ordType == FIX::OrdType_STOP ) { 
+		// 	  	// console output
+		// 		// console()->info( "{} removeMarketOrder (STOP) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
+		// 	  	// trade log
+		// 		// tradelog( marketOrder );
+		// 	  	// remove market order
+		// 		// removeMarketOrder( marketOrder.getPosID() );
+		// 	  	// API Callback
+		// 		onExchangeOrder( idefix::enums::ExchangeOrderEvent::MARKET_ORDER_SL_HIT, marketOrder );
+		// 	}
+		// 	// MarketOrder with ExecType 4 = Canceled && OrdStatus 4 = Canceled 
+		// 	// remove order from list
+		// 	else if ( execType == FIX::ExecType_CANCELED && ordStatus == FIX::OrdStatus_CANCELED ) {
+		// 	  	// console output
+		// 		// console()->info( "{} removeMarketOrder (CANCELED) {} {}", prefix, marketOrder.getPosID(), marketOrder.getSymbol() );
+		// 	  	// remove market order.
+		// 		// removeMarketOrder( marketOrder.getPosID() );
+		// 	  	// API Callback
+		// 		onExchangeOrder( idefix::enums::ExchangeOrderEvent::MARKET_ORDER_CANCELED, marketOrder );
+		// 	}
+		// }
 	}
 
 	// ----------------------------------------------------------------------------------

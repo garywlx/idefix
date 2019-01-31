@@ -20,15 +20,6 @@ namespace idefix {
 	}
 
 	/**
-	 * set ordercontext pointer
-	 * 
-	 * @param std::unique_ptr<OrderContext> ctx
-	 */
-	void MainApplication::setOrderContext(std::unique_ptr<OrderContext> ctx) {
-		m_ordercontext_ptr = std::move( ctx );
-	}
-
-	/**
 	 * Set WebContext pointer
 	 * 
 	 * @param std::unique_ptr<WebContext> ctx

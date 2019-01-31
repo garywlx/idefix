@@ -1,11 +1,13 @@
 #include "instrument.h"
 #include <cmath>
+#include <sstream>
+#include <iomanip>
 
 namespace idefix {
 Instrument::Instrument(): Instrument("", 0, 0, 0) {}
 Instrument::Instrument(const std::string& symbol): Instrument( symbol, 0, 0, 0 ) {}
 Instrument::Instrument(const std::string& symbol, const double ask, const double bid, const double point): 
-	m_symbol(symbol), m_ask_price(ask), m_bid_price(bid), m_point_size(point), m_high_price(ask), m_low_price(bid), m_volume(0) {}
+	m_symbol(symbol), m_ask_price(ask), m_bid_price(bid), m_sym_point_size(point), m_high_price(ask), m_low_price(bid) {}
 
 /**
  * Formats the given value as a string.
@@ -14,7 +16,9 @@ Instrument::Instrument(const std::string& symbol, const double ask, const double
  * @return std::string
  */
 std::string Instrument::format(const double value) {
-	return std::to_string( ::round( value ) );
+	std::ostringstream ostr;
+	ostr << std::setprecision( getPrecision() ) << std::fixed << value;
+	return ostr.str();
 }
 
 /**
@@ -53,24 +57,101 @@ double Instrument::getLowPrice() {
 	return m_low_price;
 }
 
-
 /**
  * Gets the size of a 'point'.
  * 
  * @return double
  */
-double Instrument::getPointSize() {
-	return m_point_size;
+double Instrument::getPointSize() const {
+	return m_sym_point_size;
 }
 
 /**
- * Gets the difference between the bid and ask price for this instrument.
+ * Gets the difference between the bid and ask price for this instrument in pips.
  * 
  * @return double
  */
 double Instrument::getSpread() {
-	if ( m_point_size == 0 ) return -1;
-	return ( m_bid_price - m_ask_price ) * ( 1 / m_point_size );
+	return abs( m_ask_price - m_bid_price );
+}
+
+/**
+ * Gets the difference between the bid and ask price in points.
+ * 
+ * @return double
+ */
+double Instrument::getSpreadPoints() {
+	if ( getPointSize() == 0 ) return -1;
+	return getSpread() * ( 1 / getPointSize() );
+}
+
+double Instrument::getFactor() const {
+	return m_factor;
+}
+
+double Instrument::getContractMultiplier() const {
+	return m_contract_multiplier;
+}
+
+double Instrument::getRoundLot() const {
+	return m_round_lot;
+}
+
+double Instrument::getInterestBuy() const {
+	return m_sym_interest_buy;
+}
+
+double Instrument::getInterestSell() const {
+	return m_sym_interest_sell;
+}
+
+double Instrument::getCondDistStop() const {
+	return m_sym_cond_dist_stop;
+}
+
+double Instrument::getCondDistLimit() const {
+	return m_sym_cond_dist_limit;
+}
+
+double Instrument::getCondDistEntryStop() const {
+	return m_sym_cond_dist_entry_stop;
+}
+
+double Instrument::getCondDistEntryLimit() const {
+	return m_sym_cond_dist_entry_limit;
+}
+
+double Instrument::getMinQuantity() const {
+	return m_min_quantity;
+}
+
+double Instrument::getMaxQuantity() const {
+	return m_max_quantity;
+}
+
+enums::InstrumentType Instrument::getProduct() const {
+	switch( m_product ) {
+		case 4: return enums::InstrumentType::CURRENCY;
+		case 7: return enums::InstrumentType::INDEX;
+		case 2: return enums::InstrumentType::COMMODITY;
+		default: return enums::InstrumentType::UNKNOWN;
+	}
+}
+
+int Instrument::getSymID() const {
+	return m_sym_id;
+}
+
+int Instrument::getPrecision() const {
+	return m_sym_precision;
+}
+
+int Instrument::getSortOrder() const {
+	return m_sym_order;
+}
+
+int Instrument::getFieldProductID() const {
+	return m_sym_field_product_id;
 }
 
 /**
@@ -99,8 +180,8 @@ std::string Instrument::getSymbol() const {
  * @return double 
  */
 double Instrument::round(const double value) {
-	if ( m_point_size == 0 ) return -1;
-	int ticksize = 1 / m_point_size;
+	if ( getPointSize() == 0 ) return -1;
+	int ticksize = 1 / getPointSize();
 	double nearest = round( value * ticksize ) / ticksize;
 	return nearest;
 }
@@ -120,5 +201,95 @@ void Instrument::addTick(const ExchangeTick tick) {
 	if ( m_ask_price > m_high_price ) m_high_price = m_ask_price;
 	if ( m_bid_price < m_low_price ) m_low_price = m_bid_price;
 }
+
+void Instrument::setCurrency(const std::string value) {
+	m_currency = value;
+}
+
+void Instrument::setSubscriptionStatus(const std::string value) {
+	m_subscription_status = value;
+}
+
+void Instrument::setTradingStatus(const std::string value) {
+	m_trading_status = value;
+}
+
+void Instrument::setPointSize(const double value) {
+	m_sym_point_size = value;
+}
+
+void Instrument::setFactor(const double value) {
+	m_factor = value;
+}
+
+void Instrument::setContractMultiplier(const double value) {
+	m_contract_multiplier = value;
+}
+
+void Instrument::setRoundLot(const double value) {
+	m_round_lot = value;
+}
+
+void Instrument::setInterestBuy(const double value) {
+	m_sym_interest_buy = value;
+}
+
+void Instrument::setInterestSell(const double value) {
+	m_sym_interest_sell = value;
+}
+
+void Instrument::setCondDistStop(const double value) {
+	m_sym_cond_dist_stop = value;
+}
+
+void Instrument::setCondDistLimit(const double value) {
+	m_sym_cond_dist_limit = value;
+}
+
+void Instrument::setCondDistEntryStop(const double value) {
+	m_sym_cond_dist_entry_stop = value;
+}
+
+void Instrument::setCondDistEntryLimit(const double value) {
+	m_sym_cond_dist_entry_limit = value;
+}
+
+void Instrument::setMinQuantity(const double value) {
+	m_min_quantity = value;
+}
+
+void Instrument::setMaxQuantity(const double value) {
+	m_max_quantity = value;
+}
+
+void Instrument::setProduct(const enums::InstrumentType type) {
+	switch( type ) {
+		case enums::InstrumentType::CURRENCY: m_product = 4; break;
+		case enums::InstrumentType::INDEX: m_product = 7; break;
+		case enums::InstrumentType::COMMODITY: m_product = 2; break;
+		default: break;
+	}
+}
+
+void Instrument::setProduct(const int value) {
+	m_product = value;
+}
+
+void Instrument::setSymID(const int value) {
+	m_sym_id = value;
+}
+
+void Instrument::setPrecision(const int value) {
+	m_sym_precision = value;
+}
+
+void Instrument::setSortOrder(const int value) {
+	m_sym_order = value;
+}
+
+void Instrument::setFieldProductID(const int value) {
+	m_sym_field_product_id = value;
+}
+
 
 };

@@ -1,83 +1,94 @@
 #pragma once
 
-#include <iostream>
-#include <sstream>
 #include <string>
-#include <iomanip>
-#include <quickfix/FixValues.h>
+#include "core/enums.h"
 
 namespace idefix {
 class Order {
-private:
-	std::string m_clOrd_ID;
-	std::string m_pos_ID; // FXCM_POS_ID
-	std::string m_order_ID;
-	std::string m_account_ID;
-	std::string m_symbol;
-	std::string m_sending_time;
-	std::string m_close_time; // the timestamp on which the order was closed
-	char m_side; // 1 = Buy, 2 = Sell (FixValues.h)
-	double m_qty;
-	double m_price;
-	double m_stop_price;
-	double m_take_price;
-	double m_close_price; // the price on which the order was closed
-	double m_profit_loss_value; // negativ = loss
-	int m_precision;
-	double m_point_size;
-
 public:
-	enum Status {
-		NEW, FILLED, REMOVED, STOPPED, UPDATE
-	};
+	Order();
 
-	// Construct empty market order
-	explicit Order();
-
-	std::string getClOrdID() const;
-	void setClOrdID(const std::string clOrdID);
-	std::string getPosID() const;
-	void setPosID(const std::string pos_ID);
+	// Determines if this is a buy order.
+	bool isBuy() const;
+	// Determines if this is a sell order.
+	bool isSell() const; 
+	// Determines if this order is filled.
+	bool isFilled() const;
+	// Determines if this order is cancelled.
+	bool isCancelled() const;
+	// Gets the type of order (Marker, Limit, Stop, Trail).
+	enums::OrderType getType() const;
+	// Gets the Time In Force for this order.
+	enums::TIF getTIF() const;
+	// Gets the action of this order (Buy or Sell)
+	enums::OrderAction getAction() const;
+	// Gets the reference ID for the order.
+	std::string getReferenceID() const;
+	// Gets the quantity (size) of this order.
+	double getQuantity() const;
+	// Gets the unique identifier for this order.
 	std::string getOrderID() const;
-	void setOrderID(const std::string orderID);
-	std::string getAccountID() const;
-	void setAccountID(const std::string accountID);
-	std::string getSymbol() const;
-	void setSymbol(const std::string symbol);
-	double getQty() const;
-	void setQty(const double qty);
-	char getSide() const;
-	std::string getSideStr() const;
-	/*!
-	 * Get the opposide of Side. e.g. Side = BUY return SELL
-	 * Returns getSide value if opposide can not be find
-	 * @return char
-	 */
-	char getOpposide() const;
-	void setSide(const char side);
-	double getPrice() const;
-	void setPrice(const double price);
+	// Gets the stop price for the order (null if not a stop order).
 	double getStopPrice() const;
+	// Gets the limit price for the order (null if not a limit order).
+	double getLimitPrice() const;
+	// Gets the time (in milliseconds since 1970) of the last fill on this order.
+	long getLastFillTime() const;
+	// Gets the last fill price for this order.
+	double getLastFillPrice() const;
+	// Gets the number of shares/contracts that have been filled.
+	int getFilled() const;
+	// Gets the account ID for this order.
+	std::string getAccountID() const;
+	// Gets the symbol
+	std::string getSymbol() const;
+
+	void setType(const enums::OrderType type);
+	void setAction(const enums::OrderAction action);
+	void setTIF(const enums::TIF tif);
+	void setReferenceID(const std::string refid);
+	void setQuantity(const double qty);
+	void setOrderID(const std::string orderid);
 	void setStopPrice(const double price);
-	double getTakePrice() const;
-	void setTakePrice(const double price);
-	double getClosePrice() const;
-	void setClosePrice(const double price);
-	double getProfitLoss() const;
-	void setProfitLoss(const double value);
-	bool isValid() const;
-	std::string getSendingTime() const;
-	void setSendingTime(const std::string sending_time);
-	std::string getCloseTime() const;
-	void setCloseTime(const std::string close_time);
-	int getPrecision() const;
-	void setPrecision(const int precision);
-	double getPointSize() const;
-	void setPointSize(const double pointsize);
-	std::string toString() const;
+	void setLimitPrice(const double price);
+	void setLastFillTime(const long time);
+	void setLastFillPrice(const double price);
+	void setFilled(const int contracts);
+	void setAccountID(const std::string accountid);
+	void setSymbol(const std::string symbol);
+
+
+private:
+	// the unique identifier for this order.
+	std::string m_order_id;
+	// the symbol for this order.
+	std::string m_symbol;
+	// the reference ID for the order.
+	std::string m_ref_id;
+	// the account ID for this order.
+	std::string m_account_id;
+	// the time (in milliseconds since 1970) of the last fill on this order.
+	long m_last_filltime;
+	// the action of this order (Buy or Sell)
+	enums::OrderAction m_action;
+	// the type of order (Market, Limit, Stop, Trail).
+	enums::OrderType m_type;
+	// the status of order (New, Filled, Removed, Stopped, Update)
+	enums::OrderStatus m_status;
+	// the Time In Force for this order.
+	enums::TIF m_tif;
+	// the quantity (size) of this order.
+	double m_quantity;
+	// the last fill price for this order.
+	double m_last_fillprice;
+	// the number of shares/contracts that have been filled.
+	int m_filled;
+	// Determines if this order is cancelled.
+	bool m_is_cancelled;
+	// the limit price for the order (null if not a limit order).
+	double m_limit_price;
+	// the stop price for the order (null if not a stop order).
+	double m_stop_price;
+
 };
-
-// Operator Magic
-inline std::ostream& operator<<(std::ostream& out, const idefix::Order& mo);
-
 };

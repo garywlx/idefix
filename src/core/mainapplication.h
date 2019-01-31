@@ -4,7 +4,6 @@
 #include "adapter.h"
 #include "webcontext.h"
 #include "datacontext.h"
-#include "ordercontext.h"
 #include "algo.h"
 
 #include <thread>
@@ -23,8 +22,6 @@ public:
 
 	// set datacontext pointer
 	void setDataContext(std::unique_ptr<DataContext> ctx);
-	// set ordercontext pointer
-	void setOrderContext(std::unique_ptr<OrderContext> ctx);
 	// set webcontext pointer
 	void setWebContext(std::unique_ptr<WebContext> ctx);
 	// add algo pointer
@@ -50,8 +47,6 @@ private:
 	std::unique_ptr<WebContext> m_webcontext_ptr;
 	// the DataContext
 	std::unique_ptr<DataContext> m_datacontext_ptr;
-	// the OrderContext
-	std::unique_ptr<OrderContext> m_ordercontext_ptr;
 	// the algo container
 	AlgoVector m_algo_list;
 

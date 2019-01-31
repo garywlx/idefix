@@ -12,7 +12,6 @@
 #include "core/mainapplication.h"
 #include "core/configfile.h"
 #include "core/datacontext.h"
-#include "core/ordercontext.h"
 
 #ifdef CMAKE_PROJECT_VERSION
 	#define PROJECT_VERSION CMAKE_PROJECT_VERSION
@@ -162,14 +161,11 @@ int main(int argc, char const *argv[])
 		std::unique_ptr<idefix::NetworkAdapter> network_adapter( network_adapter_rawptr );
 		// Initialize data context
 		std::unique_ptr<idefix::DataContext> data_context( new idefix::DataContext( std::move( network_adapter ) ) );
-		// Initialize order context
-		std::unique_ptr<idefix::OrderContext> order_context( new idefix::OrderContext() );
 		// Initialize web context
 		std::unique_ptr<idefix::WebContext> web_context( new idefix::WebContext( webctx_port ) );
 		
 		// initiate system
 		mainApp.setDataContext( std::move( data_context ) );
-		mainApp.setOrderContext( std::move( order_context ) );
 		mainApp.setWebContext( std::move( web_context ) );
 
 		// start application

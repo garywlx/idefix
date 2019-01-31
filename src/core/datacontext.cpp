@@ -1,12 +1,17 @@
 #include "datacontext.h"
-#include "utility.h"
-#include "logger.h"
+#include "core/utility.h"
+#include "core/logger.h"
+
 #include <functional>
 
 namespace idefix {
 DataContext::DataContext(std::unique_ptr<NetworkAdapter> network_adapter): m_network_ptr( std::move( network_adapter ) ), m_is_connected(false) {
 
 }
+
+/// ----------------------------------------------------------------------------------------------
+/// DATA MANAGEMENT
+/// ----------------------------------------------------------------------------------------------
 
 /**
  * Get instrument set
@@ -112,22 +117,209 @@ void DataContext::unsubscribe(const std::string& symbol) {
 	}
 }
 
-// ----------------------------------------------------------------------------------------------
-// SLOTS
-// ----------------------------------------------------------------------------------------------
+/**
+ * Determines if this account (broker) supports hedging.
+ * 
+ * @return bool
+ */
+bool DataContext::supportsHedging() {
+	auto value = getExchangeSetting( "SUPPORTS_HEDGING" );
+	if ( value.empty() ) return false;
+	return ( value == "Y" );
+}
+
+// Gets value of exchange setting
+std::string DataContext::getExchangeSetting(const std::string& key) {
+	return FindInMap( m_exchange_settings, key );
+}
+
+/**
+ * Determines if trading desk is open
+ * 
+ * @return bool
+ */
+bool DataContext::isTradingDeskOpen() {
+	return m_trading_desk_open;
+}
+
+/// ----------------------------------------------------------------------------------------------
+/// ORDER MANAGEMENT
+/// ----------------------------------------------------------------------------------------------
+
+/**
+ * Cancels all of the open orders for this instrument
+ * 
+ * @param std::shared_ptr<Instrument> instrument
+ */
+void DataContext::cancelOrders(std::shared_ptr<Instrument> instrument) {
+	if ( instrument == nullptr ) return;
+
+	std::vector<Order> orders;
+	for ( auto& order_ptr : m_order_list ) {
+		if ( order_ptr == nullptr ) continue;
+		if ( instrument->getSymbol() == order_ptr->getSymbol() ) {
+			orders.push_back( *order_ptr );
+		}
+	}
+
+	if ( orders.size() > 0 ) {
+		cancelOrders( orders );
+	}
+}
+
+/**
+ * Use this method to cancel one or more existing orders.
+ * 
+ * @param const std::vector<Order> orders
+ */
+void DataContext::cancelOrders(const std::vector<Order> orders) {
+
+}
+
+/**
+ * Creates a new 'Market' order.
+ * 
+ * @param std::shared_ptr<Instrument> instrument 
+ * @param enums::OrderAction          action
+ * @param double                      qty
+ * @return Order
+ */
+std::shared_ptr<Order> DataContext::createMarketOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, double qty) {
+	return nullptr;
+}
+
+/**
+ * Creates a new 'Market' order with reference id.
+ * 
+ * @param std::shared_ptr<Instrument> instrument 
+ * @param const std::string           ref_id
+ * @param enums::OrderAction          action
+ * @param double                      qty
+ * @return Order
+ */
+std::shared_ptr<Order> DataContext::createMarketOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, double qty) {
+	return nullptr;
+}
+
+/**
+ * Creates a new 'Stop' order.
+ * 
+ * @param std::shared_ptr<Instrument> instrument 
+ * @param enums::OrderAction          action
+ * @param enums::TIF                  tif
+ * @param double                      qty
+ * @param double                      stop_price
+ * @return Order
+ */
+std::shared_ptr<Order> DataContext::createStopOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double stop_price) {
+	return nullptr;
+}
+
+/**
+ * Creates a new 'Stop' order with reference id.
+ * 
+ * @param std::shared_ptr<Instrument> instrument 
+ * @param const std::string           ref_id
+ * @param enums::OrderAction          action
+ * @param enums::TIF                  tif
+ * @param double                      qty
+ * @param double                      stop_price
+ * @return Order
+ */
+std::shared_ptr<Order> DataContext::createStopOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double stop_price) {
+	return nullptr;
+}
+
+/**
+ * Creates a new 'Limit' order.
+ * 
+ * @param std::shared_ptr<Instrument> instrument 
+ * @param enums::OrderAction          action
+ * @param enums::TIF                  tif
+ * @param double                      qty
+ * @param double                      limit_price
+ * @return Order
+ */
+std::shared_ptr<Order> DataContext::createLimitOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double limit_price) {
+	return nullptr;
+}
+
+/**
+ * Creates a new 'Limit' order with reference id.
+ * 
+ * @param std::shared_ptr<Instrument> instrument 
+ * @param const std::string           ref_id
+ * @param enums::OrderAction          action
+ * @param enums::TIF                  tif
+ * @param double                      qty
+ * @param double                      limit_price
+ * @return Order
+ */
+std::shared_ptr<Order> DataContext::createLimitOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double limit_price) {
+	return nullptr;
+}
+
+/**
+ * Submit orders
+ * 
+ * @param const std::vector<Order> orders
+ */
+void DataContext::submitOrders(const std::vector<Order> orders) {
+
+}
+
+/**
+ * Gets the list of active orders
+ *
+ * @return std::vector< std::shared_ptr<Order> >
+ */
+std::vector< std::shared_ptr<Order> > DataContext::getActiveOrders() {
+	return m_order_list;
+}
+
+/**
+ * Gets the list of active executions
+ *
+ * @return std::vector< std::shared_ptr<Execution> >
+ */
+std::vector< std::shared_ptr<Execution> > DataContext::getActiveExecutions() {
+	return m_execution_list;
+}
+
+
+/// ----------------------------------------------------------------------------------------------
+/// SLOTS
+/// ----------------------------------------------------------------------------------------------
+
+/**
+ * Slot to register all available instruments
+ * 
+ * @param const std::vector<Instrument> instruments
+ */
 void DataContext::slotExchangeInstrumentList(const std::vector<Instrument> instruments) {
 	for ( const auto& instrument : instruments ) {
-		addInstrument( instrument.getSymbol() );
+		addInstrument( std::make_shared<Instrument>( instrument ) );
 	}
 }
 
+/**
+ * Slot to register the exchange settings
+ * 
+ * @param const ExchangeSettingsMap settings
+ */
 void DataContext::slotExchangeSettings(const ExchangeSettingsMap settings) {
 	for ( const auto& setting : settings ) {
-		SPDLOG_INFO("onExchangeSettings {} = {}", setting.first, setting.second );
+		m_exchange_settings.emplace( setting.first, setting.second );
 	}
 }
 
+/**
+ * Slot when exchange is ready with initializing, connecting and gathering settings data
+ */
 void DataContext::slotExchangeReady() {
+	for ( const auto& setting : m_exchange_settings ) {
+		SPDLOG_INFO("Setting {} = {}", setting.first, setting.second );
+	}
 	SPDLOG_INFO("Registered instruments: {:d}", m_instrument_list.size() );
 	SPDLOG_INFO("Exchange ready.");
 
@@ -135,6 +327,9 @@ void DataContext::slotExchangeReady() {
 	onReady();
 }
 
+/**
+ * Slot when exchange is successfully connected
+ */
 void DataContext::slotExchangeConnected() {
 	m_is_connected = true;
 
@@ -144,6 +339,9 @@ void DataContext::slotExchangeConnected() {
 	onConnected();
 }
 
+/**
+ * Slot when exchange is successfully disconnected
+ */
 void DataContext::slotExchangeDisconnected() {
 	m_is_connected = false;
 
@@ -153,6 +351,11 @@ void DataContext::slotExchangeDisconnected() {
 	onDisconnected();
 }
 
+/**
+ * Slot when exchange logged in
+ * 
+ * @param const std::string session_name either order|market
+ */
 void DataContext::slotExchangeLogon(const std::string session_name) {
 	if ( session_name == "order" ) {
 		SPDLOG_INFO("OrderSession login.");
@@ -162,6 +365,11 @@ void DataContext::slotExchangeLogon(const std::string session_name) {
 	}
 }
 
+/**
+ * Slot when exchange logged out
+ * 
+ * @param const std::string session_name either order|market
+ */
 void DataContext::slotExchangeLogout(const std::string session_name) {
 	if ( session_name == "order" ) {
 		SPDLOG_INFO("OrderSession logout.");
@@ -171,19 +379,41 @@ void DataContext::slotExchangeLogout(const std::string session_name) {
 	}
 }
 
+/**
+ * Slot when exchange session is created
+ * 
+ * @param const std::string session_name either order|market
+ */
 void DataContext::slotExchangeSessionCreated(const std::string session_name) {
 	SPDLOG_INFO("Exchange Session {} created.", session_name );
 }
 
+/**
+ * Slot when exchange signals a warning message
+ * 
+ * @param const std::string msg 
+ */
 void DataContext::slotExchangeWarning(const std::string msg) {
 	SPDLOG_WARN( "Exchange: {}", msg );
 }
 
+/**
+ * Slot when exchange signals an error message
+ * 
+ * @param const std::string msg
+ */
 void DataContext::slotExchangeError(const std::string msg) {
 	SPDLOG_ERROR( "Exchange: {}", msg );
 }
 
+/**
+ * Slot when exchange signals if trading desk is open or not
+ * 
+ * @param const bool open 
+ */
 void DataContext::slotExchangeTradingDeskChange(const bool open) {
+	m_trading_desk_open = open;
+
 	if ( open ) {
 		SPDLOG_INFO("Trading Desk is open.");
 	} else {
@@ -191,18 +421,34 @@ void DataContext::slotExchangeTradingDeskChange(const bool open) {
 	}
 }
 
+/**
+ * Slot when exchange sends an account id
+ * 
+ * @param const std::string accountid 
+ */
 void DataContext::slotExchangeAccountID(const std::string accountid) {
 	SPDLOG_INFO("AccountID: {}", accountid );
 }
 
+/**
+ * Slot when exchange signals a change in balance
+ * 
+ * @param const std::string accountid
+ * @param const double      balance
+ */
 void DataContext::slotExchangeBalanceChanged(const std::string accountid, const double balance) {
 	SPDLOG_INFO("Account: {} Balance: {:.2f}", accountid, balance );
 }
 
+/**
+ * Account settings
+ * 
+ * @param const ExchangeCollateralSettingsMap map
+ */
 void DataContext::slotExchangeCollateralSettings(const ExchangeCollateralSettingsMap map) {
-	SPDLOG_INFO("AccountSettings:");
+	// add to exchange settings
 	for ( auto const &setting : map ) {
-		SPDLOG_INFO("{} = {}", setting.first, setting.second);
+		m_exchange_settings.emplace( setting.first, setting.second );
 	}
 }
 

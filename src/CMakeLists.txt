@@ -20,7 +20,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE core)
 target_include_directories(${PROJECT_NAME} PRIVATE db)
 
 # set version MAJOR.MINOR.PATCH
-set(PROJECT_VERSION 0.2.8)
+set(PROJECT_VERSION 0.2.10)
 
 # broadcast version definition to source
 target_compile_definitions(${PROJECT_NAME} PUBLIC CMAKE_PROJECT_VERSION="${PROJECT_VERSION}")
