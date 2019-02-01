@@ -16,6 +16,5 @@ public:
 
 	// is called when a new tick is available
 	void onTick(DataContext& ctx, std::shared_ptr<Instrument> instrument);
-	
 };
 };

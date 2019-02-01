@@ -9,6 +9,11 @@
 #include <quickfix/fix44/CollateralInquiry.h>
 #include <quickfix/fix44/RequestForPositions.h>
 #include <quickfix/fix44/MarketDataRequest.h>
+#include <quickfix/fix44/NewOrderSingle.h>
+#include <quickfix/fix44/NewOrderList.h>
+#include <quickfix/fix44/RequestForPositions.h>
+#include <quickfix/fix44/OrderStatusRequest.h>
+#include <quickfix/fix44/OrderMassStatusRequest.h>
 
 #include <string>
 #include <exception>
@@ -360,14 +365,20 @@ namespace idefix {
 	 * @param const SessionID&                     sessionID 
 	 */
 	void FXCM::onMessage(const FIX44::RequestForPositionsAck& ack, const SessionID& sessionID) {
-		string pos_reqID = ack.getField( FIELD::PosReqID );
-		SPDLOG_INFO( "RequestForPositionsAck -> PosReqID - {}", pos_reqID );
+		// string pos_reqID = ack.getField( FIELD::PosReqID );
+		// SPDLOG_INFO( "RequestForPositionsAck -> PosReqID - {}", pos_reqID );
 
 		// If a PositionReport is requested and no positions exist for that request, the Text field will
 		// indicate that no positions mathced the requested criteria 
 		if ( ack.isSetField( FIELD::Text ) ) {
-			SPDLOG_INFO( "RequestForPositionsAck -> Text - {}", ack.getField( FIELD::Text ) );
+			// API Callback
+			onExchangePositionReportAck( ack.getField( FIELD::Text ) );
+			return;
+			// SPDLOG_INFO( "RequestForPositionsAck -> Text - {}", ack.getField( FIELD::Text ) );
 		}
+
+		// API Callback
+		onExchangePositionReportAck( "No Text." );
 	}
 
 	/**
@@ -447,21 +458,12 @@ namespace idefix {
 	}
 
 	/**
-	 * If an order is executed this message pops up
+	 * If an order is executed this message pops up. 
 	 * 
 	 * @param const FIX44::ExecutionReport& er        
 	 * @param const SessionID&              sessionID 
 	 */
 	void FXCM::onMessage(const FIX44::ExecutionReport& er, const SessionID& sessionID) {
-		// SPDLOG_INFO( "ExecutionReport" );
-		// SPDLOG_INFO( "  ClOrdID -> {}", er.getField( FIELD::ClOrdID ) );
-		// SPDLOG_INFO( "  Account -> {}", er.getField( FIELD::Account ) );
-		// SPDLOG_INFO( "  OrderID -> {}", er.getField( FIELD::OrderID ) );
-		// SPDLOG_INFO( "  LastQty -> {}", er.getField( FIELD::LastQty ) );
-		// SPDLOG_INFO( "  CumQty -> {}", er.getField( FIELD::CumQty ) );
-		// SPDLOG_INFO( "  ExecType -> {}", er.getField( FIELD::ExecType ) );
-		// SPDLOG_INFO( "  OrdStatus -> {}", er.getField( FIELD::OrdStatus ) );
-
 		// ** Note on order status. ** 
 		// In order to determine the status of an order, and also how much an order is filled, we must
 		// use the OrdStatus and CumQty fields. There are 3 possible final values for OrdStatus: Filled (2),
@@ -475,10 +477,12 @@ namespace idefix {
 			return;
 		}
 
+		// message fields
 		std::string sending_time = er.getHeader().getField( FIELD::SendingTime );
 		std::string order_status = er.getField( FIELD::OrdStatus );
 		std::string order_type   = er.getField( FIELD::OrdType );
 		std::string cl_ord_id    = er.getField( FIELD::ClOrdID );
+		std::string price        = er.getField( FIELD::Price );
 		std::string last_qty     = er.getField( FIELD::LastQty );
 		std::string last_price   = er.getField( FIELD::LastPx );
 		std::string symbol       = er.getField( FIELD::Symbol );
@@ -486,47 +490,119 @@ namespace idefix {
 		std::string side         = er.getField( FIELD::Side );
 		std::string cum_qty      = er.getField( FIELD::CumQty );
 		std::string exec_type    = er.getField( FIELD::ExecType );
+		std::string tif          = er.getField( FIELD::TimeInForce );
 
-		if ( exec_type == FIX::ExecType_PARTIAL_FILL || exec_type == FIX::ExecType_FILL ) {
-			// order has been partial filled (1)
-			// order has been filled (2)
+		// The order
+		auto order = std::make_shared<Order>();
+		order->setOrderID( fxcm_pos_id );
+		order->setClientOrderID( cl_ord_id );
+		order->setSymbol( symbol );
+		order->setAction( side == '1' ? enums::OrderAction::BUY : enums::OrderAction::SELL );
+		order->setAccountID( account_id );
+		order->setStatus( enums::OrderStatus::NEW );
+		order->setQuantity( DoubleConvertor::convert( last_qty ) );
+
+		// Time in force
+		if ( tif == FIX::TimeInForce_GOOD_TILL_CANCEL ) {
+			order->setTIF( enums::TIF::GTC );
+		} else if ( tif == FIX::TimeInForce_FILL_OR_KILL ) {
+			order->setTIF( enums::TIF::FOK );
+		} else if ( tif == FIX::TimeInForce_DAY ) {
+			order->setTIF( enums::TIF::DAY );
+		}
+
+		// OrderType
+		if ( order_type == FIX::OrdType_MARKET ) {
+			order->setType( enums::OrderType::MARKET );
+		} else if ( order_type == FIX::OrdType_LIMIT ) {
+			order->setType( enums::OrderType::LIMIT );
+		} else if ( order_type == FIX::OrdType_STOP ) {
+			order->setType( enums::OrderType::STOP );
+		}
+		
+		// Price for STOP and LIMIT orders
+		switch( order->getType() ) {
+			case enums::OrderType::STOP:
+				order->setStopPrice( DoubleConvertor::convert( price ) );
+				break;
+			case enums::OrderType::LIMIT:
+				order->setLimitPrice( DoubleConvertor::convert( price ) );
+				break;
+			default:break;
+		}
+
+		// Filled/Partial Filled?
+		if ( exec_type == FIX::ExecType_PARTIAL_FILL || exec_type == FIX::ExecType_FILL || exec_type == FIX::ExecType_TRADE ) {
+			/// 
+			/// order has been partial filled (1) Outstanding order with executions and remaining quantity
+			/// order has been filled (2) Order completely filled, no remaining quantity
+			/// order is trade (F) Trade (partial fill or fill)
+			/// 
 			
-			auto exec = std::make_shared<Execution>();
-			exec->setId( fxcm_pos_id );
-			exec->setOrderID( cl_ord_id );
-			exec->setFilled( IntConvertor::convert( cum_qty ) );
-			exec->setLastFillPrice( DoubleConvertor::convert( last_price ) );
-			exec->setLastFillTime( IntConvertor::convert( sending_time ) );
-			exec->setSymbol( symbol );
-			exec->setAction( side == '1' ? enums::OrderAction::BUY : enums::OrderAction::SELL );
-			exec->setAccountID( account_id );
-			
-			if ( order_type == FIX::OrdType_MARKET ) {
-				exec->Order::setType( enums::OrderType::MARKET );
-				exec->setType( enums::ExecutionType::ENTRY );
-			} else if ( order_type == FIX::OrdType_LIMIT ) {
-				exec->Order::setType( enums::OrderType::LIMIT );
-				exec->setType( enums::ExecutionType::EXIT );
-			} else if ( order_type == FIX::OrdType_STOP ) {
-				exec->Order::setType( enums::OrderType::STOP );
-				exec->setType( enums::ExecutionType::EXIT );
+			order->setFilled( IntConvertor::convert( cum_qty ) );
+			order->setLastFillPrice( DoubleConvertor::convert( last_price ) );
+			order->setLastFillTime( IntConvertor::convert( sending_time ) );
+
+			// set conditional price
+			switch( order->getType() ) {
+				default:
+				case enums::OrderType::MARKET: 
+					order->setEntryPrice( order->getLastFillPrice() );
+					break;
+				case enums::OrderType::LIMIT:
+					order->setLimitPrice( order->getLastFillPrice() );
+					break;
+				case enums::OrderType::STOP:
+					order->setStopPrice( order->getLastFillPrice() );
+					break;
 			}
-			
-			// API Callback
-			onExchangeOrderFilled( std::move( exec ) );
 
+			if ( exec_type == FIX::ExecType_PARTIAL_FILL ) {
+				order->setStatus( enums::OrderStatus::PARTIAL_FILLED );
+			} else if ( exec_type == FIX::ExecType_FILL ) {
+				order->setStatus( enums::OrderStatus::FILLED );
+			}
+						
 		} else if ( exec_type == FIX::ExecType_REJECTED ) {
-			// order has been rejected (8)
+			///
+			/// order has been rejected (8)
+			/// Order has been rejected by sell-side (broker, exchange, ECN). 
+			/// NOTE: An order can be rejected subsequent to order acknowledgment, 
+			/// i.e. an order can pass from New to Rejected status.
+			/// 
+			order->setStatus( enums::OrderStatus::REJECTED );
 			
+			std::string reject_msg = er.getField( FIELD::OrdRejReason );
+			if ( ! reject_msg.empty() ) {
+				order->setStatusMsg( reject_msg );
+			}
+
 		} else if ( exec_type == FIX::ExecType_CANCELED ) {
-			// order has been cancelled (4)
-			
+			/// 
+			/// order has been cancelled (4)
+			/// Canceled order with or without executions
+			/// 
+			order->setStatus( enums::OrderStatus::CANCELED );
+
 		} else if ( exec_type == FIX::ExecType_NEW ) {
-			// order has been received (0)
-			
+			/// 
+			/// order has been received (0)
+			/// Outstanding order with no executions
+			/// 
+			order->setStatus( enums::OrderStatus::NEW );
+
+		} else if ( exec_type == FIX::ExecType_STOPPED ) {
+			///
+			/// order has been stopped (6)
+			/// Order has been stopped at the exchange. Used when guranteeing or protecting a price and quantity
+			/// 
+			order->setStatus( enums::OrderStatus::STOPPED );
 
 		}
 
+		// API Callback
+		onExchangeOrder( std::move( order ) );
+		
 		// FIX::ExecType execType;
 		// FIX::OrdStatus ordStatus;
 		// FIX::OrdType ordType;
@@ -719,7 +795,33 @@ namespace idefix {
 	 * @param const std::string& symbol
 	 */
 	void FXCM::subscribeMarketData(const std::string& symbol) {
-		sendMarketDataSubscription( symbol );
+		// Subscribe to market data for EUR/USD
+		string request_ID = symbol + "_Request_";
+		FIX44::MarketDataRequest request;
+		request.setField( MDReqID( request_ID ) );
+		request.setField( SubscriptionRequestType( SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES ) );
+		request.setField( MarketDepth( 0 ) );
+		request.setField( NoRelatedSym( 1 ) );
+
+		// Add the NoRelatedSym group to the request with Symbol
+		// field set to EUR/USD
+		FIX44::MarketDataRequest::NoRelatedSym symbols_group;
+		symbols_group.setField( Symbol( symbol ) );
+		request.addGroup( symbols_group );
+
+		// Add the NoMDEntryTypes group to the request for each MDEntryType
+		// that we are subscribing to. This includes Bid, Offer, High, and Low
+		FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
+		entry_types.setField( MDEntryType( MDEntryType_BID ) );
+		request.addGroup( entry_types );
+		entry_types.setField( MDEntryType( MDEntryType_OFFER ) );
+		request.addGroup( entry_types );
+		entry_types.setField( MDEntryType( MDEntryType_TRADING_SESSION_HIGH_PRICE ) );
+		request.addGroup( entry_types );
+		entry_types.setField( MDEntryType( MDEntryType_TRADING_SESSION_LOW_PRICE ) );
+		request.addGroup( entry_types );
+
+		Session::sendToTarget( request, getSessID( "market" ) );
 	}
 
 	/**
@@ -728,7 +830,189 @@ namespace idefix {
 	 * @param const std::string& symbol
 	 */
 	void FXCM::unsubscribeMarketData(const std::string& symbol) {
-		sendMarketDataUnsubscription( symbol );
+		// Unsubscribe from EUR/USD. Note that our request_ID is the exact same
+		// that was sent for our request to subscribe. This is necessary to 
+		// unsubscribe. This request below is identical to our request to subscribe
+		// with the exception that SubscriptionRequestType is set to
+		// "SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST"
+		string request_ID = symbol + "_Request_";
+		FIX44::MarketDataRequest request;
+		request.setField( MDReqID(request_ID ) );
+		request.setField( SubscriptionRequestType ( SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST ) );
+		request.setField( MarketDepth( 0 ) );
+		request.setField( NoRelatedSym( 1 ) );
+
+		// Add the NoRelatedSym group to the request with Symbol
+		// field set to EUR/USD
+		FIX44::MarketDataRequest::NoRelatedSym symbols_group;
+		symbols_group.setField( Symbol( symbol ) );
+		request.addGroup( symbols_group );
+
+		// Add the NoMDEntryTypes group to the request for each MDEntryType
+		// that we are subscribing to. This includes Bid, Offer, High, and Low
+		FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
+		entry_types.setField( MDEntryType( MDEntryType_BID ) );
+		request.addGroup( entry_types );
+		entry_types.setField( MDEntryType( MDEntryType_OFFER ) );
+		request.addGroup( entry_types );
+		entry_types.setField( MDEntryType( MDEntryType_TRADING_SESSION_HIGH_PRICE ) );
+		request.addGroup( entry_types );
+		entry_types.setField( MDEntryType( MDEntryType_TRADING_SESSION_LOW_PRICE ) );
+		request.addGroup( entry_types );
+
+		Session::sendToTarget( request, getSessID( "market" ) );
+	}
+
+	/**
+	 * NetworkAdapter Interface -> sendOrder
+	 * 
+	 * @param const std::shared_ptr<Order> order
+	 */
+	void FXCM::sendOrder(const std::shared_ptr<Order> order) {
+
+		if ( order->getAccountID().empty() ) {
+			onExchangeError( "sendOrder: AccountID is empty." );
+			return;
+		}
+
+		// check if we want to send only a single order or a combined order with stoploss and optional
+		// take profit level
+		if ( ( order->getStopPrice() > 0 && order->getLimitPrice() > 0 ) || ( order->getStopPrice() > 0 && order->getLimitPrice() == 0 ) ) {
+			// combined order
+			
+			FIX44::NewOrderList request;
+			request.setField( FIX::ListID( nextRequestID() ) );
+			request.setField( FIX::TotNoOrders( 3 ) );
+			request.setField( FIX::FIELD::ContingencyType, "101" ); // ELS - Entry with Limit and Stop
+
+			// Entry (market)
+			FIX44::NewOrderList::NoOrders entry;
+			entry.setField( FIX::ClOrdID( nextRequestID() ) );
+			entry.setField( FIX::ListSeqNo( 0 ) );
+			entry.setField( FIX::ClOrdLinkID( "1" ) ); // link to another clordid in list
+			entry.setField( FIX::Account( order->getAccountID() ) );
+			entry.setField( FIX::Symbol( order->getSymbol() ) );
+			entry.setField( FIX::Side( order->isBuy() ? FIX::Side_BUY : FIX::Side_SELL ) );
+			entry.setField( FIX::OrderQty( order->getQuantity() ) );
+			switch ( order->getType() ) {
+				default:
+				case enums::OrderType::MARKET: 
+					// MARKET ORDER
+					entry.setField( FIX::OrdType( FIX::OrdType_MARKET ) );
+					break;
+				case enums::OrderType::LIMIT: 
+					// LIMIT ORDER
+					entry.setField( FIX::OrdType( FIX::OrdType_LIMIT ) );
+					break;
+				case enums::OrderType::STOP: 
+					// STOP ORDER
+					entry.setField( FIX::OrdType( FIX::OrdType_STOP ) );
+					entry.setField( FIX::StopPx( order->getStopPrice() ) );
+					entry.setField( FIX::PositionEffect( FIX::PositionEffect_CLOSE ) );
+					break;
+				case enums::OrderType::TRAIL: 
+					// NOT SUPPORTED IN ELS ORDER
+					onExchangeError( "sendOrder: TRAIL is not supported as ELS entry order!" );
+					return;
+					break;
+				case enums::OrderType::CLOSE:
+					// NOT SUPPORTED in ELS ORDER
+					onExchangeError( "sendOrder: CLOSE is not supported as ELS entry order!" );
+					return;
+					break;
+			}
+			request.addGroup( entry );
+
+			// Stoploss (stop)
+			FIX44::NewOrderList::NoOrders stop;
+			stop.setField( FIX::ClOrdID( nextRequestID() ) );
+			stop.setField( FIX::ListSeqNo( 1 ) );
+			stop.setField( FIX::ClOrdLinkID( "2" ) );
+			stop.setField( FIX::Account( order->getAccountID() ) );
+			stop.setField( FIX::Side( order->isBuy() ? FIX::Side_SELL : FIX::Side_BUY ) );
+			stop.setField( FIX::Symbol( order->getSymbol() ) );
+			stop.setField( FIX::OrderQty( order->getQuantity() ) );
+			stop.setField( FIX::OrdType( FIX::OrdType_STOP ) );
+			stop.setField( FIX::StopPx( order->getStopPrice() ) );
+			request.addGroup( stop );
+
+			// take profit (limit)
+			if ( order->getLimitPrice() > 0 ) {
+				FIX44::NewOrderList::NoOrders limit;
+				limit.setField( FIX::ClOrdID( nextRequestID() ) );
+				limit.setField( FIX::ListSeqNo( 2 ) );
+				limit.setField( FIX::ClOrdLinkID( "2" ) );
+				limit.setField( FIX::Account( order->getAccountID() ) );
+				limit.setField( FIX::Side( order->isBuy() ? FIX::Side_SELL : FIX::Side_BUY ) );
+				limit.setField( FIX::Symbol( order->getSymbol() ) );
+				limit.setField( FIX::OrderQty( order->getQuantity() ) );
+				limit.setField( FIX::OrdType( FIX::OrdType_LIMIT ) );
+				limit.setField( FIX::Price( order->getLimitPrice() ) );
+				request.addGroup( limit );	
+			}
+			
+			// send to target
+			Session::sendToTarget( request, getSessID( "order" ) );
+			return;
+		} 
+
+		// single market order
+		FIX44::NewOrderSingle request;
+		request.setField( FIX::ClOrdID( nextRequestID() ) );
+		request.setField( FIX::Account( order->getAccountID() ) );
+		request.setField( FIX::Symbol( order->getSymbol() ) );
+		request.setField( FIX::TradingSessionID( "FXCM" ) );
+		request.setField( FIX::TransactTime() );
+		request.setField( FIX::OrderQty( order->getQuantity() ) );
+		request.setField( FIX::Side( ( order->isBuy() ? FIX::Side_BUY : FIX::Side_SELL ) ) );		
+
+		// Time in Force
+		switch( order->getTIF() ) {
+			default:
+			case enums::TIF::FOK: // Fill or Kill
+				request.setField( FIX::TimeInForce( FIX::TimeInForce_FILL_OR_KILL ) );
+				break;
+			case enums::TIF::DAY: // Day, expires on the end of the day
+				request.setField( FIX::TimeInForce( FIX::TimeInForce_DAY ) );
+				break;
+			case enums::TIF::GTC: // Good till cancel
+				request.setField( FIX::TimeInForce( FIX::TimeInForce_GOOD_TILL_CANCEL ) );
+				break;
+		}
+
+		// Order Type
+		switch ( order->getType() ) {
+			default:
+			case enums::OrderType::MARKET: 
+				// MARKET ORDER
+				request.setField( FIX::OrdType( FIX::OrdType_MARKET ) );
+				break;
+			case enums::OrderType::LIMIT: 
+				request.setField( FIX::OrdType( FIX::OrdType_LIMIT ) );
+				break;
+			case enums::OrderType::STOP: 
+				request.setField( FIX::OrdType( FIX::OrdType_STOP ) );
+				request.setField( FIX::StopPx( order->getEntryPrice() ) );
+				request.setField( FIX::PositionEffect( FIX::PositionEffect_CLOSE ) );
+				break;
+			case enums::OrderType::TRAIL: 
+				/**
+				 * @todo implement trailing stop
+				 */
+				onExchangeWarning( "sendOrder: Trail is not implemented!" );
+				return;
+				break;
+			case enums::OrderType::CLOSE:
+				if ( order->getOrderID().empty() ) {
+					onExchangeError( "sendOrder: OrderID is empty." );
+					return;
+				}
+				request.setField( FXCM_FIX_FIELDS::FXCM_POS_ID, order->getOrderID() );
+				break;
+		}
+
+		// send to target
+		Session::sendToTarget( request, getSessID( "order" ) );
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -818,80 +1102,6 @@ namespace idefix {
 			// Send request
 			Session::sendToTarget( request, getSessID( "order" ) );
 		}
-	}
-
-	/**
-	 * Subscribes to a trading security
-	 * 
-	 * @param const std::string& symbol 
-	 */
-	void FXCM::sendMarketDataSubscription(const std::string& symbol) {
-		// Subscribe to market data for EUR/USD
-		string request_ID = symbol + "_Request_";
-		FIX44::MarketDataRequest request;
-		request.setField( MDReqID( request_ID ) );
-		request.setField( SubscriptionRequestType( SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES ) );
-		request.setField( MarketDepth( 0 ) );
-		request.setField( NoRelatedSym( 1 ) );
-
-		// Add the NoRelatedSym group to the request with Symbol
-		// field set to EUR/USD
-		FIX44::MarketDataRequest::NoRelatedSym symbols_group;
-		symbols_group.setField( Symbol( symbol ) );
-		request.addGroup( symbols_group );
-
-		// Add the NoMDEntryTypes group to the request for each MDEntryType
-		// that we are subscribing to. This includes Bid, Offer, High, and Low
-		FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
-		entry_types.setField( MDEntryType( MDEntryType_BID ) );
-		request.addGroup( entry_types );
-		entry_types.setField( MDEntryType( MDEntryType_OFFER ) );
-		request.addGroup( entry_types );
-		entry_types.setField( MDEntryType( MDEntryType_TRADING_SESSION_HIGH_PRICE ) );
-		request.addGroup( entry_types );
-		entry_types.setField( MDEntryType( MDEntryType_TRADING_SESSION_LOW_PRICE ) );
-		request.addGroup( entry_types );
-
-		Session::sendToTarget( request, getSessID( "market" ) );
-	}
-
-	/**
-	 * Unsubscribe from a trading security
-	 * 
-	 * @param const std::string& symbol 
-	 */
-	void FXCM::sendMarketDataUnsubscription(const std::string& symbol) {
-		// Unsubscribe from EUR/USD. Note that our request_ID is the exact same
-		// that was sent for our request to subscribe. This is necessary to 
-		// unsubscribe. This request below is identical to our request to subscribe
-		// with the exception that SubscriptionRequestType is set to
-		// "SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST"
-		string request_ID = symbol + "_Request_";
-		FIX44::MarketDataRequest request;
-		request.setField( MDReqID(request_ID ) );
-		request.setField( SubscriptionRequestType ( SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST ) );
-		request.setField( MarketDepth( 0 ) );
-		request.setField( NoRelatedSym( 1 ) );
-
-		// Add the NoRelatedSym group to the request with Symbol
-		// field set to EUR/USD
-		FIX44::MarketDataRequest::NoRelatedSym symbols_group;
-		symbols_group.setField( Symbol( symbol ) );
-		request.addGroup( symbols_group );
-
-		// Add the NoMDEntryTypes group to the request for each MDEntryType
-		// that we are subscribing to. This includes Bid, Offer, High, and Low
-		FIX44::MarketDataRequest::NoMDEntryTypes entry_types;
-		entry_types.setField( MDEntryType( MDEntryType_BID ) );
-		request.addGroup( entry_types );
-		entry_types.setField( MDEntryType( MDEntryType_OFFER ) );
-		request.addGroup( entry_types );
-		entry_types.setField( MDEntryType( MDEntryType_TRADING_SESSION_HIGH_PRICE ) );
-		request.addGroup( entry_types );
-		entry_types.setField( MDEntryType( MDEntryType_TRADING_SESSION_LOW_PRICE ) );
-		request.addGroup( entry_types );
-
-		Session::sendToTarget( request, getSessID( "market" ) );
 	}
 
 	/**

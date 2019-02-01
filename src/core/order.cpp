@@ -2,7 +2,7 @@
 
 namespace idefix {
 Order::Order() {}
-	
+
 // Determines if this is a buy order.
 bool Order::isBuy() const {
 	return m_action == enums::OrderAction::BUY;
@@ -25,7 +25,7 @@ bool Order::isCancelled() const {
 
 // Gets the type of order (Marker, Limit, Stop, Trail).
 enums::OrderType Order::getType() const {
-	return m_type;
+	return m_order_type;
 }
 
 // Gets the Time In Force for this order.
@@ -38,6 +38,11 @@ enums::OrderAction Order::getAction() const {
 	return m_action;
 }
 
+// Gets the status of this order (NEW, FILLED, REMOVED, STOPPED, UPDATE)
+enums::OrderStatus Order::getStatus() const {
+	return m_order_status;
+}
+
 // Gets the reference ID for the order.
 std::string Order::getReferenceID() const {
 	return m_ref_id;
@@ -48,9 +53,14 @@ double Order::getQuantity() const {
 	return m_quantity;
 }
 
-// Gets the unique identifier for this order.
+// Gets the unique identifier for this order from exchange side..
 std::string Order::getOrderID() const {
 	return m_order_id;
+}
+
+// Gets the unique identifier for this order from client side.
+std::string Order::getClientOrderID() const {
+	return m_client_order_id;
 }
 
 // Gets the stop price for the order (null if not a stop order).
@@ -88,8 +98,28 @@ std::string Order::getSymbol() const {
 	return m_symbol;
 }
 
+// Gets the status message if available
+std::string Order::getStatusMsg() const {
+	return m_status_msg;
+}
+
+// Gets the pips (points) gained/lost
+double Order::getPips() const {
+	return 0;
+}
+
+// Gets the profit or loss associated with this trade.
+double Order::getPnL() const {
+	return 0;
+}
+
+// Gets the entry price.
+double Order::getEntryPrice() const {
+	return m_entry_price;
+}
+
 void Order::setType(const enums::OrderType type) {
-	m_type = type;
+	m_order_type = type;
 }
 
 void Order::setAction(const enums::OrderAction action) {
@@ -98,6 +128,10 @@ void Order::setAction(const enums::OrderAction action) {
 
 void Order::setTIF(const enums::TIF tif) {
 	m_tif = tif;
+}
+
+void Order::setStatus(const enums::OrderStatus status) {
+	m_order_status = status;
 }
 
 void Order::setReferenceID(const std::string refid) {
@@ -110,6 +144,10 @@ void Order::setQuantity(const double qty) {
 
 void Order::setOrderID(const std::string orderid) {
 	m_order_id = orderid;
+}
+
+void Order::setClientOrderID(const std::string orderid) {
+	m_client_order_id = orderid;
 }
 
 void Order::setStopPrice(const double price) {
@@ -138,6 +176,14 @@ void Order::setAccountID(const std::string accountid) {
 
 void Order::setSymbol(const std::string symbol) {
 	m_symbol = symbol;
+}
+
+void Order::setEntryPrice(const double price) {
+	m_entry_price = price;
+}
+
+void Order::setStatusMsg(const std::string msg) {
+	m_status_msg = msg;
 }
 
 };

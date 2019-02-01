@@ -2,7 +2,7 @@
 set(FXCM_LIB_TARGET fxcm)
 
 # set source files
-set(FXCM_SRC_FILES "fxcm.cpp;${CMAKE_HOME_DIRECTORY}/src/core/exchangetypes.h;${CMAKE_HOME_DIRECTORY}/src/core/instrument.cpp;${CMAKE_HOME_DIRECTORY}/src/core/order.cpp;${CMAKE_HOME_DIRECTORY}/src/core/execution.cpp;")
+set(FXCM_SRC_FILES "fxcm.cpp;${CMAKE_HOME_DIRECTORY}/src/core/exchangetypes.h;${CMAKE_HOME_DIRECTORY}/src/core/instrument.cpp;${CMAKE_HOME_DIRECTORY}/src/core/order.cpp;")
 
 # add library
 add_library(${FXCM_LIB_TARGET} MODULE ${FXCM_SRC_FILES})

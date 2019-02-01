@@ -11,7 +11,6 @@
 #include "exchangetypes.h"
 #include "instrument.h"
 #include "order.h"
-#include "execution.h"
 
 namespace idefix { 
 class Adapter {
@@ -51,6 +50,7 @@ public:
 	virtual void disconnect() noexcept {}
 	virtual void subscribeMarketData(const std::string& symbol) {}
 	virtual void unsubscribeMarketData(const std::string& symbol) {}
+	virtual void sendOrder(const std::shared_ptr<Order> order) {}
 
 	// if a new instrument list is available
 	nod::signal<void(const std::vector<Instrument> instruments)> onExchangeInstrumentList;
@@ -82,20 +82,14 @@ public:
 	nod::signal<void(const ExchangeCollateralSettingsMap map)> onExchangeCollateralSettings;
 	// if the exchange responds with a detailed position report
 	nod::signal<void(const ExchangePositionReport report)> onExchangePositionReport;
+	// if the exchange responds with a position report ack, for no positions
+	nod::signal<void(const std::string msg)> onExchangePositionReportAck;
 	// if the exchange responds with marketDataRequestReject
 	nod::signal<void(const std::string reason)> onExchangeMarketDataReject;
 	// if the exchange responds with a MarketDataSnapshot
 	nod::signal<void(const ExchangeTick tick)> onExchangeTick;
-	// if the exchange responds with an ExecutionReport
-	//nod::signal<void(const enums::ExchangeOrderEvent event, const Order order)> onExchangeOrder;
-	// if the exchange responds with a new order
-	nod::signal<void(std::shared_ptr<Order> order)> onExchangeOrderNew;
-	// if the exchange responds with a filled order
-	nod::signal<void(std::shared_ptr<Execution> execution)> onExchangeOrderFilled;
-	// if the exchange responds with a cancelled order
-	nod::signal<void(std::shared_ptr<Order> order)> onExchangeOrderCancelled;
-	// if the exchange responds with a rejected order
-	nod::signal<void(std::shared_ptr<Order> order)> onExchangeOrderRejected;
+	// if the exchange responds with an order change
+	nod::signal<void(std::shared_ptr<Order> order)> onExchangeOrder;
 };
 
 };

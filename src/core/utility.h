@@ -5,6 +5,7 @@
 #include <variant>
 #include <unordered_map>
 #include <algorithm>
+#include <vector>
 
 namespace idefix {
 
@@ -68,6 +69,20 @@ template <typename V> const typename V::value_type& FindInSet(std::shared_ptr<V>
 	if ( ! set ) return kValue;
 	auto it = set->find( key );
 	if ( it == set->end() ) return kValue;
+	return *it;
+}
+
+/**
+ * Find in vector
+ * 
+ * @param const V& vector 
+ * @param const typename V::value_type& key
+ * @return const typename V::value_type&
+ */
+template <typename V> const typename V::value_type& FindInVector(const V& vector, const typename V::value_key& key) {
+	static const typename V::value_key kValue{};
+	auto it = std::find( vector.begin(), vector.end(), key );
+	if ( it == vector.end() ) return kValue;
 	return *it;
 }
 

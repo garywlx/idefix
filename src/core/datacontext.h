@@ -11,9 +11,9 @@
 #include "core/instrument.h"
 #include "core/exchangetypes.h"
 #include "core/utility.h"
-#include "core/execution.h"
 #include "core/order.h"
 #include "core/enums.h"
+#include "core/account.h"
 
 namespace idefix {
 class DataContext {
@@ -24,6 +24,8 @@ public:
 	/// DATA MANAGEMENT
 	/// 
 	
+	// get account list
+	std::vector< std::shared_ptr<Account> > getAccounts();
 	// get instrument list
 	std::vector< std::shared_ptr<Instrument> > getInstruments();
 	// get instrument
@@ -51,28 +53,36 @@ public:
 	/// ORDER MANAGEMENT
 	/// 
 
+	// Send order to exchange
+	// @param const std::string symbol
+	// @param const enums::OrderAction action
+	// @param const double qty
+	// @param const double price = 0 == market | > 0 == pending order
+	// @param const double sl = 0 == no sl | > 0 == stop order
+	// @param const double tp = 0 == no tp | > 0 == limit order
+	void createOrder(const std::string symbol, const enums::OrderAction action, const double qty, const double price = 0, const double sl = 0, const double tp = 0);
 	// Cancels all of the open orders for this instrument
 	void cancelOrders(std::shared_ptr<Instrument> instrument);
 	// Use this method to cancel one or more existing orders.
 	void cancelOrders(const std::vector<Order> orders);
+	// Close order
+	void closeOrder(const std::string& order_id);
 	// Creates a new 'Market' order.
-	std::shared_ptr<Order> createMarketOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, double qty);
-	// Creates a new 'Market' order with reference id.
-	std::shared_ptr<Order> createMarketOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, double qty);
-	// Creates a new 'Stop' order.
-	std::shared_ptr<Order> createStopOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double stop_price);
-	// Creates a new 'Stop' order with reference id.
-	std::shared_ptr<Order> createStopOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double stop_price);
-	// Creates a new 'Limit' order.
-	std::shared_ptr<Order> createLimitOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double limit_price);
-	// Creates a new 'Limit' order with reference id.
-	std::shared_ptr<Order> createLimitOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double limit_price);
+	// std::shared_ptr<Order> createMarketOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, double qty);
+	// // Creates a new 'Market' order with reference id.
+	// std::shared_ptr<Order> createMarketOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, double qty);
+	// // Creates a new 'Stop' order.
+	// std::shared_ptr<Order> createStopOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double stop_price);
+	// // Creates a new 'Stop' order with reference id.
+	// std::shared_ptr<Order> createStopOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double stop_price);
+	// // Creates a new 'Limit' order.
+	// std::shared_ptr<Order> createLimitOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double limit_price);
+	// // Creates a new 'Limit' order with reference id.
+	// std::shared_ptr<Order> createLimitOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double limit_price);
 	// Submit orders
-	void submitOrders(const std::vector<Order> orders);
+	// void submitOrders(const std::vector<Order> orders);
 	// Gets the list of active orders
 	std::vector< std::shared_ptr<Order> > getActiveOrders();
-	// Gets the list of active executions
-	std::vector< std::shared_ptr<Execution> > getActiveExecutions();
 
 	///
 	/// SIGNALS
@@ -81,6 +91,10 @@ public:
 	nod::signal<void()> onConnected;
 	nod::signal<void()> onDisconnected;
 	nod::signal<void()> onReady;
+	nod::signal<void(std::shared_ptr<Order> order)> onOrderChange;
+	nod::signal<void(const std::string msg)> onError;
+	nod::signal<void(const std::string msg)> onSuccess;
+	nod::signal<void(const std::string msg)> onWarning;
 
 	/// 
 	/// SLOTS
@@ -102,6 +116,7 @@ public:
 	void slotExchangePositionReport(const ExchangePositionReport report);
 	void slotExchangeMarketDataReject(const std::string reason);
 	void slotExchangeTick(const ExchangeTick tick);
+	void slotExchangeOrder(std::shared_ptr<Order> order);
 
 private:
 	// is the exchange connected?
@@ -120,13 +135,17 @@ private:
 	std::shared_ptr<DataContext> m_datacontext_ptr;
 	// stores orders
 	std::vector< std::shared_ptr<Order> > m_order_list;
-	// stores executed orders
-	std::vector< std::shared_ptr<Execution> > m_execution_list;
+	// stores accounts
+	std::vector< std::shared_ptr<Account> > m_account_list;
 
+	// add account
+	void addAccount(std::shared_ptr<Account> account);
 	// add instrument
 	void addInstrument(std::shared_ptr<Instrument> instrument);
 	void addInstrument(const std::string& symbol);
 	// connect signals to slots
 	void connectNetworkSlots();
+	// remove order from order list
+	bool removeOrder(const std::string& order_id);
 };
 };

@@ -14,6 +14,15 @@ DataContext::DataContext(std::unique_ptr<NetworkAdapter> network_adapter): m_net
 /// ----------------------------------------------------------------------------------------------
 
 /**
+ * Gets account list
+ *
+ * @return std::vector<std::shared_ptr<Account>>
+ */
+std::vector< std::shared_ptr<Account> > DataContext::getAccounts() {
+	return m_account_list;
+}
+
+/**
  * Get instrument set
  * 
  * @return std::vector< std::shared_ptr<Instrument> >
@@ -37,7 +46,24 @@ std::shared_ptr<Instrument> DataContext::getInstrument(const std::string& symbol
 	if ( it == m_instrument_list.end() ) return nullptr;
 	return *it;
 }
- 
+
+/**
+ * Add account
+ * 
+ * @param std:shared_ptr<Account> account
+ */
+void DataContext::addAccount(std::shared_ptr<Account> account) {
+	std::lock_guard<std::mutex> lock( m_mutex );
+
+	auto it = std::find_if( m_account_list.begin(), m_account_list.end(), [&]( std::shared_ptr<Account> lh) {
+		return lh->getAccountID() == account->getAccountID();
+	});
+
+	if ( it != m_account_list.end() ) return;
+
+	m_account_list.push_back( std::move( account ) );
+}
+
 /**
  * Add instrument
  * 
@@ -147,6 +173,91 @@ bool DataContext::isTradingDeskOpen() {
 /// ----------------------------------------------------------------------------------------------
 
 /**
+ * Send order to exchange
+ * 
+ * @param const std::string symbol
+ * @param const enums::OrderAction action
+ * @param const double qty
+ * @param const double price = 0 == market | > 0 == pending order
+ * @param const double sl = 0 == no sl | > 0 == stop order
+ * @param const double tp = 0 == no tp | > 0 == limit order
+ */
+void DataContext::createOrder(const std::string symbol, const enums::OrderAction action, const double qty, const double price, const double sl, const double tp) {
+	if ( symbol.empty() ) {
+		onError( "sendOrder: symbol is empty." );
+		return;
+	}
+
+	if ( qty <= 0 ) {
+		onError( "sendOrder: qty is <= 0." );
+		return;
+	}
+
+	auto accounts = getAccounts();
+	if ( accounts.size() == 0 ) {
+		onError( "sendOrder: Account list is empty." );
+		return;
+	}
+
+	auto order = std::make_shared<Order>();
+	order->setAction( action );
+	order->setSymbol( symbol );
+	order->setQuantity( qty );
+	order->setAccountID( accounts.at( 0 )->getAccountID() );
+
+	if ( price == 0 ) {
+		order->setType( enums::OrderType::MARKET );
+	} 
+
+	if ( sl > 0 ) {
+		order->setStopPrice( sl );
+	}
+
+	if ( tp > 0 ) {
+		order->setLimitPrice( tp );
+	}
+
+	order->setTIF( enums::TIF::FOK );
+
+	// send order
+	m_network_ptr->sendOrder( std::move( order ) );
+}
+
+/**
+ * Close filled order
+ * 
+ * @param const std::string& order_id
+ */
+void DataContext::closeOrder(const std::string& order_id) {
+	if ( order_id.empty() ) {
+		onError( "closeOrder: OrderID is empty." );
+		return;
+	}
+
+	auto order = std::make_shared<Order>();
+	order->setOrderID( order_id );
+	order->setType( enums::OrderType::CLOSE );
+
+	bool found = false;
+	for ( auto& active_order : m_order_list ) {
+		if ( active_order->getOrderID() == order_id ) {
+			order->setQuantity( active_order->getQuantity() );
+			order->setTIF( active_order->getTIF() );
+			order->setAction( active_order->getAction() );
+			order->setAccountID( active_order->getAccountID() );
+			order->setSymbol( active_order->getSymbol() );
+			found = true;
+			break;
+		}
+	}
+
+	if ( found ) {
+		// send to exchange
+		m_network_ptr->sendOrder( std::move( order ) );
+	}
+}
+
+/**
  * Cancels all of the open orders for this instrument
  * 
  * @param std::shared_ptr<Instrument> instrument
@@ -176,97 +287,97 @@ void DataContext::cancelOrders(const std::vector<Order> orders) {
 
 }
 
-/**
- * Creates a new 'Market' order.
- * 
- * @param std::shared_ptr<Instrument> instrument 
- * @param enums::OrderAction          action
- * @param double                      qty
- * @return Order
- */
-std::shared_ptr<Order> DataContext::createMarketOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, double qty) {
-	return nullptr;
-}
+// /**
+//  * Creates a new 'Market' order.
+//  * 
+//  * @param std::shared_ptr<Instrument> instrument 
+//  * @param enums::OrderAction          action
+//  * @param double                      qty
+//  * @return Order
+//  */
+// std::shared_ptr<Order> DataContext::createMarketOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, double qty) {
+// 	return nullptr;
+// }
 
-/**
- * Creates a new 'Market' order with reference id.
- * 
- * @param std::shared_ptr<Instrument> instrument 
- * @param const std::string           ref_id
- * @param enums::OrderAction          action
- * @param double                      qty
- * @return Order
- */
-std::shared_ptr<Order> DataContext::createMarketOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, double qty) {
-	return nullptr;
-}
+// /**
+//  * Creates a new 'Market' order with reference id.
+//  * 
+//  * @param std::shared_ptr<Instrument> instrument 
+//  * @param const std::string           ref_id
+//  * @param enums::OrderAction          action
+//  * @param double                      qty
+//  * @return Order
+//  */
+// std::shared_ptr<Order> DataContext::createMarketOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, double qty) {
+// 	return nullptr;
+// }
 
-/**
- * Creates a new 'Stop' order.
- * 
- * @param std::shared_ptr<Instrument> instrument 
- * @param enums::OrderAction          action
- * @param enums::TIF                  tif
- * @param double                      qty
- * @param double                      stop_price
- * @return Order
- */
-std::shared_ptr<Order> DataContext::createStopOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double stop_price) {
-	return nullptr;
-}
+// /**
+//  * Creates a new 'Stop' order.
+//  * 
+//  * @param std::shared_ptr<Instrument> instrument 
+//  * @param enums::OrderAction          action
+//  * @param enums::TIF                  tif
+//  * @param double                      qty
+//  * @param double                      stop_price
+//  * @return Order
+//  */
+// std::shared_ptr<Order> DataContext::createStopOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double stop_price) {
+// 	return nullptr;
+// }
 
-/**
- * Creates a new 'Stop' order with reference id.
- * 
- * @param std::shared_ptr<Instrument> instrument 
- * @param const std::string           ref_id
- * @param enums::OrderAction          action
- * @param enums::TIF                  tif
- * @param double                      qty
- * @param double                      stop_price
- * @return Order
- */
-std::shared_ptr<Order> DataContext::createStopOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double stop_price) {
-	return nullptr;
-}
+// *
+//  * Creates a new 'Stop' order with reference id.
+//  * 
+//  * @param std::shared_ptr<Instrument> instrument 
+//  * @param const std::string           ref_id
+//  * @param enums::OrderAction          action
+//  * @param enums::TIF                  tif
+//  * @param double                      qty
+//  * @param double                      stop_price
+//  * @return Order
+ 
+// std::shared_ptr<Order> DataContext::createStopOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double stop_price) {
+// 	return nullptr;
+// }
 
-/**
- * Creates a new 'Limit' order.
- * 
- * @param std::shared_ptr<Instrument> instrument 
- * @param enums::OrderAction          action
- * @param enums::TIF                  tif
- * @param double                      qty
- * @param double                      limit_price
- * @return Order
- */
-std::shared_ptr<Order> DataContext::createLimitOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double limit_price) {
-	return nullptr;
-}
+// /**
+//  * Creates a new 'Limit' order.
+//  * 
+//  * @param std::shared_ptr<Instrument> instrument 
+//  * @param enums::OrderAction          action
+//  * @param enums::TIF                  tif
+//  * @param double                      qty
+//  * @param double                      limit_price
+//  * @return Order
+//  */
+// std::shared_ptr<Order> DataContext::createLimitOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double limit_price) {
+// 	return nullptr;
+// }
 
-/**
- * Creates a new 'Limit' order with reference id.
- * 
- * @param std::shared_ptr<Instrument> instrument 
- * @param const std::string           ref_id
- * @param enums::OrderAction          action
- * @param enums::TIF                  tif
- * @param double                      qty
- * @param double                      limit_price
- * @return Order
- */
-std::shared_ptr<Order> DataContext::createLimitOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double limit_price) {
-	return nullptr;
-}
+// /**
+//  * Creates a new 'Limit' order with reference id.
+//  * 
+//  * @param std::shared_ptr<Instrument> instrument 
+//  * @param const std::string           ref_id
+//  * @param enums::OrderAction          action
+//  * @param enums::TIF                  tif
+//  * @param double                      qty
+//  * @param double                      limit_price
+//  * @return Order
+//  */
+// std::shared_ptr<Order> DataContext::createLimitOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double limit_price) {
+// 	return nullptr;
+// }
 
-/**
- * Submit orders
- * 
- * @param const std::vector<Order> orders
- */
-void DataContext::submitOrders(const std::vector<Order> orders) {
+// /**
+//  * Submit orders
+//  * 
+//  * @param const std::vector<Order> orders
+//  */
+// void DataContext::submitOrders(const std::vector<Order> orders) {
 
-}
+// }
 
 /**
  * Gets the list of active orders
@@ -275,15 +386,6 @@ void DataContext::submitOrders(const std::vector<Order> orders) {
  */
 std::vector< std::shared_ptr<Order> > DataContext::getActiveOrders() {
 	return m_order_list;
-}
-
-/**
- * Gets the list of active executions
- *
- * @return std::vector< std::shared_ptr<Execution> >
- */
-std::vector< std::shared_ptr<Execution> > DataContext::getActiveExecutions() {
-	return m_execution_list;
 }
 
 
@@ -427,7 +529,12 @@ void DataContext::slotExchangeTradingDeskChange(const bool open) {
  * @param const std::string accountid 
  */
 void DataContext::slotExchangeAccountID(const std::string accountid) {
-	SPDLOG_INFO("AccountID: {}", accountid );
+	// add account to account list
+	auto account = std::make_shared<Account>();
+	account->setAccountID( accountid );
+	account->setBalance( 0 );
+
+	addAccount( std::move( account ) );
 }
 
 /**
@@ -437,6 +544,19 @@ void DataContext::slotExchangeAccountID(const std::string accountid) {
  * @param const double      balance
  */
 void DataContext::slotExchangeBalanceChanged(const std::string accountid, const double balance) {
+	std::lock_guard<std::mutex> lock( m_mutex );
+
+	auto it = std::find_if( m_account_list.begin(), m_account_list.end(), [&](const std::shared_ptr<Account> lh){
+		return lh->getAccountID() == accountid;
+	});
+
+	if ( it == m_account_list.end() ) {
+		onError( fmt::format( "Account {} not found.", accountid ) );
+		return;
+	}
+
+	(*it)->setBalance( balance );
+
 	SPDLOG_INFO("Account: {} Balance: {:.2f}", accountid, balance );
 }
 
@@ -473,6 +593,87 @@ void DataContext::slotExchangeTick(const ExchangeTick tick) {
 	onTick( instrument );
 }
 
+/**
+ * Slot when exchange signals a change on order
+ * 
+ * @param std::shared_ptr<Order> order
+ */
+void DataContext::slotExchangeOrder(std::shared_ptr<Order> order) {
+	std::lock_guard<std::mutex> lock( m_mutex );
+
+	if ( order->getStatus() == enums::OrderStatus::NEW ) {
+		// New Order arrived at exchange
+		// try to add this one to the active orders list
+		auto it = std::find_if( m_order_list.begin(), m_order_list.end(), [&](const std::shared_ptr<Order> lh_order) {
+			return ( lh_order->getOrderID() == order->getOrderID() || lh_order->getClientOrderID() == order->getClientOrderID() );
+		});	
+
+		if ( it == m_order_list.end() ) {
+			// not found, add to list
+			m_order_list.push_back( order );
+
+			onSuccess( fmt::format( "Order {} changed to status new.", order->getOrderID() ) );
+		}
+	} else if ( order->getStatus() == enums::OrderStatus::REJECTED ) {
+		// Order has been rejected
+		// try to find the order and remove it from list
+		
+		onError( fmt::format( "Order {} has been rejected.", order->getOrderID() ) );
+	} else if ( order->getStatus() == enums::OrderStatus::CANCELED ) {
+		// Order has been CANCELED
+		// try to find the order and remove it from list
+		
+		if ( removeOrder( order->getOrderID() ) ) {
+			onSuccess( fmt::format( "Order {} has been canceled.", order->getOrderID() ) );	
+		}
+	} else if ( order->getStatus() == enums::OrderStatus::STOPPED ) {
+		// Order has been STOPPED
+		// try to find the order and remove it from list
+		
+		if ( removeOrder( order->getOrderID() ) ) {
+			onSuccess( fmt::format( "Order {} has been stopped.", order->getOrderID() ) );
+		}
+	} else if ( order->getStatus() == enums::OrderStatus::FILLED || order->getStatus() == enums::OrderStatus::PARTIAL_FILLED ) {
+		// Order has been FILLED || PARTIAL FILLED
+		// try to find the order and update
+		
+		auto it = std::find_if( m_order_list.begin(), m_order_list.end(), [&](const std::shared_ptr<Order> lh_order){
+			return ( lh_order->getOrderID() == order->getOrderID() );
+		});
+
+		if ( it == m_order_list.end() ) {
+			// not found
+			onError( fmt::format( "Order {} not found.", order->getOrderID() ) );
+		} else {
+			auto list_order = *it;
+
+			list_order->setStatus( order->getStatus() );
+			list_order->setStatusMsg( order->getStatusMsg() );
+			list_order->setStopPrice( order->getStopPrice() );
+			list_order->setLimitPrice( order->getLimitPrice() );
+			list_order->setEntryPrice( order->getEntryPrice() );
+			list_order->setLastFillPrice( order->getLastFillPrice() );
+			list_order->setLastFillTime( order->getLastFillTime() );
+			list_order->setFilled( order->getFilled() );
+
+			if ( order->getStatus() == enums::OrderStatus::PARTIAL_FILLED ) {
+				onSuccess( fmt::format( "Order {} has been partial filled.", order->getOrderID() ) );
+			} else {
+				onSuccess( fmt::format( "Order {} has been filled.", order->getOrderID() ) );	
+			}
+		}
+	} else {
+		// respond with error signal
+		onError( fmt::format( "Order {} status unknown.", order->getOrderID() ) );
+	}
+
+	// Signal
+	onOrderChange( order );
+}
+
+///
+/// PRIVATE METHODS
+/// 
 
 /**
  * Connect network signals with data context slots
@@ -515,11 +716,40 @@ void DataContext::connectNetworkSlots() {
 	m_network_ptr->onExchangeMarketDataReject.connect( std::bind( &DataContext::slotExchangeMarketDataReject, this, std::placeholders::_1 ) );
 	// Tick
 	m_network_ptr->onExchangeTick.connect( std::bind( &DataContext::slotExchangeTick, this, std::placeholders::_1 ) );
-
+	// Order change
+	m_network_ptr->onExchangeOrder.connect( std::bind( &DataContext::slotExchangeOrder, this, std::placeholders::_1 ) );
 }
 
+/**
+ * Gets status of connection
+ * 
+ * @return bool
+ */
 bool DataContext::isConnected() {
 	return m_is_connected;
 }
 
+/**
+ * Remove order from order list 
+ * 
+ * @param const std::string&  order_id
+ * @return bool
+ */
+bool DataContext::removeOrder(const std::string& order_id) {
+	std::lock_guard<std::mutex> lock( m_mutex );
+
+	auto it = std::find_if( m_order_list.begin(), m_order_list.end(), [&](std::shared_ptr<Order> order) {
+		return order->getOrderID() == order_id;
+	});
+
+	// not found
+	if ( it == m_order_list.end() ) {
+		onError( fmt::format( "removeOrder: order {} not found.", order_id ) );
+		return false;
+	}
+
+	m_order_list.erase( it );
+
+	return true;
+}
 };

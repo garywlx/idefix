@@ -2,7 +2,7 @@
 set(TICK70_LIB_TARGET "tick70")
 
 # set source files
-set(TICK70_SRC_FILES "tick70.cpp;${CMAKE_HOME_DIRECTORY}/src/core/datacontext.cpp;${CMAKE_HOME_DIRECTORY}/src/core/instrument.cpp;${CMAKE_HOME_DIRECTORY}/src/core/order.cpp")
+set(TICK70_SRC_FILES "tick70.cpp;${CMAKE_HOME_DIRECTORY}/src/core/datacontext.cpp;${CMAKE_HOME_DIRECTORY}/src/core/instrument.cpp;${CMAKE_HOME_DIRECTORY}/src/core/order.cpp;${CMAKE_HOME_DIRECTORY}/src/core/account.cpp;")
 
 # add library
 add_library(${TICK70_LIB_TARGET} MODULE ${TICK70_SRC_FILES})

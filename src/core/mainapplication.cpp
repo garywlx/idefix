@@ -52,6 +52,7 @@ namespace idefix {
 
 	/**
 	 * start MainApplication, initiate api and connect to exchange
+	 * blocking
 	 */
 	void MainApplication::start() {
 		// start thread with web api context
@@ -69,6 +70,39 @@ namespace idefix {
 			// connect to exchange
 			m_datacontext_ptr->connect();
 		}
+
+		// block thread
+		while( true ) {
+			SPDLOG_INFO( "MENU" );
+			SPDLOG_INFO( "0) Quit");
+			SPDLOG_INFO( "1) Trade Market");
+			SPDLOG_INFO( "2) Trade Market with SL");
+			SPDLOG_INFO( "3) Trade Market with SL and TP");
+			SPDLOG_INFO( "4) Close Trade");
+
+			std::string cmd;
+			std::cin >> cmd;
+
+			if ( cmd == "0" ) {
+				break;
+			} else if ( cmd == "1" ) {
+				SPDLOG_INFO( "Trade market" );
+			} else if ( cmd == "2" ) {
+				SPDLOG_INFO( "Trade Market with SL");
+			} else if ( cmd == "3" ) {
+				SPDLOG_INFO( "Trade Market with SL and TP");
+			} else if ( cmd == "4" ) {
+				std::string orderid;
+				std::cout << "Please enter order id: ";
+				std::cin >> orderid;
+
+				if ( ! orderid.empty() ) {
+					SPDLOG_INFO( "Close {}", orderid );
+				}
+			}
+		}
+
+		stop();
 	}
 
 	/**

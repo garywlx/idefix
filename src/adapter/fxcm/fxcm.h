@@ -127,19 +127,25 @@ public:
 	// void onMessage(const FIX44::AllocationReportAck& ack, const SessionID& sessionID);
 	// void onMessage(const FIX44::AllocationReport& ar, const SessionID& sessionID);
 
+	/// -----
+	/// NetworkAdapter API
+	/// -----
+
 	// Starts the FIX session. Throws FIX::ConfigError exception if our configuration settings
 	// do not pass validation required to construct SessionSettings 
 	void connect() noexcept;
 	// Logout and end session 
 	void disconnect() noexcept;
-
 	// subscribe to market data
 	void subscribeMarketData(const std::string& symbol);
 	// unsubscribe market data
 	void unsubscribeMarketData(const std::string& symbol);
-
 	// check wether there is a connection available
 	bool isConnected();
+	// send order to market
+	void sendOrder(const std::shared_ptr<Order> order);
+
+	
 private:
 	// Store sessions
 	typedef std::unordered_map<std::string, SessionID> SessionMap;
@@ -171,10 +177,6 @@ private:
 	void sendAccountsRequest();
 	// Send position request
 	void sendPositionRequest();
-	// Send market data subscription
-	void sendMarketDataSubscription(const std::string& symbol);
-	// Send market data unsubscription
-	void sendMarketDataUnsubscription(const std::string& symbol);
 
 };
 };

@@ -39,9 +39,9 @@ void Tick70::initialize(DataContext& ctx) {
 };
 
 void Tick70::onTick(DataContext& ctx, std::shared_ptr<Instrument> instrument) {
-	SPDLOG_INFO("{} Bid {} Ask {} Spread {} SpreadPoints {}", 
-		instrument->getSymbol(), instrument->format( instrument->getBidPrice() ), instrument->format( instrument->getAskPrice() ), 
-		instrument->format( instrument->getSpread() ), instrument->format( instrument->getSpreadPoints() ) );
+	// SPDLOG_INFO("{} Bid {} Ask {} Spread {} SpreadPoints {}", 
+	// 	instrument->getSymbol(), instrument->format( instrument->getBidPrice() ), instrument->format( instrument->getAskPrice() ), 
+	// 	instrument->format( instrument->getSpread() ), instrument->format( instrument->getSpreadPoints() ) );
 }
 
 };

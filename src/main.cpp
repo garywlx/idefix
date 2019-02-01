@@ -169,17 +169,8 @@ int main(int argc, char const *argv[])
 		mainApp.setWebContext( std::move( web_context ) );
 
 		// start application
-		mainApp.start();
-
-		while( true ) {
-			//if ( ! mainApp.isRunning() ) break;
-
-			int cmd = 0;
-			std::cin >> cmd;
-			break;
-		}
-
-		mainApp.stop();	
+		mainApp.start(); // blocking
+		
 	} catch( std::runtime_error& e ) {
 		SPDLOG_ERROR( "Runtime Error: {}", e.what() );
 		return EXIT_FAILURE;

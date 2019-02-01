@@ -9,7 +9,8 @@ namespace idefix {
 			LIMIT, // Limit Order
 			MARKET, // Market Order
 			STOP, // Stop Order
-			TRAIL // Trail Order
+			TRAIL, // Trail Order,
+			CLOSE // FXCM Close order
 		};
 
 		/**
@@ -17,7 +18,8 @@ namespace idefix {
 		 */
 		enum TIF {
 			DAY, // DAY (expires at the end of the trading day)
-			GTC // Good Till Cancelled
+			GTC, // Good Till Cancelled
+			FOK // Fill or Kill
 		};
 
 		/**
@@ -25,8 +27,10 @@ namespace idefix {
 		 */
 		enum OrderStatus {
 			NEW, 
-			FILLED, 
-			REMOVED, 
+			FILLED,
+			PARTIAL_FILLED,
+			CANCELED,
+			REJECTED, 
 			STOPPED,
 			UPDATE
 		};
@@ -47,25 +51,6 @@ namespace idefix {
 			CURRENCY = 4, 
 			INDEX = 7, 
 			COMMODITY = 2
-		};
-
-		// /**
-		//  * Exchange Order Events
-		//  */
-		// enum ExchangeOrderEvent {
-		//     MARKET_ORDER_SET_SL,
-		//     MARKET_ORDER_SET_TP,
-		//     MARKET_ORDER_CANCELED,
-		//     MARKET_ORDER_REJECT,
-		//     MARKET_ORDER_NEW,
-		//     MARKET_ORDER_TP_HIT,
-		//     MARKET_ORDER_SL_HIT
-		// };
-
-		enum ExecutionType {
-			ENTRY,
-			EXIT,
-			SAR // Stop and Reverse
 		};
 	};
 };
