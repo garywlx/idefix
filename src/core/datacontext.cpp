@@ -284,100 +284,30 @@ void DataContext::cancelOrders(std::shared_ptr<Instrument> instrument) {
  * @param const std::vector<Order> orders
  */
 void DataContext::cancelOrders(const std::vector<Order> orders) {
-
+	SPDLOG_WARN( "Not yet implemented." );
 }
 
-// /**
-//  * Creates a new 'Market' order.
-//  * 
-//  * @param std::shared_ptr<Instrument> instrument 
-//  * @param enums::OrderAction          action
-//  * @param double                      qty
-//  * @return Order
-//  */
-// std::shared_ptr<Order> DataContext::createMarketOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, double qty) {
-// 	return nullptr;
-// }
+/**
+ * request order status, leave orderid and symbol empty for status query for all orders on this accountid
+ * 
+ * @param const std::string& accountid 
+ * @param const std::string& orderid   default empty
+ * @param const std::string& symbol    default empty
+ */
+void DataContext::queryOrderStatus(const std::string& accountid, const std::string& orderid, const std::string& symbol) {
+	if ( accountid.empty() ) {
+		onError( "queryOrderStatus: accountID is empty." );
+		return;
+	}
 
-// /**
-//  * Creates a new 'Market' order with reference id.
-//  * 
-//  * @param std::shared_ptr<Instrument> instrument 
-//  * @param const std::string           ref_id
-//  * @param enums::OrderAction          action
-//  * @param double                      qty
-//  * @return Order
-//  */
-// std::shared_ptr<Order> DataContext::createMarketOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, double qty) {
-// 	return nullptr;
-// }
-
-// /**
-//  * Creates a new 'Stop' order.
-//  * 
-//  * @param std::shared_ptr<Instrument> instrument 
-//  * @param enums::OrderAction          action
-//  * @param enums::TIF                  tif
-//  * @param double                      qty
-//  * @param double                      stop_price
-//  * @return Order
-//  */
-// std::shared_ptr<Order> DataContext::createStopOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double stop_price) {
-// 	return nullptr;
-// }
-
-// *
-//  * Creates a new 'Stop' order with reference id.
-//  * 
-//  * @param std::shared_ptr<Instrument> instrument 
-//  * @param const std::string           ref_id
-//  * @param enums::OrderAction          action
-//  * @param enums::TIF                  tif
-//  * @param double                      qty
-//  * @param double                      stop_price
-//  * @return Order
- 
-// std::shared_ptr<Order> DataContext::createStopOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double stop_price) {
-// 	return nullptr;
-// }
-
-// /**
-//  * Creates a new 'Limit' order.
-//  * 
-//  * @param std::shared_ptr<Instrument> instrument 
-//  * @param enums::OrderAction          action
-//  * @param enums::TIF                  tif
-//  * @param double                      qty
-//  * @param double                      limit_price
-//  * @return Order
-//  */
-// std::shared_ptr<Order> DataContext::createLimitOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double limit_price) {
-// 	return nullptr;
-// }
-
-// /**
-//  * Creates a new 'Limit' order with reference id.
-//  * 
-//  * @param std::shared_ptr<Instrument> instrument 
-//  * @param const std::string           ref_id
-//  * @param enums::OrderAction          action
-//  * @param enums::TIF                  tif
-//  * @param double                      qty
-//  * @param double                      limit_price
-//  * @return Order
-//  */
-// std::shared_ptr<Order> DataContext::createLimitOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double limit_price) {
-// 	return nullptr;
-// }
-
-// /**
-//  * Submit orders
-//  * 
-//  * @param const std::vector<Order> orders
-//  */
-// void DataContext::submitOrders(const std::vector<Order> orders) {
-
-// }
+	if ( orderid.empty() && symbol.empty() ) {
+		// order mass status query
+		m_network_ptr->sendOrderMassStatusRequest( accountid );
+	} else {
+		// order status query
+		m_network_ptr->sendOrderStatusRequest( accountid, orderid, symbol );
+	}
+}
 
 /**
  * Gets the list of active orders

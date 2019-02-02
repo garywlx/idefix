@@ -51,6 +51,8 @@ public:
 	virtual void subscribeMarketData(const std::string& symbol) {}
 	virtual void unsubscribeMarketData(const std::string& symbol) {}
 	virtual void sendOrder(const std::shared_ptr<Order> order) {}
+	virtual void sendOrderStatusRequest(const std::string& accountid, const std::string& orderid, const std::string& symbol) {}
+	virtual void sendOrderMassStatusRequest(const std::string& accountid) {}
 
 	// if a new instrument list is available
 	nod::signal<void(const std::vector<Instrument> instruments)> onExchangeInstrumentList;

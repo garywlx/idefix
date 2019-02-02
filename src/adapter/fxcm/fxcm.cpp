@@ -159,6 +159,8 @@ namespace idefix {
 		    // API Callback
 		    std::string msg = fmt::format( "[fromAdmin:Reject] tagID {} msgType {}: {}", tagID, msgType, text );
     		onExchangeWarning( msg );
+
+    		SPDLOG_INFO( "fromAdmin MsgType_Reject {}", text );
 		}
 
 		// Call MessageCracker.crack method to handle the message by one of our
@@ -186,9 +188,36 @@ namespace idefix {
 		    // API Callback
 		    std::string msg = fmt::format( "[fromApp:Reject] tagID {} msgType {}: {}", tagID, msgType, text );
     		onExchangeWarning( msg );
+
+    		SPDLOG_INFO( "fromApp MsgType_Reject {}", text );
 		}
 
 		crack( message, sessionID );
+	}
+
+	/**
+	 * The Reject (3) message should be issued when a message is received but cannot be properly processed due to a 
+	 * session-level rule violation.
+	 * 
+	 * @param const FIX44::Reject& r
+	 * @param const SessionID&     sessionID
+	 */
+	void FXCM::onMessage(const FIX44::Reject& r, const SessionID& sessionID) {
+
+		std::string text = r.getField( FIELD::Text );
+		std::string tagid = r.getField( FIELD::RefTagID );
+		std::string msgtype = r.getField( FIELD::RefMsgType );
+
+		onExchangeWarning( fmt::format( "Reject: tagid {} msgtype {} text {}", tagid, msgtype, text) );
+	}
+
+	void FXCM::onMessage(const FIX44::BusinessMessageReject& msg, const SessionID& sessionID) {
+		std::string text = msg.getField( FIELD::Text );
+		std::string msgtype = msg.getField( FIELD::RefMsgType );
+		std::string reason = msg.getField( FIELD::BusinessRejectReason );
+		std::string refid  = msg.getField( FIELD::BusinessRejectRefID );
+
+		onExchangeWarning( fmt::format( "BusinessMessageReject: {} msgtype {} reason {} refid {}", text, msgtype, reason, refid ) );
 	}
 
 	/**
@@ -395,6 +424,8 @@ namespace idefix {
 		position_report.position_id   = pr.getField( FXCM_POS_ID );
 		position_report.pos_open_time = pr.getField( FXCM_POS_OPEN_TIME );
 
+		SPDLOG_INFO( "PositionReport" );
+
 		// API Callback
 		onExchangePositionReport( position_report );
 	}
@@ -474,6 +505,7 @@ namespace idefix {
 		std::string fxcm_pos_id = er.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
 		if ( fxcm_pos_id.empty() ) {
 			onExchangeError( "FIX44::ExecutionReport: FXCM PosID is empty!" );
+			SPDLOG_ERROR( "FIX44::ExecutionReport: FXCM PosID is empty!" );
 			return;
 		}
 
@@ -501,6 +533,8 @@ namespace idefix {
 		order->setAccountID( account_id );
 		order->setStatus( enums::OrderStatus::NEW );
 		order->setQuantity( DoubleConvertor::convert( last_qty ) );
+
+		SPDLOG_INFO( "OrderID: {}", fxcm_pos_id );
 
 		// Time in force
 		if ( tif == FIX::TimeInForce_GOOD_TILL_CANCEL ) {
@@ -539,6 +573,8 @@ namespace idefix {
 			/// order is trade (F) Trade (partial fill or fill)
 			/// 
 			
+			SPDLOG_INFO( "Filled/Partial Filled." );
+
 			order->setFilled( IntConvertor::convert( cum_qty ) );
 			order->setLastFillPrice( DoubleConvertor::convert( last_price ) );
 			order->setLastFillTime( IntConvertor::convert( sending_time ) );
@@ -577,12 +613,16 @@ namespace idefix {
 				order->setStatusMsg( reject_msg );
 			}
 
+			SPDLOG_INFO( "Order: Rejected" );
+
 		} else if ( exec_type == FIX::ExecType_CANCELED ) {
 			/// 
 			/// order has been cancelled (4)
 			/// Canceled order with or without executions
 			/// 
 			order->setStatus( enums::OrderStatus::CANCELED );
+
+			SPDLOG_INFO( "Order: Canceled" );
 
 		} else if ( exec_type == FIX::ExecType_NEW ) {
 			/// 
@@ -591,12 +631,16 @@ namespace idefix {
 			/// 
 			order->setStatus( enums::OrderStatus::NEW );
 
+			SPDLOG_INFO( "Order: NEW" );
+
 		} else if ( exec_type == FIX::ExecType_STOPPED ) {
 			///
 			/// order has been stopped (6)
 			/// Order has been stopped at the exchange. Used when guranteeing or protecting a price and quantity
 			/// 
 			order->setStatus( enums::OrderStatus::STOPPED );
+
+			SPDLOG_INFO( "Order: Stopped" );
 
 		}
 
@@ -1015,6 +1059,84 @@ namespace idefix {
 		Session::sendToTarget( request, getSessID( "order" ) );
 	}
 
+	/**
+	 * subscribe to position update
+	 * 
+	 * @param const std::string& accountid
+	 */
+	void FXCM::subscribePositionUpdates(const std::string& accountid) {
+		// Set default fields
+		FIX44::RequestForPositions request;
+		request.setField( FIX::PosReqID( nextRequestID() ) );
+		request.setField( FIX::PosReqType( FIX::PosReqType_POSITIONS ) );
+
+		// AccountID for the request. This must be set for routing purposes. We must
+		// also set the Parties AccountID field in the NoPartySubIDs group
+		request.setField( FIX::Account( accountid ) );
+		request.setField( FIX::SubscriptionRequestType( FIX::SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES ) );
+		request.setField( FIX::AccountType( FIX::AccountType_ACCOUNT_IS_CARRIED_ON_NON_CUSTOMER_SIDE_OF_BOOKS_AND_IS_CROSS_MARGINED ) );
+		request.setField( FIX::TransactTime() );
+		request.setField( FIX::ClearingBusinessDate() );
+		request.setField( FIX::TradingSessionID( "FXCM" ) );
+
+		// Set NoPartyIDs group. These values are always as seen below
+		request.setField( FIX::NoPartyIDs( 1 ) );
+		FIX44::RequestForPositions::NoPartyIDs parties_group;
+		parties_group.setField( FIX::PartyID( "FXCM ID" ) );
+		parties_group.setField( FIX::PartyIDSource( 'D' ) );
+		parties_group.setField( FIX::PartyRole( 3 ) );
+		parties_group.setField( FIX::NoPartySubIDs( 1 ) );
+
+		// Set NoPartySubIDs group
+		FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
+		sub_parties.setField( FIX::PartySubIDType( FIX::PartySubIDType_SECURITIES_ACCOUNT_NUMBER ) );
+
+		// Set Parties AccountID
+		sub_parties.setField( FIX::PartySubID( accountid ) );
+
+		// Add NoPartySubIds group
+		parties_group.addGroup( sub_parties );
+
+		// Add NoPartyIDs group
+		request.addGroup( parties_group );
+
+		// send to target
+		Session::sendToTarget( request, getSessID( "order" ) );
+	}
+
+	/**
+	 * send order status request
+	 * 
+	 * @param const std::string& accountid
+	 * @param const std::string& orderid  
+	 * @param const std::string& symbol   
+	 */
+	void FXCM::sendOrderStatusRequest(const std::string& accountid, const std::string& orderid, const std::string& symbol) {
+		FIX44::OrderStatusRequest request;
+		request.setField( FIX::OrderID( orderid ) );
+		request.setField( FIX::Account( accountid ) );
+		request.setField( FIX::Symbol( symbol ) );
+
+		// send to target
+		Session::sendToTarget( request, getSessID( "order" ) );
+	}
+
+	/**
+	 * send order mass status request
+	 * 
+	 * @param const std::string& accountid accountid
+	 */
+	void FXCM::sendOrderMassStatusRequest(const std::string& accountid) {
+		FIX44::OrderMassStatusRequest request;
+		request.setField( FIX::MassStatusReqID( nextRequestID() ) );
+		request.setField( FIX::MassStatusReqType( FIX::MassStatusReqType_STATUS_FOR_ALL_ORDERS ) ); 
+		request.setField( FIX::Account( accountid ) );
+
+		// send to target
+		Session::sendToTarget( request, getSessID( "order" ) );
+	}
+
+
 	// ----------------------------------------------------------------------------------
 	// PRIVATE METHODS
 	// ----------------------------------------------------------------------------------
@@ -1035,10 +1157,11 @@ namespace idefix {
 	 */
 	void FXCM::sendTradingStatusRequest() {
 		FIX44::TradingSessionStatusRequest request;
-		request.setField( TradSesReqID( nextRequestID() ) );
-		request.setField( TradingSessionID( "FXCM" ) );
-		request.setField( SubscriptionRequestType( SubscriptionRequestType_SNAPSHOT ) );
+		request.setField( FIX::TradSesReqID( nextRequestID() ) );
+		request.setField( FIX::TradingSessionID( "FXCM" ) );
+		request.setField( FIX::SubscriptionRequestType( FIX::SubscriptionRequestType_SNAPSHOT ) );
 		
+		// send to target
 		Session::sendToTarget( request, getSessID( "order" ) );
 	}
 
@@ -1050,10 +1173,11 @@ namespace idefix {
 		// Request CollateralReport message. We will receive a CollateralReport for each
 		// account under our login
 		FIX44::CollateralInquiry request;
-		request.setField( CollInquiryID( nextRequestID() ) );
-		request.setField( TradingSessionID( "FXCM" ) );
-		request.setField( SubscriptionRequestType( SubscriptionRequestType_SNAPSHOT ) );
+		request.setField( FIX::CollInquiryID( nextRequestID() ) );
+		request.setField( FIX::TradingSessionID( "FXCM" ) );
+		request.setField( FIX::SubscriptionRequestType( FIX::SubscriptionRequestType_SNAPSHOT ) );
 		
+		// send to target
 		Session::sendToTarget( request, getSessID( "order" ) );
 	}
 

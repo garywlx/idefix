@@ -8,6 +8,8 @@
 #include <quickfix/Application.h>
 #include <quickfix/FileLog.h>
 #include <quickfix/FileStore.h>
+#include <quickfix/fix44/Reject.h>
+#include <quickfix/fix44/BusinessMessageReject.h>
 #include <quickfix/fix44/CollateralInquiryAck.h>
 #include <quickfix/fix44/CollateralReport.h>
 #include <quickfix/fix44/ExecutionReport.h>
@@ -116,6 +118,8 @@ public:
 	// Overloaded onMessage methods used in conjuction with MessageCracker class. FIX::MessageCracker
 	// receives a generic Message in the FIX fromApp and fromAdmin callbacks, constructs the
 	// message sub type and invokes the appropriate onMessage method below.
+	void onMessage(const FIX44::Reject& r, const SessionID& sessionID);
+	void onMessage(const FIX44::BusinessMessageReject& msg, const SessionID& sessionID);
 	void onMessage(const FIX44::TradingSessionStatus& tss, const SessionID& sessionID);
 	void onMessage(const FIX44::CollateralInquiryAck& ack, const SessionID& sessionID);
 	void onMessage(const FIX44::CollateralReport& cr, const SessionID& sessionID);
@@ -144,8 +148,13 @@ public:
 	bool isConnected();
 	// send order to market
 	void sendOrder(const std::shared_ptr<Order> order);
+	// subscribe to position update
+	void subscribePositionUpdates(const std::string& accountid);
+	// send order status request
+	void sendOrderStatusRequest(const std::string& accountid, const std::string& orderid, const std::string& symbol);
+	// send order mass status request
+	void sendOrderMassStatusRequest(const std::string& accountid);
 
-	
 private:
 	// Store sessions
 	typedef std::unordered_map<std::string, SessionID> SessionMap;

@@ -79,6 +79,8 @@ namespace idefix {
 			SPDLOG_INFO( "2) Trade Market with SL");
 			SPDLOG_INFO( "3) Trade Market with SL and TP");
 			SPDLOG_INFO( "4) Close Trade");
+			SPDLOG_INFO( "5) Query Order Status");
+			SPDLOG_INFO( "6) Query All Order Status");
 
 			std::string cmd;
 			std::cin >> cmd;
@@ -91,6 +93,20 @@ namespace idefix {
 				SPDLOG_INFO( "Trade Market with SL");
 			} else if ( cmd == "3" ) {
 				SPDLOG_INFO( "Trade Market with SL and TP");
+				auto instrument = m_datacontext_ptr->getInstrument("EUR/USD");
+				if ( instrument == nullptr ) continue;
+
+				SPDLOG_INFO( "Instrument EUR/USD found." );
+
+				double qty = 10000;
+				double ask = instrument->getAskPrice();
+				double bid = instrument->getBidPrice();
+				double sl  = bid - ( instrument->getPointSize() * 10 );
+				double tp  = ask + ( instrument->getPointSize() * 20 );   
+
+				SPDLOG_INFO( "Trade EUR/USD BID {} ASK {} SL {} TP {} QTY {:.1f}", instrument->format( bid ), instrument->format( ask ), instrument->format( sl ), instrument->format( tp ), qty );
+
+				m_datacontext_ptr->createOrder( "EUR/USD", enums::OrderAction::BUY, qty, 0, sl, tp );
 			} else if ( cmd == "4" ) {
 				std::string orderid;
 				std::cout << "Please enter order id: ";
@@ -99,6 +115,23 @@ namespace idefix {
 				if ( ! orderid.empty() ) {
 					SPDLOG_INFO( "Close {}", orderid );
 				}
+			} else if ( cmd == "5" ) {
+				SPDLOG_INFO( "Query Order Status" );
+
+				std::string orderid;
+				std::cout << "Please enter order id: ";
+				std::cin >> orderid;
+
+				auto account = m_datacontext_ptr->getAccounts()[0];
+
+				if ( ! orderid.empty() ) {
+					m_datacontext_ptr->queryOrderStatus( account->getAccountID(), orderid, "EUR/USD" );
+				}
+			} else if ( cmd == "6" ) {
+				SPDLOG_INFO( "Query All Order Status" );
+
+				auto account = m_datacontext_ptr->getAccounts()[0];
+				m_datacontext_ptr->queryOrderStatus( account->getAccountID() );
 			}
 		}
 

@@ -67,20 +67,8 @@ public:
 	void cancelOrders(const std::vector<Order> orders);
 	// Close order
 	void closeOrder(const std::string& order_id);
-	// Creates a new 'Market' order.
-	// std::shared_ptr<Order> createMarketOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, double qty);
-	// // Creates a new 'Market' order with reference id.
-	// std::shared_ptr<Order> createMarketOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, double qty);
-	// // Creates a new 'Stop' order.
-	// std::shared_ptr<Order> createStopOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double stop_price);
-	// // Creates a new 'Stop' order with reference id.
-	// std::shared_ptr<Order> createStopOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double stop_price);
-	// // Creates a new 'Limit' order.
-	// std::shared_ptr<Order> createLimitOrder(std::shared_ptr<Instrument> instrument, enums::OrderAction action, enums::TIF tif, double qty, double limit_price);
-	// // Creates a new 'Limit' order with reference id.
-	// std::shared_ptr<Order> createLimitOrder(std::shared_ptr<Instrument> instrument, const std::string ref_id, enums::OrderAction action, enums::TIF tif, double qty, double limit_price);
-	// Submit orders
-	// void submitOrders(const std::vector<Order> orders);
+	// request order status, leave orderid and symbol empty for status query for all orders on this accountid
+	void queryOrderStatus(const std::string& accountid, const std::string& orderid = "", const std::string& symbol = "");
 	// Gets the list of active orders
 	std::vector< std::shared_ptr<Order> > getActiveOrders();
 
