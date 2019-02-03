@@ -14,6 +14,8 @@
 #include <quickfix/fix44/RequestForPositions.h>
 #include <quickfix/fix44/OrderStatusRequest.h>
 #include <quickfix/fix44/OrderMassStatusRequest.h>
+#include <quickfix/fix44/Logon.h>
+#include <quickfix/fix44/Logout.h>
 
 #include <string>
 #include <exception>
@@ -137,7 +139,7 @@ namespace idefix {
 		// All messages sent to FXCM must contain the TargetSubID field (both Administrative and
 		// Application messages).
 		string sub_ID = m_settings_ptr->get().getString( "TargetSubID" );
-		message.getHeader().setField( TargetSubID( sub_ID ) );
+		message.getHeader().setField( FIX::TargetSubID( sub_ID ) );
 	}
 
 	/**
@@ -209,15 +211,6 @@ namespace idefix {
 		std::string msgtype = r.getField( FIELD::RefMsgType );
 
 		onExchangeWarning( fmt::format( "Reject: tagid {} msgtype {} text {}", tagid, msgtype, text) );
-	}
-
-	void FXCM::onMessage(const FIX44::BusinessMessageReject& msg, const SessionID& sessionID) {
-		std::string text = msg.getField( FIELD::Text );
-		std::string msgtype = msg.getField( FIELD::RefMsgType );
-		std::string reason = msg.getField( FIELD::BusinessRejectReason );
-		std::string refid  = msg.getField( FIELD::BusinessRejectRefID );
-
-		onExchangeWarning( fmt::format( "BusinessMessageReject: {} msgtype {} reason {} refid {}", text, msgtype, reason, refid ) );
 	}
 
 	/**
@@ -831,6 +824,38 @@ namespace idefix {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Send login message for relogin
+	 */
+	void FXCM::login() noexcept {
+		if ( ! m_initiator_ptr->isLoggedOn() ) {
+			try {
+				for ( auto& sess : m_sessions ) {
+					FIX44::Logon msg;
+					Session::sendToTarget( msg, sess.second );
+				}
+			} catch( std::exception& e ) {
+				SPDLOG_ERROR("{}", e.what() );
+			}
+		}
+	}
+
+	/**
+	 * Send logout message
+	 */
+	void FXCM::logout() noexcept {
+		if ( m_initiator_ptr->isLoggedOn() ) {
+			try {
+				for( auto& sess : m_sessions ) {
+					FIX44::Logout msg;
+					Session::sendToTarget( msg, sess.second );
+				}				
+			} catch( std::exception& e ) {
+				SPDLOG_ERROR("{}", e.what() );
+			}
+		}
 	}
 
 	/**

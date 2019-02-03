@@ -81,6 +81,10 @@ namespace idefix {
 			SPDLOG_INFO( "4) Close Trade");
 			SPDLOG_INFO( "5) Query Order Status");
 			SPDLOG_INFO( "6) Query All Order Status");
+			SPDLOG_INFO( "7) Subscribe MarketData");
+			SPDLOG_INFO( "8) Unsubscribe MarketData");
+			SPDLOG_INFO( "9) Login");
+			SPDLOG_INFO( "10) Logout");
 
 			std::string cmd;
 			std::cin >> cmd;
@@ -132,6 +136,19 @@ namespace idefix {
 
 				auto account = m_datacontext_ptr->getAccounts()[0];
 				m_datacontext_ptr->queryOrderStatus( account->getAccountID() );
+			} else if ( cmd == "7" ) {
+				SPDLOG_INFO( "Subscribe MarketData EUR/USD");
+
+				m_datacontext_ptr->subscribe( "EUR/USD" );
+			} else if ( cmd == "8" ) {
+				SPDLOG_INFO( "Unsubscribe MarketData EUR/USD" );
+				m_datacontext_ptr->unsubscribe( "EUR/USD" );
+			} else if ( cmd == "9" ) {
+				SPDLOG_INFO( "Login" );
+				m_datacontext_ptr->login();
+			} else if ( cmd == "10" ) {
+				SPDLOG_INFO( "Logout" );
+				m_datacontext_ptr->logout();
 			}
 		}
 

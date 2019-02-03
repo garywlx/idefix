@@ -121,6 +121,18 @@ void DataContext::disconnect() {
 	}
 }
 
+void DataContext::login() {
+	if ( m_network_ptr ) {
+		m_network_ptr->login();
+	}
+}
+
+void DataContext::logout() {
+	if ( m_network_ptr ) {
+		m_network_ptr->logout();
+	}
+}
+
 /**
  * Send subscription request to exchange
  * 

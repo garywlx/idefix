@@ -9,7 +9,6 @@
 #include <quickfix/FileLog.h>
 #include <quickfix/FileStore.h>
 #include <quickfix/fix44/Reject.h>
-#include <quickfix/fix44/BusinessMessageReject.h>
 #include <quickfix/fix44/CollateralInquiryAck.h>
 #include <quickfix/fix44/CollateralReport.h>
 #include <quickfix/fix44/ExecutionReport.h>
@@ -119,7 +118,6 @@ public:
 	// receives a generic Message in the FIX fromApp and fromAdmin callbacks, constructs the
 	// message sub type and invokes the appropriate onMessage method below.
 	void onMessage(const FIX44::Reject& r, const SessionID& sessionID);
-	void onMessage(const FIX44::BusinessMessageReject& msg, const SessionID& sessionID);
 	void onMessage(const FIX44::TradingSessionStatus& tss, const SessionID& sessionID);
 	void onMessage(const FIX44::CollateralInquiryAck& ack, const SessionID& sessionID);
 	void onMessage(const FIX44::CollateralReport& cr, const SessionID& sessionID);
@@ -140,6 +138,10 @@ public:
 	void connect() noexcept;
 	// Logout and end session 
 	void disconnect() noexcept;
+	// Login 
+	void login() noexcept;
+    // Logout
+	void logout() noexcept;
 	// subscribe to market data
 	void subscribeMarketData(const std::string& symbol);
 	// unsubscribe market data

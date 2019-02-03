@@ -1,3 +1,7 @@
+###
+### INITIAL 
+###
+# Require cmake version
 cmake_minimum_required(VERSION 3.10.0)
 
 # Change this to your project name

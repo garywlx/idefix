@@ -48,6 +48,8 @@ class NetworkAdapter: public Adapter {
 public:
 	virtual void connect() noexcept {}
 	virtual void disconnect() noexcept {}
+	virtual void login() noexcept {}
+	virtual void logout() noexcept {}
 	virtual void subscribeMarketData(const std::string& symbol) {}
 	virtual void unsubscribeMarketData(const std::string& symbol) {}
 	virtual void sendOrder(const std::shared_ptr<Order> order) {}

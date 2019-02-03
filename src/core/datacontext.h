@@ -38,6 +38,10 @@ public:
 	void disconnect();
 	// return if connected to exchange
 	bool isConnected();
+	// login to connected exchange
+	void login();
+	// logout from connected exchange
+	void logout();
 	// subscribe to price feed
 	void subscribe(const std::string& symbol);
 	// unsubscribe from price feed
