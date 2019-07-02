@@ -55,6 +55,7 @@ public:
 	virtual void sendOrder(const std::shared_ptr<Order> order) {}
 	virtual void sendOrderStatusRequest(const std::string& accountid, const std::string& orderid, const std::string& symbol) {}
 	virtual void sendOrderMassStatusRequest(const std::string& accountid) {}
+	virtual void sendPositionReportRequest(const std::string& accountid, const enums::ExecutionType exec_type) {}
 
 	// if a new instrument list is available
 	nod::signal<void(const std::vector<Instrument> instruments)> onExchangeInstrumentList;
@@ -62,10 +63,6 @@ public:
 	nod::signal<void(const ExchangeSettingsMap settings)> onExchangeSettings;
 	// if the exchange is ready
 	nod::signal<void()> onExchangeReady;
-	// if the exchange is connected
-	nod::signal<void()> onExchangeConnected;
-	// if the exchange is disconnected
-	nod::signal<void()> onExchangeDisconnected;
 	// if the exchange session is created
 	nod::signal<void(const std::string msg)> onExchangeSessionCreated;
 	// if the exchange is logged in
@@ -85,7 +82,7 @@ public:
 	// if the exchange account collateral parties settings
 	nod::signal<void(const ExchangeCollateralSettingsMap map)> onExchangeCollateralSettings;
 	// if the exchange responds with a detailed position report
-	nod::signal<void(const ExchangePositionReport report)> onExchangePositionReport;
+	nod::signal<void(std::shared_ptr<Order> order)> onExchangePositionReport;
 	// if the exchange responds with a position report ack, for no positions
 	nod::signal<void(const std::string msg)> onExchangePositionReportAck;
 	// if the exchange responds with marketDataRequestReject

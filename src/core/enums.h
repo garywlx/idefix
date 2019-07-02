@@ -10,7 +10,9 @@ namespace idefix {
 			MARKET, // Market Order
 			STOP, // Stop Order
 			TRAIL, // Trail Order,
-			CLOSE // FXCM Close order
+			CLOSE, // FXCM Close order
+			POSITION, // running position
+			TRADE // closed position
 		};
 
 		/**
@@ -51,6 +53,19 @@ namespace idefix {
 			CURRENCY = 4, 
 			INDEX = 7, 
 			COMMODITY = 2
+		};
+
+		/**
+		 * Execution Type
+		 */
+		enum ExecutionType {
+			POSITIONS, // active
+			TRADES, // done
+			EXERCISES,
+			ASSIGNMENTS,
+			SETTLEMENT_ACTIVITY,
+			BACKOUT_MESSAGE,
+			DELTA_POSITIONS
 		};
 	};
 };

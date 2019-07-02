@@ -18,6 +18,7 @@
 #include <quickfix/fix44/RequestForPositionsAck.h>
 #include <quickfix/fix44/SecurityList.h>
 #include <quickfix/fix44/TradingSessionStatus.h>
+#include <quickfix/fix44/BusinessMessageReject.h>
 // #include <quickfix/fix44/AllocationReportAck.h>
 // #include <quickfix/fix44/AllocationReport.h>
 #include <quickfix/MessageCracker.h>
@@ -126,6 +127,7 @@ public:
 	void onMessage(const FIX44::MarketDataRequestReject& mdr, const SessionID& sessionID);
 	void onMessage(const FIX44::MarketDataSnapshotFullRefresh& mds, const SessionID& sessionID);
 	void onMessage(const FIX44::ExecutionReport& er, const SessionID& sessionID);
+	void onMessage(const FIX44::BusinessMessageReject& msg, const SessionID& sessionID);
 	// void onMessage(const FIX44::AllocationReportAck& ack, const SessionID& sessionID);
 	// void onMessage(const FIX44::AllocationReport& ar, const SessionID& sessionID);
 
@@ -156,6 +158,8 @@ public:
 	void sendOrderStatusRequest(const std::string& accountid, const std::string& orderid, const std::string& symbol);
 	// send order mass status request
 	void sendOrderMassStatusRequest(const std::string& accountid);
+	// send position report request
+	void sendPositionReportRequest(const std::string& accountid, const enums::ExecutionType exec_type);
 
 private:
 	// Store sessions
@@ -187,7 +191,7 @@ private:
 	// Send account request
 	void sendAccountsRequest();
 	// Send position request
-	void sendPositionRequest();
+	// void sendPositionRequest();
 
 };
 };

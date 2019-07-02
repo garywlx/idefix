@@ -62,10 +62,7 @@ namespace idefix {
 
 		if ( m_datacontext_ptr != nullptr ) {
 			// connect signal/slots
-			m_datacontext_ptr->onConnected.connect( std::bind( &MainApplication::slotExchangeConnected, this ) );
-			m_datacontext_ptr->onDisconnected.connect( std::bind( &MainApplication::slotExchangeDisconnected, this ) );
-			m_datacontext_ptr->onReady.connect( std::bind( &MainApplication::slotExchangeReady, this ) );
-			m_datacontext_ptr->onTick.connect( std::bind( &MainApplication::slotExchangeTick, this, std::placeholders::_1 ) );
+			mapDataContextSignalCallbacks();
 
 			// connect to exchange
 			m_datacontext_ptr->connect();
@@ -74,17 +71,17 @@ namespace idefix {
 		// block thread
 		while( true ) {
 			SPDLOG_INFO( "MENU" );
-			SPDLOG_INFO( "0) Quit");
-			SPDLOG_INFO( "1) Trade Market");
-			SPDLOG_INFO( "2) Trade Market with SL");
-			SPDLOG_INFO( "3) Trade Market with SL and TP");
-			SPDLOG_INFO( "4) Close Trade");
-			SPDLOG_INFO( "5) Query Order Status");
-			SPDLOG_INFO( "6) Query All Order Status");
-			SPDLOG_INFO( "7) Subscribe MarketData");
-			SPDLOG_INFO( "8) Unsubscribe MarketData");
-			SPDLOG_INFO( "9) Login");
-			SPDLOG_INFO( "10) Logout");
+			SPDLOG_INFO( " 0) Quit");
+			SPDLOG_INFO( " 1) Trade Market");
+			SPDLOG_INFO( " 2) Trade Market with SL");
+			SPDLOG_INFO( " 3) Trade Market with SL and TP");
+			SPDLOG_INFO( " 4) Close Trade");
+			SPDLOG_INFO( " 5) Query Order Status");
+			SPDLOG_INFO( " 6) Query All Order Status");
+			SPDLOG_INFO( " 7) Subscribe MarketData");
+			SPDLOG_INFO( " 8) Unsubscribe MarketData");
+			SPDLOG_INFO( " 9) Query Position Reports" );
+			SPDLOG_INFO( "10) Query Trade Reports" );
 
 			std::string cmd;
 			std::cin >> cmd;
@@ -92,9 +89,28 @@ namespace idefix {
 			if ( cmd == "0" ) {
 				break;
 			} else if ( cmd == "1" ) {
-				SPDLOG_INFO( "Trade market" );
+				SPDLOG_INFO( "Trade market.");
+				auto instrument = m_datacontext_ptr->getInstrument("EUR/USD");
+				if ( instrument == nullptr ) continue;
+
+				double qty = 10000;
+				SPDLOG_INFO( "Trade EUR/USD Market BUY QTY {:.1f}", qty );
+
+				m_datacontext_ptr->createOrder( "EUR/USD", enums::OrderAction::BUY, qty );
+
 			} else if ( cmd == "2" ) {
 				SPDLOG_INFO( "Trade Market with SL");
+
+				auto instrument = m_datacontext_ptr->getInstrument("EUR/USD");
+				if ( instrument == nullptr ) continue;
+
+				double qty = 10000;
+				double sl  = instrument->getBidPrice() - ( instrument->getPointSize() * 10 );
+
+				SPDLOG_INFO( "Trade EUR/USD Market with SL BUY QTY {:.1f} SL {}", qty, instrument->format( sl ) );
+
+				m_datacontext_ptr->createOrder( "EUR/USD", enums::OrderAction::BUY, qty, 0, sl );
+
 			} else if ( cmd == "3" ) {
 				SPDLOG_INFO( "Trade Market with SL and TP");
 				auto instrument = m_datacontext_ptr->getInstrument("EUR/USD");
@@ -144,11 +160,15 @@ namespace idefix {
 				SPDLOG_INFO( "Unsubscribe MarketData EUR/USD" );
 				m_datacontext_ptr->unsubscribe( "EUR/USD" );
 			} else if ( cmd == "9" ) {
-				SPDLOG_INFO( "Login" );
-				m_datacontext_ptr->login();
+				SPDLOG_INFO( "Query Position Reports" );
+				auto account = m_datacontext_ptr->getAccounts()[0];
+
+				m_datacontext_ptr->queryPositionReport( account->getAccountID(), enums::ExecutionType::POSITIONS );
 			} else if ( cmd == "10" ) {
-				SPDLOG_INFO( "Logout" );
-				m_datacontext_ptr->logout();
+				SPDLOG_INFO( "Query Trade Reports" );
+				auto account = m_datacontext_ptr->getAccounts()[0];
+
+				m_datacontext_ptr->queryPositionReport( account->getAccountID(), enums::ExecutionType::TRADES );
 			}
 		}
 
@@ -195,20 +215,18 @@ namespace idefix {
 		if ( m_datacontext_ptr == nullptr ) {
 			return;
 		}
-	}
 
-	/**
-	 * Slot Exchange Connected
-	 */
-	void MainApplication::slotExchangeConnected() {
-		SPDLOG_INFO( "slotExchangeConnected" );
-	}
-
-	/**
-	 * Slot Exchange Disconnected
-	 */
-	void MainApplication::slotExchangeDisconnected() {
-		SPDLOG_INFO( "slotExchangeDisconnected" );
+		m_datacontext_ptr->onReady.connect( std::bind( &MainApplication::slotExchangeReady, this ) );
+		m_datacontext_ptr->onTick.connect( std::bind( &MainApplication::slotExchangeTick, this, std::placeholders::_1 ) );
+		m_datacontext_ptr->onError.connect( [&](const std::string msg) {
+			SPDLOG_ERROR( "{}", msg );
+		});
+		m_datacontext_ptr->onWarning.connect( [&](const std::string msg) {
+			SPDLOG_WARN( "{}", msg );
+		});
+		m_datacontext_ptr->onSuccess.connect( [&](const std::string msg) {
+			SPDLOG_INFO( "{}", msg );
+		});
 	}
 
 	/**
@@ -226,7 +244,9 @@ namespace idefix {
 	 * 
 	 * @param std::shared_ptr<Instrument> instrument 
 	 */
-	void MainApplication::slotExchangeTick(std::shared_ptr<Instrument> instrument) {		
+	void MainApplication::slotExchangeTick(std::shared_ptr<Instrument> instrument) {
+		// SPDLOG_INFO( "Tick {} Bid {} Ask {}", instrument->getSymbol(), instrument->format( instrument->getBidPrice() ), instrument->format( instrument->getAskPrice() ) );
+
 		// update algos
 		for ( auto& algo : m_algo_list ) {
 			algo->onTick( *m_datacontext_ptr.get(), instrument );

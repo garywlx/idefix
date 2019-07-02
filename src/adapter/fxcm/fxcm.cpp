@@ -2,6 +2,7 @@
 #include "core/logger.h"
 #include "core/utility.h"
 #include "core/order.h"
+#include "core/enums.h"
 
 #include <quickfix/Utility.h>
 #include <quickfix/Dictionary.h>
@@ -409,18 +410,63 @@ namespace idefix {
 	 * @param const FIX44::PositionReport& pr        
 	 * @param const SessionID&             sessionID 
 	 */
-	void FXCM::onMessage(const FIX44::PositionReport& pr, const SessionID& sessionID) {
+	void FXCM::onMessage(const FIX44::PositionReport& msg, const SessionID& sessionID) {
 		// Print out important position related information such as accountID and symbol 
-		idefix::ExchangePositionReport position_report;
-		position_report.account_id    = pr.getField( FIELD::Account );
-		position_report.symbol        = pr.getField( FIELD::Symbol );
-		position_report.position_id   = pr.getField( FXCM_POS_ID );
-		position_report.pos_open_time = pr.getField( FXCM_POS_OPEN_TIME );
+		
+		std::string fxcm_pos_id;
+		if ( msg.isSetField( FXCM_FIX_FIELDS::FXCM_POS_ID ) ) {
+			fxcm_pos_id = msg.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
+		}
 
-		SPDLOG_INFO( "PositionReport" );
+		if ( fxcm_pos_id.empty() ) {
+			onExchangeError( "PositionReport: fxcm_pos_id is empty.");
+		}
+
+		int pos_req_type = IntConvertor::convert( msg.getField( FIELD::PosReqType ) );
+
+		// create order
+		std::shared_ptr<Order> order = std::make_shared<Order>();
+		order->setAccountID( msg.getField( FIELD::Account ) );
+		order->setOrderID( msg.getField( FIELD::OrderID ) );
+		order->setSymbol( msg.getField( FIELD::Symbol ) );
+		order->setCustomField( "FXCM_POS_ID", fxcm_pos_id );
+
+		// quantity and action
+		if ( msg.isSetField( FIELD::LongQty ) ) {
+			order->setAction( enums::OrderAction::BUY );
+			order->setQuantity( IntConvertor::convert( msg.getField( FIELD::LongQty ) ) );
+		} else if ( msg.isSetField( FIELD::ShortQty ) ) {
+			order->setAction( enums::OrderAction::SELL );
+			order->setQuantity( IntConvertor::convert( msg.getField( FIELD::ShortQty ) ) );
+		}
+		
+		// close pnl
+		if ( msg.isSetField( FXCM_FIX_FIELDS::FXCM_CLOSE_PNL ) ) {
+			order->setPnL( DoubleConvertor::convert( msg.getField( FXCM_FIX_FIELDS::FXCM_CLOSE_PNL ) ) );
+		}
+
+		// entry price
+		order->setEntryPrice( DoubleConvertor::convert( msg.getField( FIELD::SettlPrice ) ) );
+		
+		// open time
+		if ( msg.isSetField( FXCM_FIX_FIELDS::FXCM_POS_OPEN_TIME ) ) {
+			order->setOpenTime( msg.getField( FXCM_FIX_FIELDS::FXCM_POS_OPEN_TIME ) );
+		}
+
+		// position or trade?
+		if ( pos_req_type == FIX::PosReqType_POSITIONS ) {
+			order->setType( enums::OrderType::POSITION );
+
+		} else if ( pos_req_type == FIX::PosReqType_TRADES ) {
+			order->setType( enums::OrderType::TRADE );
+			order->setStopPrice( DoubleConvertor::convert( msg.getField( FXCM_FIX_FIELDS::FXCM_CLOSE_SETTLE_PRICE ) ) );
+			order->setCloseOrderID( msg.getField( FXCM_FIX_FIELDS::FXCM_CLOSE_ORDERID ) );
+			order->setCloseTime( msg.getField( FXCM_FIX_FIELDS::FXCM_POS_CLOSE_TIME ) );
+			order->setCustomField( "FXCM_POS_COMMISSION", msg.getField( FXCM_FIX_FIELDS::FXCM_POS_COMMISSION ) );
+		}
 
 		// API Callback
-		onExchangePositionReport( position_report );
+		onExchangePositionReport( std::move( order ) );
 	}
 
 	/**
@@ -487,7 +533,7 @@ namespace idefix {
 	 * @param const FIX44::ExecutionReport& er        
 	 * @param const SessionID&              sessionID 
 	 */
-	void FXCM::onMessage(const FIX44::ExecutionReport& er, const SessionID& sessionID) {
+	void FXCM::onMessage(const FIX44::ExecutionReport& msg, const SessionID& sessionID) {
 		// ** Note on order status. ** 
 		// In order to determine the status of an order, and also how much an order is filled, we must
 		// use the OrdStatus and CumQty fields. There are 3 possible final values for OrdStatus: Filled (2),
@@ -495,7 +541,20 @@ namespace idefix {
 		// the execution is completed. At this time the CumQty (14) can be inspected to determine if and how
 		// much of an order was filled.
 
-		std::string fxcm_pos_id = er.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
+		// Response without FXCM_POS_ID, maybe a reject?
+		if ( ! msg.isSetField( FXCM_FIX_FIELDS::FXCM_POS_ID ) ) {
+			std::string text = msg.getField( FIX::FIELD::Text );
+			if ( msg.isSetField( FIX::FIELD::OrdRejReason ) ) {
+				std::string ord_rej_reason = msg.getField( FIX::FIELD::OrdRejReason );
+				onExchangeError( fmt::format( "ExecutionReport: OrdRejReason: {} Text: {}", ord_rej_reason, text ) );	
+				return;
+			}
+			onExchangeError( fmt::format( "ExecutionReport: {}", text ) );
+			return;
+		}
+
+		// check the fxcm_pos_id
+		std::string fxcm_pos_id = msg.getField( FXCM_FIX_FIELDS::FXCM_POS_ID );
 		if ( fxcm_pos_id.empty() ) {
 			onExchangeError( "FIX44::ExecutionReport: FXCM PosID is empty!" );
 			SPDLOG_ERROR( "FIX44::ExecutionReport: FXCM PosID is empty!" );
@@ -503,31 +562,34 @@ namespace idefix {
 		}
 
 		// message fields
-		std::string sending_time = er.getHeader().getField( FIELD::SendingTime );
-		std::string order_status = er.getField( FIELD::OrdStatus );
-		std::string order_type   = er.getField( FIELD::OrdType );
-		std::string cl_ord_id    = er.getField( FIELD::ClOrdID );
-		std::string price        = er.getField( FIELD::Price );
-		std::string last_qty     = er.getField( FIELD::LastQty );
-		std::string last_price   = er.getField( FIELD::LastPx );
-		std::string symbol       = er.getField( FIELD::Symbol );
-		std::string account_id   = er.getField( FIELD::Account );
-		std::string side         = er.getField( FIELD::Side );
-		std::string cum_qty      = er.getField( FIELD::CumQty );
-		std::string exec_type    = er.getField( FIELD::ExecType );
-		std::string tif          = er.getField( FIELD::TimeInForce );
+		std::string sending_time = msg.getHeader().getField( FIELD::SendingTime );
+		std::string order_id     = msg.getField( FIELD::OrderID );
+		std::string order_status = msg.getField( FIELD::OrdStatus );
+		std::string order_type   = msg.getField( FIELD::OrdType );
+		std::string cl_ord_id    = msg.getField( FIELD::ClOrdID );
+		std::string price        = msg.getField( FIELD::Price );
+		std::string last_qty     = msg.getField( FIELD::LastQty );
+		std::string last_price   = msg.getField( FIELD::LastPx );
+		std::string symbol       = msg.getField( FIELD::Symbol );
+		std::string account_id   = msg.getField( FIELD::Account );
+		std::string side         = msg.getField( FIELD::Side );
+		std::string cum_qty      = msg.getField( FIELD::CumQty );
+		std::string exec_type    = msg.getField( FIELD::ExecType );
+		std::string tif          = msg.getField( FIELD::TimeInForce );
 
 		// The order
 		auto order = std::make_shared<Order>();
-		order->setOrderID( fxcm_pos_id );
+		order->setCustomField( "FXCM_POS_ID", fxcm_pos_id );
+		order->setOrderID( order_id );
 		order->setClientOrderID( cl_ord_id );
 		order->setSymbol( symbol );
 		order->setAction( side == '1' ? enums::OrderAction::BUY : enums::OrderAction::SELL );
 		order->setAccountID( account_id );
 		order->setStatus( enums::OrderStatus::NEW );
-		order->setQuantity( DoubleConvertor::convert( last_qty ) );
+		order->setQuantity( IntConvertor::convert( last_qty ) );
 
-		SPDLOG_INFO( "OrderID: {}", fxcm_pos_id );
+		SPDLOG_INFO( "OrderID: {} ExecType: {} ClOrdID {} FXCM PosID {}", 
+			order_id, exec_type, cl_ord_id, order->getCustomField( "FXCM_POS_ID" ) );
 
 		// Time in force
 		if ( tif == FIX::TimeInForce_GOOD_TILL_CANCEL ) {
@@ -555,7 +617,12 @@ namespace idefix {
 			case enums::OrderType::LIMIT:
 				order->setLimitPrice( DoubleConvertor::convert( price ) );
 				break;
-			default:break;
+			case enums::OrderType::MARKET:
+				order->setEntryPrice( DoubleConvertor::convert( price ) );
+				break;
+			default:
+
+			break;
 		}
 
 		// Filled/Partial Filled?
@@ -566,8 +633,6 @@ namespace idefix {
 			/// order is trade (F) Trade (partial fill or fill)
 			/// 
 			
-			SPDLOG_INFO( "Filled/Partial Filled." );
-
 			order->setFilled( IntConvertor::convert( cum_qty ) );
 			order->setLastFillPrice( DoubleConvertor::convert( last_price ) );
 			order->setLastFillTime( IntConvertor::convert( sending_time ) );
@@ -591,6 +656,11 @@ namespace idefix {
 			} else if ( exec_type == FIX::ExecType_FILL ) {
 				order->setStatus( enums::OrderStatus::FILLED );
 			}
+
+			SPDLOG_INFO( "Filled/Partial Filled." );
+
+			// API Callback
+			onExchangeOrder( std::move( order ) );
 						
 		} else if ( exec_type == FIX::ExecType_REJECTED ) {
 			///
@@ -601,12 +671,15 @@ namespace idefix {
 			/// 
 			order->setStatus( enums::OrderStatus::REJECTED );
 			
-			std::string reject_msg = er.getField( FIELD::OrdRejReason );
+			std::string reject_msg = msg.getField( FIELD::OrdRejReason );
 			if ( ! reject_msg.empty() ) {
 				order->setStatusMsg( reject_msg );
 			}
 
-			SPDLOG_INFO( "Order: Rejected" );
+			SPDLOG_INFO( "Order: {} Rejected", fxcm_pos_id );
+
+			// API Callback
+			onExchangeOrder( std::move( order ) );
 
 		} else if ( exec_type == FIX::ExecType_CANCELED ) {
 			/// 
@@ -615,7 +688,10 @@ namespace idefix {
 			/// 
 			order->setStatus( enums::OrderStatus::CANCELED );
 
-			SPDLOG_INFO( "Order: Canceled" );
+			SPDLOG_INFO( "Order: {} Canceled", fxcm_pos_id );
+
+			// API Callback
+			onExchangeOrder( std::move( order ) );
 
 		} else if ( exec_type == FIX::ExecType_NEW ) {
 			/// 
@@ -624,7 +700,10 @@ namespace idefix {
 			/// 
 			order->setStatus( enums::OrderStatus::NEW );
 
-			SPDLOG_INFO( "Order: NEW" );
+			SPDLOG_INFO( "Order: {} NEW", fxcm_pos_id );
+
+			// API Callback
+			onExchangeOrder( std::move( order ) );
 
 		} else if ( exec_type == FIX::ExecType_STOPPED ) {
 			///
@@ -633,12 +712,50 @@ namespace idefix {
 			/// 
 			order->setStatus( enums::OrderStatus::STOPPED );
 
-			SPDLOG_INFO( "Order: Stopped" );
+			SPDLOG_INFO( "Order: {} Stopped", fxcm_pos_id );
 
+			// API Callback
+			onExchangeOrder( std::move( order ) );
+
+		} else if ( exec_type == FIX::ExecType_ORDER_STATUS ) {
+			///
+			/// order status received
+			/// 
+			
+			if ( order_status == FIX::OrdStatus_REJECTED ) {
+				std::string ord_rej_reason = msg.getField( FIX::FIELD::OrdRejReason );
+
+				SPDLOG_INFO( "Order Status Rejected Reason: {}", ord_rej_reason);
+			}
+
+			SPDLOG_INFO( "Order: {} status response", fxcm_pos_id);	
+			
+		} else if ( exec_type == FIX::ExecType_PENDING_NEW ) {
+			///
+			/// order is pending new
+			/// 
+			SPDLOG_INFO( "Order: {} is pending new", fxcm_pos_id);
+		} else if ( exec_type == FIX::ExecType_PENDING_CANCEL ) {
+			///
+			/// order is pending cancel
+			/// 
+			SPDLOG_INFO( "Order: {} is pending cancel", fxcm_pos_id);
+		} else if ( exec_type == FIX::ExecType_PENDING_REPLACE ) {
+			///
+			/// order is pending replace
+			/// 
+			SPDLOG_INFO( "Order: {} is pending replace", fxcm_pos_id);
+		} else if ( exec_type == FIX::ExecType_TRADE_CORRECT ) {
+			///
+			/// order is trade correct
+			/// 
+			SPDLOG_INFO( "Order: {} is trade correct", fxcm_pos_id );
+		} else if ( exec_type == FIX::ExecType_TRADE_CANCEL ) {
+			///
+			/// order is trade cancel
+			/// 
+			SPDLOG_INFO( "Order: {} is trade cancel", fxcm_pos_id );
 		}
-
-		// API Callback
-		onExchangeOrder( std::move( order ) );
 		
 		// FIX::ExecType execType;
 		// FIX::OrdStatus ordStatus;
@@ -762,6 +879,22 @@ namespace idefix {
 		// 		onExchangeOrder( idefix::enums::ExchangeOrderEvent::MARKET_ORDER_CANCELED, marketOrder );
 		// 	}
 		// }
+	}
+
+	/**
+	 * Response on message rejection
+	 * 
+	 * @param const FIX44::BusinessMessageReject& msg
+	 * @param const SessionID&                    sessionID
+	 */
+	void FXCM::onMessage(const FIX44::BusinessMessageReject& msg, const SessionID& sessionID) {
+		std::string text = msg.getField( FIX::FIELD::Text );
+		std::string refmsgtype = msg.getField( FIX::FIELD::RefMsgType );
+		std::string reason = msg.getField( FIX::FIELD::BusinessRejectReason );
+
+		if ( text.empty() ) return;
+
+		onExchangeError( fmt::format( "BusinessMessageReject: RefMsgType {} Reason {} = {}", refmsgtype, reason, text ) );
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -1137,6 +1270,22 @@ namespace idefix {
 	 * @param const std::string& symbol   
 	 */
 	void FXCM::sendOrderStatusRequest(const std::string& accountid, const std::string& orderid, const std::string& symbol) {
+
+		if ( accountid.empty() ) {
+			onExchangeError( "sendOrderStatusRequest: AccountID is empty." );
+			return;
+		}
+
+		if ( orderid.empty() ) {
+			onExchangeError( "sendOrderStatusRequest: OrderID is empty." );
+			return;
+		}
+
+		if ( symbol.empty() ) {
+			onExchangeError( "sendOrderStatusRequest: Symbol is empty." );
+			return;
+		}
+
 		FIX44::OrderStatusRequest request;
 		request.setField( FIX::OrderID( orderid ) );
 		request.setField( FIX::Account( accountid ) );
@@ -1161,6 +1310,61 @@ namespace idefix {
 		Session::sendToTarget( request, getSessID( "order" ) );
 	}
 
+	/**
+	 * send position report request
+	 * 
+	 * @param const std::string&         accountid
+	 * @param const enums::ExecutionType exec_type
+	 */
+	void FXCM::sendPositionReportRequest(const std::string& accountid, const enums::ExecutionType exec_type) {
+		// Set default fields
+		FIX44::RequestForPositions request;
+		request.setField( FIX::PosReqID("PosRequest_" + nextRequestID() ) );
+
+		switch( exec_type ) {
+			default:
+			case enums::ExecutionType::POSITIONS: 
+				request.setField( FIX::PosReqType( FIX::PosReqType_POSITIONS ) );
+				request.setField( FIX::SubscriptionRequestType( FIX::SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES ) );
+			break;
+			case enums::ExecutionType::TRADES: 
+				request.setField( FIX::PosReqType( FIX::PosReqType_TRADES ) );
+				request.setField( FIX::SubscriptionRequestType( FIX::SubscriptionRequestType_SNAPSHOT ) );
+			break;
+		}
+
+		// AccountID for the request. This must be set for routing purposes. We must
+		// also set the Parties AccountID field in the NoPartySubIDs group
+		request.setField( FIX::Account( accountid ) );
+		request.setField( FIX::AccountType( FIX::AccountType_ACCOUNT_IS_CARRIED_ON_NON_CUSTOMER_SIDE_OF_BOOKS_AND_IS_CROSS_MARGINED ) );
+		request.setField( FIX::TransactTime() );
+		request.setField( FIX::ClearingBusinessDate() );
+		request.setField( FIX::TradingSessionID( "FXCM" ) );
+
+		// Set NoPartyIDs group. These values are always as seen below
+		request.setField( FIX::NoPartyIDs( 1 ) );
+		FIX44::RequestForPositions::NoPartyIDs parties_group;
+		parties_group.setField( FIX::PartyID( "FXCM ID" ) );
+		parties_group.setField( FIX::PartyIDSource( 'D' ) );
+		parties_group.setField( FIX::PartyRole( 3 ) );
+		parties_group.setField( FIX::NoPartySubIDs( 1 ) );
+
+		// Set NoPartySubIDs group
+		FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
+		sub_parties.setField( FIX::PartySubIDType( FIX::PartySubIDType_SECURITIES_ACCOUNT_NUMBER ) );
+
+		// Set Parties AccountID
+		sub_parties.setField( FIX::PartySubID( accountid ) );
+
+		// Add NoPartySubIds group
+		parties_group.addGroup( sub_parties );
+
+		// Add NoPartyIDs group
+		request.addGroup( parties_group );
+
+		// send to target
+		Session::sendToTarget( request, getSessID( "order" ) );
+	}
 
 	// ----------------------------------------------------------------------------------
 	// PRIVATE METHODS
@@ -1212,46 +1416,46 @@ namespace idefix {
 	 * sent with the acknowledgement that no positions exist. In our example, we request
 	 * positions for all accounts under our login
 	 */
-	void FXCM::sendPositionRequest() {
-		// Here we will get positions for each account under our login. To do this,
-		// we will send a RequestForPositions message that contains the accountID 
-		// associated with our request. For each account in our list, we send
-		// RequestForPositions. 
-		int total_accounts = (int) m_account_vec.size();
-		for ( int i = 0; i < total_accounts; i++ ) {
-			string accountID =  m_account_vec.at( i );
-			// Set default fields
-			FIX44::RequestForPositions request;
-			request.setField( PosReqID( nextRequestID() ) );
-			request.setField( PosReqType( PosReqType_POSITIONS ) );
-			// AccountID for the request. This must be set for routing purposes. We must
-			// also set the Parties AccountID field in the NoPartySubIDs group
-			request.setField( Account( accountID ) );
-			request.setField( SubscriptionRequestType( SubscriptionRequestType_SNAPSHOT ) );
-			request.setField( AccountType( AccountType_ACCOUNT_IS_CARRIED_ON_NON_CUSTOMER_SIDE_OF_BOOKS_AND_IS_CROSS_MARGINED ) );
-			request.setField( TransactTime() );
-			request.setField( ClearingBusinessDate() );
-			request.setField( TradingSessionID( "FXCM" ) );
-			// Set NoPartyIDs group. These values are always as seen below
-			request.setField( NoPartyIDs( 1 ) );
-			FIX44::RequestForPositions::NoPartyIDs parties_group;
-			parties_group.setField( PartyID( "FXCM ID" ) );
-			parties_group.setField( PartyIDSource( 'D' ) );
-			parties_group.setField( PartyRole( 3 ) );
-			parties_group.setField( NoPartySubIDs( 1 ) );
-			// Set NoPartySubIDs group
-			FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
-			sub_parties.setField( PartySubIDType( PartySubIDType_SECURITIES_ACCOUNT_NUMBER ) );
-			// Set Parties AccountID
-			sub_parties.setField( PartySubID( accountID ) );
-			// Add NoPartySubIds group
-			parties_group.addGroup( sub_parties );
-			// Add NoPartyIDs group
-			request.addGroup( parties_group );
-			// Send request
-			Session::sendToTarget( request, getSessID( "order" ) );
-		}
-	}
+	// void FXCM::sendPositionRequest() {
+	// 	// Here we will get positions for each account under our login. To do this,
+	// 	// we will send a RequestForPositions message that contains the accountID 
+	// 	// associated with our request. For each account in our list, we send
+	// 	// RequestForPositions. 
+	// 	int total_accounts = (int) m_account_vec.size();
+	// 	for ( int i = 0; i < total_accounts; i++ ) {
+	// 		string accountID =  m_account_vec.at( i );
+	// 		// Set default fields
+	// 		FIX44::RequestForPositions request;
+	// 		request.setField( PosReqID( nextRequestID() ) );
+	// 		request.setField( PosReqType( PosReqType_POSITIONS ) );
+	// 		// AccountID for the request. This must be set for routing purposes. We must
+	// 		// also set the Parties AccountID field in the NoPartySubIDs group
+	// 		request.setField( Account( accountID ) );
+	// 		request.setField( SubscriptionRequestType( SubscriptionRequestType_SNAPSHOT ) );
+	// 		request.setField( AccountType( AccountType_ACCOUNT_IS_CARRIED_ON_NON_CUSTOMER_SIDE_OF_BOOKS_AND_IS_CROSS_MARGINED ) );
+	// 		request.setField( TransactTime() );
+	// 		request.setField( ClearingBusinessDate() );
+	// 		request.setField( TradingSessionID( "FXCM" ) );
+	// 		// Set NoPartyIDs group. These values are always as seen below
+	// 		request.setField( NoPartyIDs( 1 ) );
+	// 		FIX44::RequestForPositions::NoPartyIDs parties_group;
+	// 		parties_group.setField( PartyID( "FXCM ID" ) );
+	// 		parties_group.setField( PartyIDSource( 'D' ) );
+	// 		parties_group.setField( PartyRole( 3 ) );
+	// 		parties_group.setField( NoPartySubIDs( 1 ) );
+	// 		// Set NoPartySubIDs group
+	// 		FIX44::RequestForPositions::NoPartyIDs::NoPartySubIDs sub_parties;
+	// 		sub_parties.setField( PartySubIDType( PartySubIDType_SECURITIES_ACCOUNT_NUMBER ) );
+	// 		// Set Parties AccountID
+	// 		sub_parties.setField( PartySubID( accountID ) );
+	// 		// Add NoPartySubIds group
+	// 		parties_group.addGroup( sub_parties );
+	// 		// Add NoPartyIDs group
+	// 		request.addGroup( parties_group );
+	// 		// Send request
+	// 		Session::sendToTarget( request, getSessID( "order" ) );
+	// 	}
+	// }
 
 	/**
 	 * Record an account id

@@ -40,6 +40,7 @@ std::vector< std::shared_ptr<Instrument> > DataContext::getInstruments() {
 std::shared_ptr<Instrument> DataContext::getInstrument(const std::string& symbol) {
 	// prevent RAII race conditions
 	std::lock_guard<std::mutex> lock( m_mutex );
+
 	auto it = std::find_if( m_instrument_list.begin(), m_instrument_list.end(), [&](std::shared_ptr<Instrument> lh) {
 		return lh->getSymbol() == symbol;
 	});
@@ -263,10 +264,14 @@ void DataContext::closeOrder(const std::string& order_id) {
 		}
 	}
 
-	if ( found ) {
-		// send to exchange
-		m_network_ptr->sendOrder( std::move( order ) );
+	if ( ! found ) {
+		SPDLOG_WARN( "Order not found." );
+		return;
 	}
+
+	SPDLOG_INFO( "Send close request" );
+	// send to exchange
+	m_network_ptr->sendOrder( std::move( order ) );
 }
 
 /**
@@ -322,6 +327,22 @@ void DataContext::queryOrderStatus(const std::string& accountid, const std::stri
 }
 
 /**
+ * Query Position Report for running positions (ExecutionType::POSITION) or closed trades (ExecutionType::TRADE)
+ * 
+ * @param const std::string&         accountid
+ * @param const enums::ExecutionType exec_type 
+ */
+void DataContext::queryPositionReport(const std::string &accountid, const enums::ExecutionType exec_type) {
+	if ( accountid.empty() ) {
+		onError( "queryPositionReport: accountID is empty.");
+		return;
+	}
+
+	// send request
+	m_network_ptr->sendPositionReportRequest( accountid, exec_type );
+}
+
+/**
  * Gets the list of active orders
  *
  * @return std::vector< std::shared_ptr<Order> >
@@ -369,30 +390,6 @@ void DataContext::slotExchangeReady() {
 
 	// emit signal
 	onReady();
-}
-
-/**
- * Slot when exchange is successfully connected
- */
-void DataContext::slotExchangeConnected() {
-	m_is_connected = true;
-
-	SPDLOG_INFO("Exchange connected.");
-
-	// emit signal
-	onConnected();
-}
-
-/**
- * Slot when exchange is successfully disconnected
- */
-void DataContext::slotExchangeDisconnected() {
-	m_is_connected = false;
-
-	SPDLOG_INFO("Exchange disconnected.");
-
-	// emit signal
-	onDisconnected();
 }
 
 /**
@@ -471,6 +468,11 @@ void DataContext::slotExchangeTradingDeskChange(const bool open) {
  * @param const std::string accountid 
  */
 void DataContext::slotExchangeAccountID(const std::string accountid) {
+	if ( accountid.empty() ) {
+		onError( "slotExchangeAccountID: AccountID is empty." );
+		return;
+	}
+
 	// add account to account list
 	auto account = std::make_shared<Account>();
 	account->setAccountID( accountid );
@@ -486,6 +488,11 @@ void DataContext::slotExchangeAccountID(const std::string accountid) {
  * @param const double      balance
  */
 void DataContext::slotExchangeBalanceChanged(const std::string accountid, const double balance) {
+	if ( accountid.empty() ) {
+		onError( "slotExchangeBalanceChanged: AccountID is empty." );
+		return;
+	}
+
 	std::lock_guard<std::mutex> lock( m_mutex );
 
 	auto it = std::find_if( m_account_list.begin(), m_account_list.end(), [&](const std::shared_ptr<Account> lh){
@@ -499,7 +506,8 @@ void DataContext::slotExchangeBalanceChanged(const std::string accountid, const 
 
 	(*it)->setBalance( balance );
 
-	SPDLOG_INFO("Account: {} Balance: {:.2f}", accountid, balance );
+	// Callback
+	onBalanceChange( accountid, balance );
 }
 
 /**
@@ -514,15 +522,53 @@ void DataContext::slotExchangeCollateralSettings(const ExchangeCollateralSetting
 	}
 }
 
-void DataContext::slotExchangePositionReport(const ExchangePositionReport report) {
-	SPDLOG_INFO("PositionReport: \n AccountID: {}\nSymbol: {}\nPositionID: {}\nPosition OpenTime: {}", 
-		report.account_id, report.symbol, report.position_id, report.pos_open_time);
+/**
+ * Slot when exchange signals a position report for an active trade
+ * 
+ * @param std::shared_ptr<Order> order
+ */
+void DataContext::slotExchangePositionReport(std::shared_ptr<Order> order) {
+	SPDLOG_INFO("PositionReport: AccountID {} OrderID {} FXCM_POS_ID {}", order->getAccountID(), order->getOrderID(), order->getCustomField( "FXCM_POS_ID" ) );
+	SPDLOG_INFO( "- Symbol: {}", order->getSymbol());
+	SPDLOG_INFO( "- PnL: {:.2f}", order->getPnL() );
+	SPDLOG_INFO( "- Open Time: {}", order->getOpenTime() );
+	SPDLOG_INFO( "- Quantity: {:.2f}", order->getQuantity() );
+	SPDLOG_INFO( "- Action: {}", order->isBuy() ? "BUY" : "SELL" );
+
+	auto instrument = getInstrument( order->getSymbol() );
+	if ( instrument == nullptr ) {
+		onError( fmt::format("Instrument not found for {}", order->getSymbol() ) ); 
+		return;
+	}
+
+	if ( order->getType() == enums::OrderType::POSITION ) {
+		SPDLOG_INFO( "- Type: POSITION");
+		SPDLOG_INFO( "- EntryPx: {}", instrument->format( order->getEntryPrice() ) );
+	} else if ( order->getType() == enums::OrderType::TRADE ) {
+		SPDLOG_INFO( "- Type: TRADE");
+		SPDLOG_INFO( "- Close Time: {}", order->getCloseTime() );
+		SPDLOG_INFO( "- Commission: {}", order->getCustomField( "FXCM_POS_COMMISSION" ) );
+		SPDLOG_INFO( "- EntryPx: {}", instrument->format( order->getEntryPrice() ) );
+		SPDLOG_INFO( "- ClosePx: {}", instrument->format( order->getStopPrice() ) );
+	} else {
+		SPDLOG_ERROR( "Type not found." );
+	}
 }
 
+/**
+ * Slot when exchange signals a market data reject
+ * 
+ * @param const std::string reason
+ */
 void DataContext::slotExchangeMarketDataReject(const std::string reason) {
 	SPDLOG_INFO("MarketDataRequestReject: {}", reason);
 }
 
+/**
+ * Slot when exchange signals a new tick
+ * 
+ * @param const ExchangeTick tick
+ */
 void DataContext::slotExchangeTick(const ExchangeTick tick) {
 	auto instrument = getInstrument( tick.symbol );
 	if ( instrument == nullptr ) {
@@ -541,9 +587,9 @@ void DataContext::slotExchangeTick(const ExchangeTick tick) {
  * @param std::shared_ptr<Order> order
  */
 void DataContext::slotExchangeOrder(std::shared_ptr<Order> order) {
-	std::lock_guard<std::mutex> lock( m_mutex );
-
 	if ( order->getStatus() == enums::OrderStatus::NEW ) {
+		std::lock_guard<std::mutex> lock( m_mutex );
+
 		// New Order arrived at exchange
 		// try to add this one to the active orders list
 		auto it = std::find_if( m_order_list.begin(), m_order_list.end(), [&](const std::shared_ptr<Order> lh_order) {
@@ -578,7 +624,8 @@ void DataContext::slotExchangeOrder(std::shared_ptr<Order> order) {
 	} else if ( order->getStatus() == enums::OrderStatus::FILLED || order->getStatus() == enums::OrderStatus::PARTIAL_FILLED ) {
 		// Order has been FILLED || PARTIAL FILLED
 		// try to find the order and update
-		
+		std::lock_guard<std::mutex> lock( m_mutex );
+
 		auto it = std::find_if( m_order_list.begin(), m_order_list.end(), [&](const std::shared_ptr<Order> lh_order){
 			return ( lh_order->getOrderID() == order->getOrderID() );
 		});
@@ -630,10 +677,6 @@ void DataContext::connectNetworkSlots() {
 	m_network_ptr->onExchangeLogon.connect( std::bind( &DataContext::slotExchangeLogon, this, std::placeholders::_1 ) );
 	// Logout
 	m_network_ptr->onExchangeLogout.connect( std::bind( &DataContext::slotExchangeLogout, this, std::placeholders::_1 ) );
-	// Connected
-	m_network_ptr->onExchangeConnected.connect( std::bind( &DataContext::slotExchangeConnected, this ) );
-	// Disconnected
-	m_network_ptr->onExchangeDisconnected.connect( std::bind( &DataContext::slotExchangeDisconnected, this ) );
 	// Instrument List
 	m_network_ptr->onExchangeInstrumentList.connect( std::bind( &DataContext::slotExchangeInstrumentList, this, std::placeholders::_1 ) );
 	// Settings

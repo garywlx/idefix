@@ -34,8 +34,6 @@ public:
 	// until the app is running return true
 	bool isRunning();
 
-	void slotExchangeConnected();
-	void slotExchangeDisconnected();
 	void slotExchangeReady();
 	void slotExchangeTick(std::shared_ptr<Instrument> instrument);
 

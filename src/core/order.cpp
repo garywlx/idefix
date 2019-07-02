@@ -1,5 +1,7 @@
 #include "order.h"
 
+#include <utility>
+
 namespace idefix {
 Order::Order() {}
 
@@ -49,7 +51,7 @@ std::string Order::getReferenceID() const {
 }
 
 // Gets the quantity (size) of this order.
-double Order::getQuantity() const {
+int Order::getQuantity() const {
 	return m_quantity;
 }
 
@@ -103,20 +105,36 @@ std::string Order::getStatusMsg() const {
 	return m_status_msg;
 }
 
-// Gets the pips (points) gained/lost
-double Order::getPips() const {
-	return 0;
+// Gets custom value of custom field
+std::string Order::getCustomField(const std::string &key) {
+	return FindInMap( m_custom_fields, key );
 }
 
 // Gets the profit or loss associated with this trade.
 double Order::getPnL() const {
-	return 0;
+	return m_pnl_pips;
 }
 
 // Gets the entry price.
 double Order::getEntryPrice() const {
 	return m_entry_price;
 }
+
+// Gets the open time of a position/trade
+std::string Order::getOpenTime() {
+	return m_open_time;
+}
+
+// Gets the close time of a position/trade
+std::string Order::getCloseTime() {
+	return m_close_time;
+}
+
+// Gets the close order id of a trade
+std::string Order::getCloseOrderID() const {
+	return m_close_order_id;
+}
+
 
 void Order::setType(const enums::OrderType type) {
 	m_order_type = type;
@@ -138,7 +156,7 @@ void Order::setReferenceID(const std::string refid) {
 	m_ref_id = refid;
 }
 
-void Order::setQuantity(const double qty) {
+void Order::setQuantity(const int qty) {
 	m_quantity = qty;
 }
 
@@ -184,6 +202,34 @@ void Order::setEntryPrice(const double price) {
 
 void Order::setStatusMsg(const std::string msg) {
 	m_status_msg = msg;
+}
+
+void Order::setPnL(const double value) {
+	m_pnl_pips = value;
+}
+
+void Order::setOpenTime(const std::string time) {
+	m_open_time = time;
+}
+
+void Order::setCloseTime(const std::string time) {
+	m_close_time = time;
+}
+
+void Order::setCloseOrderID(const std::string orderid) {
+	m_close_order_id = orderid;
+}
+
+
+void Order::setCustomField(const std::string key, const std::string value) {
+	auto it = m_custom_fields.find( key );
+	if ( it != m_custom_fields.end() ) {
+		// update
+		it->second = value;
+	} else {
+		// insert
+		m_custom_fields.emplace( key, value );
+	}
 }
 
 };

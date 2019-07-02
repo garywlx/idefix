@@ -73,6 +73,8 @@ public:
 	void closeOrder(const std::string& order_id);
 	// request order status, leave orderid and symbol empty for status query for all orders on this accountid
 	void queryOrderStatus(const std::string& accountid, const std::string& orderid = "", const std::string& symbol = "");
+	// request position or trade reports
+	void queryPositionReport(const std::string& accountid, const enums::ExecutionType exec_type);
 	// Gets the list of active orders
 	std::vector< std::shared_ptr<Order> > getActiveOrders();
 
@@ -84,6 +86,7 @@ public:
 	nod::signal<void()> onDisconnected;
 	nod::signal<void()> onReady;
 	nod::signal<void(std::shared_ptr<Order> order)> onOrderChange;
+	nod::signal<void(const std::string accountid, const double balance)> onBalanceChange;
 	nod::signal<void(const std::string msg)> onError;
 	nod::signal<void(const std::string msg)> onSuccess;
 	nod::signal<void(const std::string msg)> onWarning;
@@ -94,8 +97,6 @@ public:
 	void slotExchangeInstrumentList(const std::vector<Instrument> instruments);
 	void slotExchangeSettings(const ExchangeSettingsMap settings);
 	void slotExchangeReady();
-	void slotExchangeConnected();
-	void slotExchangeDisconnected();
 	void slotExchangeLogon(const std::string session_name);
 	void slotExchangeLogout(const std::string session_name);
 	void slotExchangeSessionCreated(const std::string session_name);
@@ -105,7 +106,7 @@ public:
 	void slotExchangeAccountID(const std::string accountid);
 	void slotExchangeBalanceChanged(const std::string accountid, const double balance);
 	void slotExchangeCollateralSettings(const ExchangeCollateralSettingsMap map);
-	void slotExchangePositionReport(const ExchangePositionReport report);
+	void slotExchangePositionReport(std::shared_ptr<Order> order);
 	void slotExchangeMarketDataReject(const std::string reason);
 	void slotExchangeTick(const ExchangeTick tick);
 	void slotExchangeOrder(std::shared_ptr<Order> order);
