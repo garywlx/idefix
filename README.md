@@ -47,6 +47,8 @@ In Release mode the console output for debugging goes to a file `release.log` in
 
 ## Run
 
+Before you can run this application you need to add the credentials (username and password) to the `fxcm.conf` file.
+
 You need at least a configuration file `idefix.conf` in the directory where you run it, or specify the location by using -c option.
 
 ```bash
